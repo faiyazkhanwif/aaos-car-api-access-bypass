@@ -1,0 +1,24 @@
+[versions]
+agp = "8.7.2"
+app = "1.4.0"
+guava = "31.1-android"
+hiddenapibypass = "4.3"
+junit = "4.13.2"
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
+appcompat = "1.7.0"
+
+[libraries]
+app = { module = "androidx.car.app:app", version.ref = "app" }
+app-automotive = { module = "androidx.car.app:app-automotive", version.ref = "app" }
+app-projected = { module = "androidx.car.app:app-projected", version.ref = "app" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenapibypass" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+
