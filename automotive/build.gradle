@@ -36,6 +36,8 @@ dependencies {
     androidTestImplementation libs.espresso.core
     implementation libs.app
     implementation libs.app.automotive
+    annotationProcessor libs.auto.value
+    implementation libs.auto.value.annotations
     implementation libs.guava
     implementation libs.hiddenapibypass
 }

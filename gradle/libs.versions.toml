@@ -1,6 +1,7 @@
 [versions]
 agp = "8.7.2"
 app = "1.4.0"
+autoValueAnnotations = "1.10.2"
 guava = "31.1-android"
 hiddenapibypass = "4.3"
 junit = "4.13.2"
@@ -12,6 +13,8 @@ appcompat = "1.7.0"
 app = { module = "androidx.car.app:app", version.ref = "app" }
 app-automotive = { module = "androidx.car.app:app-automotive", version.ref = "app" }
 app-projected = { module = "androidx.car.app:app-projected", version.ref = "app" }
+auto-value = { module = "com.google.auto.value:auto-value", version.ref = "autoValueAnnotations" }
+auto-value-annotations = { module = "com.google.auto.value:auto-value-annotations", version.ref = "autoValueAnnotations" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenapibypass" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
