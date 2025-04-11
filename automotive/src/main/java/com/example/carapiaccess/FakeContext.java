@@ -18,6 +18,7 @@ import androidx.car.app.CarContext;
 import org.lsposed.hiddenapibypass.HiddenApiBypass;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -48,6 +49,7 @@ public class FakeContext extends ContextWrapper {
         // Bypass enforcement
     }
 
+    /* Works
     @Override
     public Object getSystemService(String name) {
         if (CarContext.CAR_SERVICE.equals(name)) {
@@ -62,5 +64,31 @@ public class FakeContext extends ContextWrapper {
         }
         return super.getSystemService(name);
     }
+    */
 
+    // Update getSystemService in FakeContext.java
+    @Override
+    public Object getSystemService(String name) {
+        if (CarContext.CAR_SERVICE.equals(name)) {
+            try {
+                Class<?> carClass = Class.forName("android.car.Car");
+                Method createCar = carClass.getMethod("createCar", Context.class, Handler.class,
+                        long.class, Car.CarServiceLifecycleListener.class);
+
+                // Create fake lifecycle listener
+                Car.CarServiceLifecycleListener fakeListener = new Car.CarServiceLifecycleListener() {
+                    @Override
+                    public void onLifecycleChanged(Car car, boolean ready) {
+                        // Force service to report as always ready
+                        Log.d("FakeListener", "Spoofing service connection");
+                    }
+                };
+
+                return createCar.invoke(null, this, null, 0, fakeListener);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return super.getSystemService(name);
+    }
 }

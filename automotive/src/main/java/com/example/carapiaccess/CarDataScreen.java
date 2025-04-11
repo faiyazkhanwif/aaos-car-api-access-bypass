@@ -2,6 +2,7 @@ package com.example.carapiaccess;
 
 import android.annotation.SuppressLint;
 import android.car.Car;
+import android.car.VehicleAreaType;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarInternalErrorException;
@@ -37,6 +38,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -106,7 +108,6 @@ public class CarDataScreen extends Screen {
     }
 
 
-
     //--------------------------------------Test Block--------------------------------------
 
     //--------------------------------------------------------------------------------------
@@ -159,11 +160,27 @@ public class CarDataScreen extends Screen {
     }
 
     //Data Handling------------------------------------
+    /* Was kinda working
     @OptIn(markerClass = ExperimentalCarApi.class)
     private Map<Integer, List<CarZone>> createGlobalRequest(List<Integer> propertyIds) {
         Map<Integer, List<CarZone>> request = new HashMap<>();
         for (Integer propId : propertyIds) {
             request.put(propId, Collections.singletonList(CarZone.CAR_ZONE_GLOBAL));
+        }
+        return request;
+    }
+    */
+    @OptIn(markerClass = ExperimentalCarApi.class)
+    private Map<Integer, List<CarZone>> createGlobalRequest(List<Integer> propertyIds) {
+        Map<Integer, List<CarZone>> request = new HashMap<>();
+        // Use valid CarZone builder methods
+        CarZone globalZone = new CarZone.Builder()
+                .setRow(CarZone.CAR_ZONE_ROW_ALL)
+                .setColumn(CarZone.CAR_ZONE_COLUMN_ALL)
+                .build();
+
+        for (Integer propId : propertyIds) {
+            request.put(propId, Collections.singletonList(globalZone));
         }
         return request;
     }
