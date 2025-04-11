@@ -22,6 +22,10 @@
         android:required="false"/>
 
     <uses-permission android:name="androidx.car.app.core.permission.BIND_CAR_APP_SERVICE" />
+
+    <!--For Logging-->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
 <!--
     <uses-permission android:name="android.car.permission.CAR_INFO" />
     <uses-permission android:name="android.car.permission.CAR_VENDOR_EXTENSION" />

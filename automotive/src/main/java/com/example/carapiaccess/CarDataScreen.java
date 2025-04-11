@@ -137,6 +137,7 @@ public class CarDataScreen extends Screen {
                     Log.d("CarData", "Discovered property: " + field.getName() + " = " + propId);
                 } catch (Exception e) {
                     Log.e("CarData", "Failed to access field: " + field.getName(), e);
+                    CarDataLogger.logError(getCarContext(), e, "Failed to fetch car properties");
                 }
             }
         }
@@ -276,7 +277,9 @@ public class CarDataScreen extends Screen {
                     return field.getName().replace("VEHICLE_PROPERTY_", "");
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            CarDataLogger.logError(getCarContext(), e, "Property name resolution failed");
+        }
         return "UNKNOWN_PROPERTY_" + propId;
     }
 }
