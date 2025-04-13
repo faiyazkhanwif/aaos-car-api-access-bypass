@@ -13,30 +13,46 @@ import java.util.Date;
 import java.util.Locale;
 
 public class CarDataLogger {
-    private static final String LOG_FILE_NAME = "car_data_errors.log";
+    // In CarDataLogger.java
+    File logDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+
+
     private static final SimpleDateFormat DATE_FORMAT =
             new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
 
     public static synchronized void logError(Context context, Exception e, String message) {
-        try {
-            File logFile = new File(context.getFilesDir(), LOG_FILE_NAME);
-            String timestamp = DATE_FORMAT.format(new Date());
-            String stackTrace = getStackTraceString(e);
+        File logDirectory = context.getExternalFilesDir(null); // Use app's external files directory root
 
-            String logEntry = String.format(
-                    "[%s] ERROR: %s\nException: %s\nStack Trace:\n%s\n\n",
-                    timestamp,
-                    message,
-                    e.toString(),
-                    stackTrace
-            );
+        // Fallback to internal storage if external is not available
+        if (logDirectory == null) {
+            logDirectory = context.getFilesDir();
+            Log.d("CarDataLogger", "Using internal storage: " + logDirectory.getAbsolutePath());
+        } else {
+            Log.d("CarDataLogger", "Using external storage: " + logDirectory.getAbsolutePath());
+        }
 
-            // Append to log file
-            try (FileOutputStream fos = new FileOutputStream(logFile, true)) {
-                fos.write(logEntry.getBytes());
-            }
+        // Ensure directory exists
+        if (!logDirectory.exists() && !logDirectory.mkdirs()) {
+            Log.e("CarDataLogger", "Failed to create log directory");
+            return;
+        }
+
+        File logFile = new File(logDirectory, "car_data_errors.log");
+        String timestamp = DATE_FORMAT.format(new Date());
+        String stackTrace = getStackTraceString(e);
+        String logEntry = String.format(
+                "[%s] ERROR: %s\nException: %s\nStack Trace:\n%s\n\n",
+                timestamp,
+                message,
+                e.toString(),
+                stackTrace
+        );
+
+        try (FileOutputStream fos = new FileOutputStream(logFile, true)) {
+            fos.write(logEntry.getBytes());
+            Log.d("CarDataLogger", "Log entry written to: " + logFile.getAbsolutePath());
         } catch (IOException ioException) {
-            Log.e("CarDataLogger", "Failed to write to log file", ioException);
+            Log.e("CarDataLogger", "Failed to write to log file: " + logFile, ioException);
         }
     }
 

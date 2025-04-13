@@ -104,6 +104,7 @@ public class CarDataScreen extends Screen {
         } catch (Exception e) {
             updateDynamicRow("STATUS", "Error: " + e.getClass().getSimpleName());
             Log.e("CarData", "Reflection failed", e);
+            CarDataLogger.logError(getCarContext(), e, "Reflection failed in fetchAllCarProperties");
         }
     }
 
