@@ -1,61 +1,97 @@
 package com.example.carapiaccess;
 
 import android.annotation.SuppressLint;
-import android.car.Car;
-import android.car.VehicleAreaType;
-import android.car.hardware.CarPropertyConfig;
-import android.car.hardware.CarPropertyValue;
-import android.car.hardware.property.CarInternalErrorException;
-import android.car.hardware.property.CarPropertyManager;
-import android.content.Context;
-import android.os.Handler;
-import android.os.Looper;
-import android.util.ArraySet;
 import android.util.Log;
 import android.util.SparseArray;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
 import androidx.car.app.CarContext;
 import androidx.car.app.Screen;
 import androidx.car.app.annotations.ExperimentalCarApi;
+
 import androidx.car.app.hardware.CarHardwareManager;
-import androidx.car.app.hardware.common.CarPropertyResponse;
+import androidx.car.app.hardware.AutomotiveCarHardwareManager;
 import androidx.car.app.hardware.common.CarValue;
 import androidx.car.app.hardware.common.CarZone;
-import androidx.car.app.hardware.common.OnCarPropertyResponseListener;
+import androidx.car.app.hardware.common.CarPropertyResponse;
 import androidx.car.app.hardware.common.PropertyManager;
+import androidx.car.app.hardware.common.CarUnit;
+import androidx.car.app.hardware.common.CarZoneAreaIdConstants;
+import androidx.car.app.hardware.common.CarZoneUtils;
+import androidx.car.app.hardware.common.GlobalCarZoneAreaIdConverter;
+import androidx.car.app.hardware.common.SeatCarZoneAreaIdConverter;
+import androidx.car.app.hardware.common.CarPropertyProfile;
+import androidx.car.app.hardware.common.CarValueUtils;
+import androidx.car.app.hardware.common.GetPropertyRequest;
+import androidx.car.app.hardware.common.PropertyIdAreaId;
+import androidx.car.app.hardware.common.PropertyUtils;
+import androidx.car.app.hardware.common.OnCarPropertyResponseListener;
+import androidx.car.app.hardware.common.OnCarDataAvailableListener;
+import androidx.car.app.hardware.common.CarSetOperationStatusCallback;
+import androidx.car.app.hardware.common.CarZoneAreaIdConverter;
+
+import androidx.car.app.hardware.climate.AutomotiveCarClimate;
+import androidx.car.app.hardware.climate.CabinTemperatureProfile;
+import androidx.car.app.hardware.climate.CarClimate;
+import androidx.car.app.hardware.climate.CarClimateFeature;
+import androidx.car.app.hardware.climate.CarClimateProfileCallback;
+import androidx.car.app.hardware.climate.CarClimateStateCallback;
+import androidx.car.app.hardware.climate.CarZoneMappingInfoProfile;
+import androidx.car.app.hardware.climate.ClimateProfileRequest;
+import androidx.car.app.hardware.climate.ClimateStateRequest;
+import androidx.car.app.hardware.climate.DefrosterProfile;
+import androidx.car.app.hardware.climate.ElectricDefrosterProfile;
+import androidx.car.app.hardware.climate.FanDirectionProfile;
+import androidx.car.app.hardware.climate.FanSpeedLevelProfile;
+import androidx.car.app.hardware.climate.HvacAcProfile;
+import androidx.car.app.hardware.climate.HvacAutoModeProfile;
+import androidx.car.app.hardware.climate.HvacAutoRecirculationProfile;
+import androidx.car.app.hardware.climate.HvacDualModeProfile;
+import androidx.car.app.hardware.climate.HvacMaxAcModeProfile;
+import androidx.car.app.hardware.climate.HvacPowerProfile;
+import androidx.car.app.hardware.climate.HvacRecirculationProfile;
+import androidx.car.app.hardware.climate.MaxDefrosterProfile;
+import androidx.car.app.hardware.climate.RegisterClimateStateRequest;
+import androidx.car.app.hardware.climate.SeatTemperatureProfile;
+import androidx.car.app.hardware.climate.SeatVentilationProfile;
+import androidx.car.app.hardware.climate.SteeringWheelHeatProfile;
+
+import androidx.car.app.hardware.info.Accelerometer;
 import androidx.car.app.hardware.info.AutomotiveCarInfo;
+import androidx.car.app.hardware.info.AutomotiveCarSensors;
+import androidx.car.app.hardware.info.CarHardwareLocation;
+import androidx.car.app.hardware.info.CarInfo;
+import androidx.car.app.hardware.info.CarSensors;
+import androidx.car.app.hardware.info.Compass;
+import androidx.car.app.hardware.info.EnergyLevel;
+import androidx.car.app.hardware.info.EnergyProfile;
+import androidx.car.app.hardware.info.EvStatus;
+import androidx.car.app.hardware.info.Gyroscope;
+import androidx.car.app.hardware.info.Mileage;
+import androidx.car.app.hardware.info.Model;
+import androidx.car.app.hardware.info.Speed;
+import androidx.car.app.hardware.info.TollCard;
+
 import androidx.car.app.model.Action;
 import androidx.car.app.model.Pane;
 import androidx.car.app.model.PaneTemplate;
 import androidx.car.app.model.Row;
 import androidx.car.app.model.Template;
 
-import org.lsposed.hiddenapibypass.HiddenApiBypass;
-
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.Proxy;
+import java.lang.reflect.Method;
+import java.lang.annotation.Annotation;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.lang.Class;
-
-
-// Not needed for now
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-import java.util.Set;
-import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 
 public class CarDataScreen extends Screen {
+    private static final String TAG = "CarDataScreen";
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Map<String, Integer> rowIndexMap = new HashMap<>();
     private final List<Row> rows = new ArrayList<>();
@@ -74,13 +110,17 @@ public class CarDataScreen extends Screen {
     @Override
     public Template onGetTemplate() {
         fetchAllCarProperties();
+        dumpCarAppHardwareHierarchy();
         return buildDynamicTemplate();
     }
 
+    // function to fetch vehicle properties - previous reflection
     @OptIn(markerClass = ExperimentalCarApi.class)
     @SuppressLint({"PrivateApi", "RestrictedApi"})
     private void fetchAllCarProperties() {
         try {
+            //Dump androidx.car.app.hardware
+
             CarHardwareManager hardwareManager = getCarContext().getCarService(CarHardwareManager.class);
             PropertyManager propertyManager = getPropertyManager(hardwareManager);
 
@@ -88,7 +128,18 @@ public class CarDataScreen extends Screen {
                 updateDynamicRow("STATUS", "Failed to access PropertyManager");
                 return;
             }
+
+            // Dump methods/fields of PropertyManager class
+            Class<?> pmClass = propertyManager.getClass();
+            Log.d(TAG, "\n--- Inspecting class: " + pmClass.getName() + " ---");
+            dumpClassDetails(pmClass);
+
             List<Integer> allProperties = getAllVehiclePropertyIds();
+            if (allProperties.isEmpty()) {
+                updateDynamicRow("STATUS", "No vehicle properties found");
+                return;
+            }
+
             Map<Integer, List<CarZone>> request = createGlobalRequest(allProperties);
             propertyManager.submitRegisterListenerRequest(
                     request,
@@ -103,79 +154,288 @@ public class CarDataScreen extends Screen {
             );
         } catch (Exception e) {
             updateDynamicRow("STATUS", "Error: " + e.getClass().getSimpleName());
-            Log.e("CarData", "Reflection failed", e);
+            Log.e(TAG, "Reflection failed", e);
             CarDataLogger.logError(getCarContext(), e, "Reflection failed in fetchAllCarProperties");
         }
     }
 
+    // new function for dump
+    private void dumpCarAppHardwareHierarchy() {
+        String basePkg = "androidx.car.app.hardware";
+        Log.d(TAG, "\n=== Accessing package: " + basePkg + " ===");
 
-    //--------------------------------------Test Block--------------------------------------
+        // Known subpackages
+        String[] subPackages = {
+                "common",
+                "climate",
+                "info"
+        };
 
-    //--------------------------------------------------------------------------------------
+        for (String sub : subPackages) {
+            String pkg = basePkg + "." + sub;
+            Log.d(TAG, "\n--- Subpackage: " + pkg + " ---");
 
+            // List of classes manually derived from imports
+            String[] classNames;
+            switch (sub) {
+                case "common":
+                    classNames = new String[]{
+                            "androidx.car.app.hardware.common.CarValue",
+                            "androidx.car.app.hardware.common.CarZone",
+                            "androidx.car.app.hardware.common.CarPropertyResponse",
+                            "androidx.car.app.hardware.common.PropertyManager",
+                            "androidx.car.app.hardware.common.CarUnit",
+                            "androidx.car.app.hardware.common.CarZoneAreaIdConstants",
+                            "androidx.car.app.hardware.common.CarZoneUtils",
+                            "androidx.car.app.hardware.common.GlobalCarZoneAreaIdConverter",
+                            "androidx.car.app.hardware.common.SeatCarZoneAreaIdConverter",
+                            "androidx.car.app.hardware.common.CarPropertyProfile",
+                            "androidx.car.app.hardware.common.CarValueUtils",
+                            "androidx.car.app.hardware.common.GetPropertyRequest",
+                            "androidx.car.app.hardware.common.PropertyIdAreaId",
+                            "androidx.car.app.hardware.common.PropertyUtils",
+                            "androidx.car.app.hardware.common.OnCarPropertyResponseListener",
+                            "androidx.car.app.hardware.common.OnCarDataAvailableListener",
+                            "androidx.car.app.hardware.common.CarSetOperationStatusCallback",
+                            "androidx.car.app.hardware.common.CarZoneAreaIdConverter"
+                    };
+                    break;
+                case "climate":
+                    classNames = new String[]{
+                            "androidx.car.app.hardware.climate.AutomotiveCarClimate",
+                            "androidx.car.app.hardware.climate.CabinTemperatureProfile",
+                            "androidx.car.app.hardware.climate.CarClimate",
+                            "androidx.car.app.hardware.climate.CarClimateFeature",
+                            "androidx.car.app.hardware.climate.CarClimateProfileCallback",
+                            "androidx.car.app.hardware.climate.CarClimateStateCallback",
+                            "androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
+                            "androidx.car.app.hardware.climate.ClimateProfileRequest",
+                            "androidx.car.app.hardware.climate.ClimateStateRequest",
+                            "androidx.car.app.hardware.climate.DefrosterProfile",
+                            "androidx.car.app.hardware.climate.ElectricDefrosterProfile",
+                            "androidx.car.app.hardware.climate.FanDirectionProfile",
+                            "androidx.car.app.hardware.climate.FanSpeedLevelProfile",
+                            "androidx.car.app.hardware.climate.HvacAcProfile",
+                            "androidx.car.app.hardware.climate.HvacAutoModeProfile",
+                            "androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
+                            "androidx.car.app.hardware.climate.HvacDualModeProfile",
+                            "androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
+                            "androidx.car.app.hardware.climate.HvacPowerProfile",
+                            "androidx.car.app.hardware.climate.HvacRecirculationProfile",
+                            "androidx.car.app.hardware.climate.MaxDefrosterProfile",
+                            "androidx.car.app.hardware.climate.RegisterClimateStateRequest",
+                            "androidx.car.app.hardware.climate.SeatTemperatureProfile",
+                            "androidx.car.app.hardware.climate.SeatVentilationProfile",
+                            "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
+                    };
+                    break;
+                case "info":
+                    classNames = new String[]{
+                            "androidx.car.app.hardware.info.Accelerometer",
+                            "androidx.car.app.hardware.info.AutomotiveCarInfo",
+                            "androidx.car.app.hardware.info.AutomotiveCarSensors",
+                            "androidx.car.app.hardware.info.CarHardwareLocation",
+                            "androidx.car.app.hardware.info.CarInfo",
+                            "androidx.car.app.hardware.info.CarSensors",
+                            "androidx.car.app.hardware.info.Compass",
+                            "androidx.car.app.hardware.info.EnergyLevel",
+                            "androidx.car.app.hardware.info.EnergyProfile",
+                            "androidx.car.app.hardware.info.EvStatus",
+                            "androidx.car.app.hardware.info.Gyroscope",
+                            "androidx.car.app.hardware.info.Mileage",
+                            "androidx.car.app.hardware.info.Model",
+                            "androidx.car.app.hardware.info.Speed",
+                            "androidx.car.app.hardware.info.TollCard"
+                    };
+                    break;
+                default:
+                    classNames = new String[0];
+            }
+
+            // Log discovered classes
+            Log.d(TAG, "Classes in " + pkg + ":");
+            for (String fqcn : classNames) {
+                Log.d(TAG, "  - " + fqcn);
+            }
+
+            // Inspect each class in detail
+            for (String fqcn : classNames) {
+                Class<?> cls = ReflectUtil.safeForName(fqcn);
+                if (cls == null) {
+                    Log.w(TAG, "Could not load class: " + fqcn);
+                    continue;
+                }
+                Log.d(TAG, "\n>>> Inspecting class: " + fqcn + " <<<");
+                dumpClassDetails(cls);
+            }
+        }
+    }
+
+    /**
+     * Logs fields (with static values), methods, and annotations for a given class.
+     */
+    private void dumpClassDetails(Class<?> cls) {
+        // 1) Annotations on the class
+        Annotation[] classAnnos = cls.getAnnotations();
+        if (classAnnos.length > 0) {
+            Log.d(TAG, "Class Annotations:");
+            for (Annotation a : classAnnos) {
+                Log.d(TAG, "  @" + a.annotationType().getSimpleName());
+            }
+        } else {
+            Log.d(TAG, "No class-level annotations.");
+        }
+
+        // 2) Fields
+        Field[] fields = cls.getDeclaredFields();
+        if (fields.length > 0) {
+            Log.d(TAG, " Fields:");
+            for (Field f : fields) {
+                f.setAccessible(true);
+                StringBuilder sb = new StringBuilder();
+                sb.append("  - ").append(f.getType().getSimpleName()).append(" ").append(f.getName());
+                // Annotations on the field
+                Annotation[] fieldAnnos = f.getAnnotations();
+                if (fieldAnnos.length > 0) {
+                    sb.append(" annotations=[");
+                    for (int i = 0; i < fieldAnnos.length; i++) {
+                        sb.append(fieldAnnos[i].annotationType().getSimpleName());
+                        if (i < fieldAnnos.length - 1) sb.append(", ");
+                    }
+                    sb.append("]");
+                }
+                // If static, attempt to read its value
+                if ((f.getModifiers() & java.lang.reflect.Modifier.STATIC) != 0) {
+                    Object val = null;
+                    try {
+                        val = f.get(null);
+                    } catch (Exception ignored) { }
+                    sb.append(" value=").append(val);
+                }
+                Log.d(TAG, sb.toString());
+            }
+        } else {
+            Log.d(TAG, " No declared fields.");
+        }
+
+        // 3) Methods
+        Method[] methods = cls.getDeclaredMethods();
+        if (methods.length > 0) {
+            Log.d(TAG, " Methods:");
+            for (Method m : methods) {
+                m.setAccessible(true);
+                StringBuilder sig = new StringBuilder();
+                sig.append("  - ").append(m.getReturnType().getSimpleName())
+                        .append(" ").append(m.getName()).append("(");
+                Class<?>[] params = m.getParameterTypes();
+                for (int i = 0; i < params.length; i++) {
+                    sig.append(params[i].getSimpleName());
+                    if (i < params.length - 1) sig.append(", ");
+                }
+                sig.append(")");
+                // Annotations on the method
+                Annotation[] methodAnnos = m.getAnnotations();
+                if (methodAnnos.length > 0) {
+                    sig.append(" annotations=[");
+                    for (int i = 0; i < methodAnnos.length; i++) {
+                        sig.append(methodAnnos[i].annotationType().getSimpleName());
+                        if (i < methodAnnos.length - 1) sig.append(", ");
+                    }
+                    sig.append("]");
+                }
+                Log.d(TAG, sig.toString());
+            }
+        } else {
+            Log.d(TAG, " No declared methods.");
+        }
+    }
 
     @SuppressLint("RestrictedApi")
     private PropertyManager getPropertyManager(CarHardwareManager hardwareManager) throws Exception {
-        AutomotiveCarInfo carInfo = (AutomotiveCarInfo) hardwareManager.getCarInfo();
-        Field pmField = AutomotiveCarInfo.class.getDeclaredField("mPropertyManager");
-        pmField.setAccessible(true);
-        return (PropertyManager) pmField.get(carInfo);
+        Object rawCarInfo = hardwareManager.getCarInfo();
+        if (!(rawCarInfo instanceof AutomotiveCarInfo)) {
+            Log.e(TAG, "CarInfo returned is not AutomotiveCarInfo; got: " +
+                    (rawCarInfo == null ? "null" : rawCarInfo.getClass().getName()));
+            return null;
+        }
+        AutomotiveCarInfo carInfo = (AutomotiveCarInfo) rawCarInfo;
+
+        // Fetch the private instance field "mPropertyManager"
+        Field pmField = ReflectUtil.safeGetField(AutomotiveCarInfo.class, "mPropertyManager");
+        if (pmField == null) {
+            Log.e(TAG, "Field 'mPropertyManager' not found in AutomotiveCarInfo");
+            return null;
+        }
+
+        Object fieldValue = ReflectUtil.safeGetInstanceObject(pmField, carInfo);
+        if (!(fieldValue instanceof PropertyManager)) {
+            Log.e(TAG, "mPropertyManager is not a PropertyManager; class=" +
+                    (fieldValue == null ? "null" : fieldValue.getClass().getName()));
+            return null;
+        }
+        return (PropertyManager) fieldValue;
     }
 
     private List<Integer> getAllVehiclePropertyIds() throws Exception {
         List<Integer> propertyIds = new ArrayList<>();
-        Class<?> cls = Class.forName("android.car.VehiclePropertyIds");
 
-        // Get all property IDs
-        for (Field field : cls.getDeclaredFields()) {
-            if (field.getType() == int.class) {
-                //int propId = field.getInt(null);
-                //propertyIds.add(propId);
-                //New
-                try {
-                    int propId = field.getInt(null);
-                    propertyIds.add(propId);
-                    Log.d("CarData", "Discovered property: " + field.getName() + " = " + propId);
-                } catch (Exception e) {
-                    Log.e("CarData", "Failed to access field: " + field.getName(), e);
-                    CarDataLogger.logError(getCarContext(), e, "Failed to fetch car properties");
-                }
+        // Load VehiclePropertyIds class
+        Class<?> vehicleIdsClass = ReflectUtil.safeForName("android.car.VehiclePropertyIds");
+        if (vehicleIdsClass == null) {
+            Log.e(TAG, "Could not find android.car.VehiclePropertyIds");
+            throw new ClassNotFoundException("android.car.VehiclePropertyIds");
+        }
+
+        // Dump fields/methods of VehiclePropertyIds
+        dumpClassDetails(vehicleIdsClass);
+
+        // Enumerate all int constants
+        for (Field field : vehicleIdsClass.getDeclaredFields()) {
+            if (field.getType() != int.class) continue;
+            int propId = ReflectUtil.safeGetStaticInt(field, -1);
+            if (propId != -1) {
+                propertyIds.add(propId);
+                Log.d(TAG, "Discovered property: " + field.getName() + " = " + propId);
             }
         }
 
-        // Patch permission map
-        Class<?> utilsClass = Class.forName("androidx.car.app.hardware.common.PropertyUtils");
-        Field permField = utilsClass.getDeclaredField("PERMISSION_READ_PROPERTY");
-        permField.setAccessible(true);
-        SparseArray<String> permMap = (SparseArray<String>) permField.get(null);
+        // Patch PropertyUtils.PERMISSION_READ_PROPERTY
+        Class<?> utilsClass = ReflectUtil.safeForName("androidx.car.app.hardware.common.PropertyUtils");
+        if (utilsClass == null) {
+            Log.e(TAG, "Could not find PropertyUtils");
+            throw new ClassNotFoundException("androidx.car.app.hardware.common.PropertyUtils");
+        }
 
-        // Add dummy permission for missing properties
+        // Dump fields/methods of PropertyUtils
+        dumpClassDetails(utilsClass);
+
+        Field permField = ReflectUtil.safeGetField(utilsClass, "PERMISSION_READ_PROPERTY");
+        if (permField == null) {
+            Log.e(TAG, "Field 'PERMISSION_READ_PROPERTY' not found");
+            throw new NoSuchFieldException("PERMISSION_READ_PROPERTY");
+        }
+
+        @SuppressWarnings("unchecked")
+        SparseArray<String> permMap = (SparseArray<String>) ReflectUtil.safeGetStaticObject(permField);
+        if (permMap == null) {
+            Log.e(TAG, "PropertyUtils.PERMISSION_READ_PROPERTY was null");
+            throw new IllegalStateException("PERMISSION_READ_PROPERTY is null");
+        }
+
         String dummyPermission = "android.car.permission.CAR_VENDOR_EXTENSION";
         for (int propId : propertyIds) {
             if (permMap.get(propId) == null) {
                 permMap.put(propId, dummyPermission);
-                Log.d("CarData", "Patched permission for property: " + propId);
+                Log.d(TAG, "Patched permission for property: " + propId);
             }
         }
 
         return propertyIds;
     }
 
-    //Data Handling------------------------------------
-    /* Was kinda working
     @OptIn(markerClass = ExperimentalCarApi.class)
     private Map<Integer, List<CarZone>> createGlobalRequest(List<Integer> propertyIds) {
         Map<Integer, List<CarZone>> request = new HashMap<>();
-        for (Integer propId : propertyIds) {
-            request.put(propId, Collections.singletonList(CarZone.CAR_ZONE_GLOBAL));
-        }
-        return request;
-    }
-    */
-    @OptIn(markerClass = ExperimentalCarApi.class)
-    private Map<Integer, List<CarZone>> createGlobalRequest(List<Integer> propertyIds) {
-        Map<Integer, List<CarZone>> request = new HashMap<>();
-        // Use valid CarZone builder methods
         CarZone globalZone = new CarZone.Builder()
                 .setRow(CarZone.CAR_ZONE_ROW_ALL)
                 .setColumn(CarZone.CAR_ZONE_COLUMN_ALL)
@@ -187,49 +447,30 @@ public class CarDataScreen extends Screen {
         return request;
     }
 
-    /* Working - but other one better
-    @SuppressLint("RestrictedApi")
-    private void handlePropertyResponses(@SuppressLint("RestrictedApi") List<CarPropertyResponse<?>> responses) {
-        for (CarPropertyResponse<?> response : responses) {
-            if (response.getStatus() != CarValue.STATUS_SUCCESS) continue;
-
-            String propName = getPropertyName(response.getPropertyId());
-            String value = String.valueOf(response.getValue());
-            String key = "PROP_" + response.getPropertyId();
-
-            updateDynamicRow(key, String.format("%s: %s", propName, value));
-        }
-    }
-    */
-
     @SuppressLint({"RestrictedApi", "DefaultLocale"})
     private void handlePropertyResponses(@SuppressLint("RestrictedApi") List<CarPropertyResponse<?>> responses) {
         Map<Integer, Boolean> successMap = new HashMap<>();
 
         for (CarPropertyResponse<?> response : responses) {
-            @SuppressLint("RestrictedApi") int propId = response.getPropertyId();
-            @SuppressLint("RestrictedApi") boolean success = response.getStatus() == CarValue.STATUS_SUCCESS;
+            int propId = response.getPropertyId();
+            boolean success = response.getStatus() == CarValue.STATUS_SUCCESS;
             successMap.put(propId, success);
 
             if (success) {
-                // Update UI with successful property
-                updateDynamicRow("PROP_" + propId,
-                        String.format("%s: %s",
-                                getPropertyName(propId),
-                                response.getValue()));
+                updateDynamicRow(
+                        "PROP_" + propId,
+                        String.format("%s: %s", getPropertyName(propId), response.getValue())
+                );
             }
         }
 
-        // Update status with successful count
         long successCount = successMap.values().stream().filter(b -> b).count();
-        updateDynamicRow("STATUS",
-                String.format("Success: %d/%d properties",
-                        successCount,
-                        successMap.size()));
+        updateDynamicRow(
+                "STATUS",
+                String.format("Success: %d/%d properties", successCount, successMap.size())
+        );
     }
 
-
-    // UI Management -----------------------
     private void addDynamicRow(String key, String text) {
         handler.post(() -> {
             synchronized (rows) {
@@ -269,17 +510,16 @@ public class CarDataScreen extends Screen {
                 .build();
     }
 
-    // Property Name Resolution
     private String getPropertyName(int propId) {
-        try {
-            Class<?> cls = Class.forName("android.car.VehiclePropertyIds");
-            for (Field field : cls.getDeclaredFields()) {
-                if (field.getInt(null) == propId) {
-                    return field.getName().replace("VEHICLE_PROPERTY_", "");
-                }
+        Class<?> cls = ReflectUtil.safeForName("android.car.VehiclePropertyIds");
+        if (cls == null) return "UNKNOWN_PROPERTY_" + propId;
+
+        for (Field field : cls.getDeclaredFields()) {
+            if (field.getType() != int.class) continue;
+            int value = ReflectUtil.safeGetStaticInt(field, -1);
+            if (value == propId) {
+                return field.getName().replace("VEHICLE_PROPERTY_", "");
             }
-        } catch (Exception e) {
-            CarDataLogger.logError(getCarContext(), e, "Property name resolution failed");
         }
         return "UNKNOWN_PROPERTY_" + propId;
     }
