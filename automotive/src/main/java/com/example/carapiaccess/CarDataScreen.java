@@ -84,6 +84,7 @@ import androidx.car.app.model.Template;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -96,20 +97,25 @@ public class CarDataScreen extends Screen {
     private final Map<String, Integer> rowIndexMap = new HashMap<>();
     private final List<Row> rows = new ArrayList<>();
 
+    // Hold real instances so we can call their methods
+    private final Map<Class<?>,Object> instanceMap = new HashMap<>();
+
+
     public CarDataScreen(@NonNull CarContext carContext) {
         super(carContext);
         initializeDefaultRows();
     }
 
     private void initializeDefaultRows() {
-        addDynamicRow("STATUS", "Initializing car data...");
-        addDynamicRow("PROGRESS", "Discovering properties...");
+        addDynamicRow("STATUS","Init...");
+        addDynamicRow("PROGRESS","Discovering...");
     }
 
     @NonNull
     @Override
     public Template onGetTemplate() {
         fetchAllCarProperties();
+        //registerRealInstances();
         dumpCarAppHardwareHierarchy();
         return buildDynamicTemplate();
     }
@@ -159,7 +165,9 @@ public class CarDataScreen extends Screen {
         }
     }
 
-    // new function for dump
+
+    /*
+    // old function for dump - working
     private void dumpCarAppHardwareHierarchy() {
         String basePkg = "androidx.car.app.hardware";
         Log.d(TAG, "\n=== Accessing package: " + basePkg + " ===");
@@ -173,6 +181,9 @@ public class CarDataScreen extends Screen {
 
         for (String sub : subPackages) {
             String pkg = basePkg + "." + sub;
+            Log.d(TAG, "====================================================================");
+            Log.d(TAG, "====================================================================");
+            Log.d(TAG, "====================================================================");
             Log.d(TAG, "\n--- Subpackage: " + pkg + " ---");
 
             // List of classes manually derived from imports
@@ -267,9 +278,11 @@ public class CarDataScreen extends Screen {
                 }
                 Log.d(TAG, "\n>>> Inspecting class: " + fqcn + " <<<");
                 dumpClassDetails(cls);
+                executeClassMembers(cls);
             }
         }
     }
+    */
 
     /**
      * Logs fields (with static values), methods, and annotations for a given class.
@@ -523,4 +536,521 @@ public class CarDataScreen extends Screen {
         }
         return "UNKNOWN_PROPERTY_" + propId;
     }
+
+/*
+    //Dynamic Reflection Test
+    private void executeClassMembers(Class<?> cls) {
+        Log.d(TAG, "\n>>> Executing members of " + cls.getName() + " <<<");
+
+        // 1) Fields
+        for (Field f : cls.getDeclaredFields()) {
+            f.setAccessible(true);
+            boolean isStatic = Modifier.isStatic(f.getModifiers());
+            String target = isStatic ? "[static]" : "[instance]";
+            Object receiver = null;
+            if (!isStatic) {
+                // attempt to create instance
+                receiver = ReflectUtil.getDefaultValue(cls);
+                if (receiver == null) {
+                    Log.w(TAG, "SKIP: cannot instantiate " + cls.getSimpleName() + " for field " + f.getName());
+                    continue;
+                }
+            }
+            try {
+                Object val = f.get(receiver);
+                Log.d(TAG, "FIELD PASS: " + target + " " + f.getName() + " => " + val);
+            } catch (Exception e) {
+                Log.w(TAG, "FIELD FAIL: " + target + " " + f.getName() +
+                        " threw " + e.getClass().getSimpleName());
+            }
+        }
+
+        // 2) Methods
+        for (Method m : cls.getDeclaredMethods()) {
+            m.setAccessible(true);
+            boolean isStatic = Modifier.isStatic(m.getModifiers());
+            Object receiver = isStatic ? null : ReflectUtil.getDefaultValue(cls);
+            if (!isStatic && receiver == null) {
+                Log.w(TAG, "SKIP: no instance for method " + m.getName());
+                continue;
+            }
+            // build default args
+            Class<?>[] pTypes = m.getParameterTypes();
+            Object[] args = new Object[pTypes.length];
+            for (int i = 0; i < pTypes.length; i++) {
+                args[i] = ReflectUtil.getDefaultValue(pTypes[i]);
+            }
+            ReflectUtil.invokeMethod(m, receiver, args);
+        }
+    }
+*/
+
+    // NEW: returns the list of class FQCNs for each sub-package
+    private String[] getClassListFor(String sub) {
+        switch (sub) {
+            case "common":
+                return new String[]{
+                        "androidx.car.app.hardware.common.CarValue",
+                        "androidx.car.app.hardware.common.CarZone",
+                        "androidx.car.app.hardware.common.CarPropertyResponse",
+                        "androidx.car.app.hardware.common.PropertyManager",
+                        "androidx.car.app.hardware.common.CarUnit",
+                        "androidx.car.app.hardware.common.CarZoneAreaIdConstants",
+                        "androidx.car.app.hardware.common.CarZoneUtils",
+                        "androidx.car.app.hardware.common.GlobalCarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.SeatCarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.CarPropertyProfile",
+                        "androidx.car.app.hardware.common.CarValueUtils",
+                        "androidx.car.app.hardware.common.GetPropertyRequest",
+                        "androidx.car.app.hardware.common.PropertyIdAreaId",
+                        "androidx.car.app.hardware.common.PropertyUtils",
+                        "androidx.car.app.hardware.common.OnCarPropertyResponseListener",
+                        "androidx.car.app.hardware.common.OnCarDataAvailableListener",
+                        "androidx.car.app.hardware.common.CarSetOperationStatusCallback",
+                        "androidx.car.app.hardware.common.CarZoneAreaIdConverter"
+                };
+            case "climate":
+                return new String[]{
+                        "androidx.car.app.hardware.climate.AutomotiveCarClimate",
+                        "androidx.car.app.hardware.climate.CabinTemperatureProfile",
+                        "androidx.car.app.hardware.climate.CarClimate",
+                        "androidx.car.app.hardware.climate.CarClimateFeature",
+                        "androidx.car.app.hardware.climate.CarClimateProfileCallback",
+                        "androidx.car.app.hardware.climate.CarClimateStateCallback",
+                        "androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
+                        "androidx.car.app.hardware.climate.ClimateProfileRequest",
+                        "androidx.car.app.hardware.climate.ClimateStateRequest",
+                        "androidx.car.app.hardware.climate.DefrosterProfile",
+                        "androidx.car.app.hardware.climate.ElectricDefrosterProfile",
+                        "androidx.car.app.hardware.climate.FanDirectionProfile",
+                        "androidx.car.app.hardware.climate.FanSpeedLevelProfile",
+                        "androidx.car.app.hardware.climate.HvacAcProfile",
+                        "androidx.car.app.hardware.climate.HvacAutoModeProfile",
+                        "androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
+                        "androidx.car.app.hardware.climate.HvacDualModeProfile",
+                        "androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
+                        "androidx.car.app.hardware.climate.HvacPowerProfile",
+                        "androidx.car.app.hardware.climate.HvacRecirculationProfile",
+                        "androidx.car.app.hardware.climate.MaxDefrosterProfile",
+                        "androidx.car.app.hardware.climate.RegisterClimateStateRequest",
+                        "androidx.car.app.hardware.climate.SeatTemperatureProfile",
+                        "androidx.car.app.hardware.climate.SeatVentilationProfile",
+                        "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
+                };
+            case "info":
+                return new String[]{
+                        "androidx.car.app.hardware.info.Accelerometer",
+                        "androidx.car.app.hardware.info.AutomotiveCarInfo",
+                        "androidx.car.app.hardware.info.AutomotiveCarSensors",
+                        "androidx.car.app.hardware.info.CarHardwareLocation",
+                        "androidx.car.app.hardware.info.CarInfo",
+                        "androidx.car.app.hardware.info.CarSensors",
+                        "androidx.car.app.hardware.info.Compass",
+                        "androidx.car.app.hardware.info.EnergyLevel",
+                        "androidx.car.app.hardware.info.EnergyProfile",
+                        "androidx.car.app.hardware.info.EvStatus",
+                        "androidx.car.app.hardware.info.Gyroscope",
+                        "androidx.car.app.hardware.info.Mileage",
+                        "androidx.car.app.hardware.info.Model",
+                        "androidx.car.app.hardware.info.Speed",
+                        "androidx.car.app.hardware.info.TollCard"
+                };
+            default:
+                return new String[0];
+        }
+    }
+
+    private void dumpCarAppHardwareHierarchy() {
+        String[] subs = {"common", "climate", "info"};
+        for (String sub : subs) {
+            String pkg = "androidx.car.app.hardware." + sub;
+            Log.d(TAG, "====================================================================");
+            Log.d(TAG, "====================================================================");
+            Log.d(TAG, "====================================================================");
+            Log.d(TAG, "\n--- Subpackage: " + pkg + " ---");
+
+            String[] classNames = getClassListFor(sub);
+            for (String fqcn : classNames) {
+                Class<?> cls = ReflectUtil.safeForName(fqcn);
+                if (cls == null) {
+                    Log.w(TAG, "Could not load class: " + fqcn);
+                    continue;
+                }
+                Log.d(TAG, "\n>>> Inspecting class: " + fqcn + " <<<");
+                dumpClassDetails(cls);
+
+                // FIRST: invoke on a dummy (empty) instance/args
+                executeClassMembers(cls, "DUMMY ");
+
+                // THEN: invoke on the real instance, if we have one
+                //executeClassMembers(cls, "REAL  ");
+            }
+        }
+    }
+
+    private void registerRealInstances() {
+        try {
+            // CarHardwareManager
+            CarHardwareManager hwMgr = getCarContext()
+                    .getCarService(CarHardwareManager.class);
+            instanceMap.put(hwMgr.getClass(), hwMgr);
+
+            // PropertyManager (hidden inside AutomotiveCarHardwareManager → AutomotiveCarInfo)
+            @SuppressLint("RestrictedApi") PropertyManager pm = getPropertyManager(hwMgr);
+            if (pm != null) {
+                instanceMap.put(PropertyManager.class, pm);
+            } else {
+                Log.w(TAG, "registerRealInstances: PropertyManager is null");
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error registering real instances", e);
+        }
+    }
+
+    /**
+     * New signature: takes a label so we know whether this is DUMMY or REAL pass.
+     */
+    private void executeClassMembers(Class<?> cls, String label) {
+        Log.d(TAG, /*label +*/ "Executing members of " + cls.getName());
+
+        // --- FIELDS ---
+        for (Field f : cls.getDeclaredFields()) {
+            f.setAccessible(true);
+            boolean isStatic = Modifier.isStatic(f.getModifiers());
+
+            Object receiver = isStatic
+                    ? null
+                    : instanceMap.getOrDefault(cls, ReflectUtil.getDefaultValue(cls));
+
+            try {
+                Object val = f.get(receiver);
+                Log.d(TAG, "FIELD " /*+ label*/
+                        + cls.getSimpleName() + "#" + f.getName() + " => " + val);
+            } catch (Exception e) {
+                Log.w(TAG, "FIELD " /*+ label*/
+                        + cls.getSimpleName() + "#" + f.getName()
+                        + " threw " + e.getClass().getSimpleName());
+            }
+        }
+
+        // --- METHODS ---
+        for (Method m : cls.getDeclaredMethods()) {
+            m.setAccessible(true);
+            boolean isStatic = Modifier.isStatic(m.getModifiers());
+
+            // Build an args[] of defaults
+            Class<?>[] pts = m.getParameterTypes();
+            Object[] args = new Object[pts.length];
+            for (int i = 0; i < pts.length; i++) {
+                args[i] = ReflectUtil.getDefaultValue(pts[i]);
+            }
+
+            // Choose receiver: static=null, else real or dummy
+            Object receiver = isStatic
+                    ? null
+                    : instanceMap.getOrDefault(cls, ReflectUtil.getDefaultValue(cls));
+
+            ReflectUtil.invokeMethod(m, receiver, args, label);
+        }
+    }
+
 }
+
+
+/*
+
+Complete dynamic execution with path traversal using DEX - Getting complicated
+
+import android.annotation.SuppressLint;
+import android.util.Log;
+import android.os.Handler;
+import android.os.Looper;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
+import androidx.car.app.CarContext;
+import androidx.car.app.Screen;
+import androidx.car.app.annotations.ExperimentalCarApi;
+import androidx.car.app.model.Action;
+import androidx.car.app.model.Pane;
+import androidx.car.app.model.PaneTemplate;
+import androidx.car.app.model.Row;
+import androidx.car.app.model.Template;
+
+import androidx.car.app.hardware.CarHardwareManager;
+import androidx.car.app.hardware.common.PropertyManager;
+
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import dalvik.system.BaseDexClassLoader;
+import dalvik.system.DexFile;
+
+public class CarDataScreen extends Screen {
+    private static final String TAG = "CarDataScreen";
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    // UI state
+    private final List<Row> rows = new ArrayList<>();
+    private final Map<String, Integer> rowIndexMap = new HashMap<>();
+
+    // Holds real instances for REAL invocation
+    private final Map<Class<?>, Object> instanceMap = new HashMap<>();
+
+    // Cache of discovered hardware classes
+    private List<String> cachedHardwareClasses;
+
+    public CarDataScreen(@NonNull CarContext carContext) {
+        super(carContext);
+        initializeDefaultRows();
+    }
+
+    private void initializeDefaultRows() {
+        addDynamicRow("STATUS", "Initializing...");
+        addDynamicRow("PROGRESS", "Discovering hardware classes...");
+    }
+
+    @NonNull
+    @Override
+    public Template onGetTemplate() {
+        // 1) Register real service instances
+        //registerRealInstances();
+
+        // 2) Offload discovery + execution to background
+        new Thread(this::dumpAndExecuteHardware).start();
+
+        return buildDynamicTemplate();
+    }
+
+
+    // -------------------- Instance Registration --------------------
+
+
+    private void registerRealInstances() {
+        try {
+            CarHardwareManager hwMgr = getCarContext()
+                    .getCarService(CarHardwareManager.class);
+            instanceMap.put(hwMgr.getClass(), hwMgr);
+
+            @SuppressLint("RestrictedApi") PropertyManager pm = getPropertyManager(hwMgr);
+            if (pm != null) {
+                instanceMap.put(PropertyManager.class, pm);
+            } else {
+                Log.w(TAG, "PropertyManager is null; REAL invocations will skip");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error registering real instances", e);
+        }
+    }
+
+    @SuppressLint("RestrictedApi")
+    private PropertyManager getPropertyManager(CarHardwareManager hwMgr) throws Exception {
+        Object rawInfo = hwMgr.getCarInfo();
+        if (!(rawInfo instanceof androidx.car.app.hardware.info.AutomotiveCarInfo)) {
+            return null;
+        }
+        androidx.car.app.hardware.info.AutomotiveCarInfo info =
+                (androidx.car.app.hardware.info.AutomotiveCarInfo) rawInfo;
+
+        Field pmField = ReflectUtil.safeGetField(
+                androidx.car.app.hardware.info.AutomotiveCarInfo.class,
+                "mPropertyManager");
+        return pmField == null
+                ? null
+                : (PropertyManager) ReflectUtil.safeGetInstanceObject(pmField, info);
+    }
+
+
+    // -------------------- Discovery & Execution --------------------
+
+    private void dumpAndExecuteHardware() {
+        List<String> classes = getAllHardwareClasses();
+        Log.d(TAG, "Found " + classes.size() + " hardware classes");
+
+        for (String fqcn : classes) {
+            Log.d(TAG, "\n>>> Class: " + fqcn);
+            Class<?> cls = ReflectUtil.safeForName(fqcn);
+            if (cls == null) continue;
+
+            dumpClassDetails(cls);
+
+            // DUMMY pass: stub instances & args
+            executeClassMembers(cls, "DUMMY ");
+
+            // REAL pass: real instances from instanceMap
+            //executeClassMembers(cls, "REAL  ");
+        }
+    }
+
+    private List<String> getAllHardwareClasses() {
+        if (cachedHardwareClasses != null) {
+            return cachedHardwareClasses;
+        }
+        List<String> found = new ArrayList<>();
+        try {
+            ClassLoader loader = getClass().getClassLoader();
+            @SuppressLint("DiscouragedPrivateApi") Field pathList = BaseDexClassLoader.class
+                    .getDeclaredField("pathList");
+            pathList.setAccessible(true);
+            Object dexPathList = pathList.get(loader);
+
+            Field dexElements = dexPathList.getClass()
+                    .getDeclaredField("dexElements");
+            dexElements.setAccessible(true);
+            Object[] elements = (Object[]) dexElements.get(dexPathList);
+
+            for (Object element : elements) {
+                Field dexFileField = element.getClass()
+                        .getDeclaredField("dexFile");
+                dexFileField.setAccessible(true);
+                DexFile dex = (DexFile) dexFileField.get(element);
+                if (dex == null) continue;
+
+                Enumeration<String> entries = dex.entries();
+                while (entries.hasMoreElements()) {
+                    String clsName = entries.nextElement();
+                    if (clsName.startsWith("androidx.car.app.hardware")) {
+                        found.add(clsName);
+                    }
+                }
+            }
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            Log.e(TAG, "Failed to scan DexFiles", e);
+        }
+        cachedHardwareClasses = found;
+        return found;
+    }
+
+    private void dumpClassDetails(Class<?> cls) {
+        // 1) Class-level annotations
+        java.lang.annotation.Annotation[] annos = cls.getAnnotations();
+        if (annos.length > 0) {
+            Log.d(TAG, "Annotations on " + cls.getSimpleName() + ":");
+            for (var a : annos) {
+                Log.d(TAG, "  @" + a.annotationType().getSimpleName());
+            }
+        }
+
+        // 2) Fields
+        Field[] fields = cls.getDeclaredFields();
+        Log.d(TAG, "Fields (" + fields.length + "):");
+        for (Field f : fields) {
+            f.setAccessible(true);
+            String line = "  " + Modifier.toString(f.getModifiers()) + " "
+                    + f.getType().getSimpleName() + " " + f.getName();
+            Log.d(TAG, line);
+        }
+
+        // 3) Methods
+        Method[] methods = cls.getDeclaredMethods();
+        Log.d(TAG, "Methods (" + methods.length + "):");
+        for (Method m : methods) {
+            m.setAccessible(true);
+            StringBuilder sig = new StringBuilder("  ")
+                    .append(Modifier.toString(m.getModifiers()))
+                    .append(" ")
+                    .append(m.getReturnType().getSimpleName())
+                    .append(" ").append(m.getName())
+                    .append("(");
+            Class<?>[] pts = m.getParameterTypes();
+            for (int i = 0; i < pts.length; i++) {
+                sig.append(pts[i].getSimpleName());
+                if (i < pts.length - 1) sig.append(", ");
+            }
+            sig.append(")");
+            Log.d(TAG, sig.toString());
+        }
+    }
+
+    private void executeClassMembers(Class<?> cls, String label) {
+        Log.d(TAG, label + "Executing members of " + cls.getName());
+
+        // FIELDS
+        for (Field f : cls.getDeclaredFields()) {
+            f.setAccessible(true);
+            boolean isStatic = Modifier.isStatic(f.getModifiers());
+            Object receiver = isStatic
+                    ? null
+                    : ("REAL".equals(label.trim())
+                    ? instanceMap.get(cls)
+                    : ReflectUtil.getDefaultValue(cls));
+            try {
+                Object val = f.get(receiver);
+                Log.d(TAG, "FIELD " + label
+                        + cls.getSimpleName() + "#" + f.getName()
+                        + " => " + val);
+            } catch (Exception e) {
+                Log.w(TAG, "FIELD " + label
+                        + cls.getSimpleName() + "#" + f.getName()
+                        + " threw " + e.getClass().getSimpleName());
+            }
+        }
+
+        // METHODS
+        for (Method m : cls.getDeclaredMethods()) {
+            m.setAccessible(true);
+            Class<?>[] pts = m.getParameterTypes();
+            Object[] args = new Object[pts.length];
+            for (int i = 0; i < pts.length; i++) {
+                args[i] = ReflectUtil.getDefaultValue(pts[i]);
+            }
+            boolean isStatic = Modifier.isStatic(m.getModifiers());
+            Object receiver = isStatic
+                    ? null
+                    : ("REAL".equals(label.trim())
+                    ? instanceMap.get(cls)
+                    : ReflectUtil.getDefaultValue(cls));
+
+            ReflectUtil.invokeMethod(m, receiver, args, label);
+        }
+    }
+
+    // -------------------- UI Plumbing --------------------
+
+    private void addDynamicRow(String key, String text) {
+        handler.post(() -> {
+            synchronized (rows) {
+                rows.add(new Row.Builder().setTitle(text).build());
+                rowIndexMap.put(key, rows.size() - 1);
+                invalidate();
+            }
+        });
+    }
+
+    private void updateDynamicRow(String key, String text) {
+        handler.post(() -> {
+            synchronized (rows) {
+                Integer idx = rowIndexMap.get(key);
+                Row row = new Row.Builder().setTitle(text).build();
+                if (idx != null) rows.set(idx, row);
+                else {
+                    rows.add(row);
+                    rowIndexMap.put(key, rows.size() - 1);
+                }
+                invalidate();
+            }
+        });
+    }
+
+    private Template buildDynamicTemplate() {
+        Pane.Builder builder = new Pane.Builder();
+        synchronized (rows) {
+            for (Row r : rows) {
+                builder.addRow(r);
+            }
+        }
+        return new PaneTemplate.Builder(builder.build())
+                .setHeaderAction(Action.APP_ICON)
+                .build();
+    }
+}
+
+*/
