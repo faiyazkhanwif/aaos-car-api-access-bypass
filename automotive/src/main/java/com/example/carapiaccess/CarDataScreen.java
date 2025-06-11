@@ -6,12 +6,12 @@ import android.util.SparseArray;
 import android.os.Handler;
 import android.os.Looper;
 
+//AndroidX imports
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
 import androidx.car.app.CarContext;
 import androidx.car.app.Screen;
 import androidx.car.app.annotations.ExperimentalCarApi;
-
 import androidx.car.app.hardware.CarHardwareManager;
 import androidx.car.app.hardware.AutomotiveCarHardwareManager;
 import androidx.car.app.hardware.common.CarValue;
@@ -32,7 +32,6 @@ import androidx.car.app.hardware.common.OnCarPropertyResponseListener;
 import androidx.car.app.hardware.common.OnCarDataAvailableListener;
 import androidx.car.app.hardware.common.CarSetOperationStatusCallback;
 import androidx.car.app.hardware.common.CarZoneAreaIdConverter;
-
 import androidx.car.app.hardware.climate.AutomotiveCarClimate;
 import androidx.car.app.hardware.climate.CabinTemperatureProfile;
 import androidx.car.app.hardware.climate.CarClimate;
@@ -58,7 +57,6 @@ import androidx.car.app.hardware.climate.RegisterClimateStateRequest;
 import androidx.car.app.hardware.climate.SeatTemperatureProfile;
 import androidx.car.app.hardware.climate.SeatVentilationProfile;
 import androidx.car.app.hardware.climate.SteeringWheelHeatProfile;
-
 import androidx.car.app.hardware.info.Accelerometer;
 import androidx.car.app.hardware.info.AutomotiveCarInfo;
 import androidx.car.app.hardware.info.AutomotiveCarSensors;
@@ -74,13 +72,68 @@ import androidx.car.app.hardware.info.Mileage;
 import androidx.car.app.hardware.info.Model;
 import androidx.car.app.hardware.info.Speed;
 import androidx.car.app.hardware.info.TollCard;
-
 import androidx.car.app.model.Action;
 import androidx.car.app.model.Pane;
 import androidx.car.app.model.PaneTemplate;
 import androidx.car.app.model.Row;
 import androidx.car.app.model.Template;
 
+//Android.Car Imports
+import android.car.ApiVersion;
+import android.car.Car;
+import android.car.CarAppFocusManager;
+import android.car.CarInfoManager;
+import android.car.CarNotConnectedException;
+import android.car.CarOccupantZoneManager;
+import android.car.CarVersion;
+import android.car.EvConnectorType;
+import android.car.FuelType;
+import android.car.GsrComplianceType;
+import android.car.PlatformVersion;
+import android.car.PlatformVersionMismatchException;
+import android.car.PortLocationType;
+import android.car.VehicleAreaSeat;
+import android.car.VehicleAreaType;
+import android.car.VehicleAreaWheel;
+import android.car.VehicleGear;
+import android.car.VehicleIgnitionState;
+import android.car.VehiclePropertyIds;
+import android.car.VehicleUnit;
+import android.car.content.pm.CarPackageManager;
+import android.car.drivingstate.CarUxRestrictions;
+import android.car.drivingstate.CarUxRestrictionsManager;
+import android.car.hardware.CarPropertyConfig;
+import android.car.hardware.CarPropertyValue;
+import android.car.hardware.CarSensorEvent;
+import android.car.hardware.CarSensorManager;
+import android.car.hardware.power.CarPowerManager;
+import android.car.hardware.power.CarPowerPolicy;
+import android.car.hardware.power.CarPowerPolicyFilter;
+import android.car.hardware.power.PowerComponent;
+import android.car.hardware.property.AreaIdConfig;
+import android.car.hardware.property.CarInternalErrorException;
+import android.car.hardware.property.CarPropertyManager;
+import android.car.hardware.property.EvChargeState;
+import android.car.hardware.property.EvChargingConnectorType;
+import android.car.hardware.property.EvRegenerativeBrakingState;
+import android.car.hardware.property.LocationCharacterization;
+import android.car.hardware.property.PropertyAccessDeniedSecurityException;
+import android.car.hardware.property.PropertyNotAvailableAndRetryException;
+import android.car.hardware.property.PropertyNotAvailableErrorCode;
+import android.car.hardware.property.PropertyNotAvailableException;
+import android.car.hardware.property.VehicleElectronicTollCollectionCardStatus;
+import android.car.hardware.property.VehicleElectronicTollCollectionCardType;
+import android.car.input.CarInputManager;
+import android.car.media.CarAudioManager;
+import android.car.media.CarMediaIntents;
+import android.car.remoteaccess.CarRemoteAccessManager;
+import android.car.remoteaccess.RemoteTaskClientRegistrationInfo;
+import android.car.watchdog.CarWatchdogManager;
+import android.car.watchdog.IoOveruseStats;
+import android.car.watchdog.PerStateBytes;
+import android.car.watchdog.ResourceOveruseStats;
+
+//Reflection Imports
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.annotation.Annotation;
@@ -114,9 +167,10 @@ public class CarDataScreen extends Screen {
     @NonNull
     @Override
     public Template onGetTemplate() {
-        fetchAllCarProperties();
+        //fetchAllCarProperties();
         //registerRealInstances();
-        dumpCarAppHardwareHierarchy();
+        //dumpCarAppHardwareHierarchyAndroidX();
+        dumpCarHardwareHierarchyAndroid();
         return buildDynamicTemplate();
     }
 
@@ -586,7 +640,7 @@ public class CarDataScreen extends Screen {
 */
 
     // NEW: returns the list of class FQCNs for each sub-package
-    private String[] getClassListFor(String sub) {
+    private String[] getClassListForAndroidX(String sub) {
         switch (sub) {
             case "common":
                 return new String[]{
@@ -660,7 +714,7 @@ public class CarDataScreen extends Screen {
         }
     }
 
-    private void dumpCarAppHardwareHierarchy() {
+    private void dumpCarAppHardwareHierarchyAndroidX() {
         String[] subs = {"common", "climate", "info"};
         for (String sub : subs) {
             String pkg = "androidx.car.app.hardware." + sub;
@@ -669,7 +723,102 @@ public class CarDataScreen extends Screen {
             Log.d(TAG, "====================================================================");
             Log.d(TAG, "\n--- Subpackage: " + pkg + " ---");
 
-            String[] classNames = getClassListFor(sub);
+            String[] classNames = getClassListForAndroidX(sub);
+            for (String fqcn : classNames) {
+                Class<?> cls = ReflectUtil.safeForName(fqcn);
+                if (cls == null) {
+                    Log.w(TAG, "Could not load class: " + fqcn);
+                    continue;
+                }
+                Log.d(TAG, "\n>>> Inspecting class: " + fqcn + " <<<");
+                dumpClassDetails(cls);
+
+                // FIRST: invoke on a dummy (empty) instance/args
+                executeClassMembers(cls, "DUMMY ");
+
+                // THEN: invoke on the real instance, if we have one
+                //executeClassMembers(cls, "REAL  ");
+            }
+        }
+    }
+
+    //For android.car
+    private String[] getClassListForAndroid(String sub) {
+        switch (sub) {
+            case "hardware":
+                return new String[]{
+                        "android.car.hardware.CarPropertyConfig",
+                        "android.car.hardware.CarPropertyValue",
+                        "android.car.hardware.CarSensorEvent",
+                        "android.car.hardware.CarSensorManager"
+                };
+            case "hardware.power":
+                return new String[]{
+                        "android.car.hardware.power.CarPowerManager",
+                        "android.car.hardware.power.CarPowerPolicy",
+                        "android.car.hardware.power.CarPowerPolicyFilter",
+                        "android.car.hardware.power.PowerComponent"
+                };
+            case "hardware.property":
+                return new String[]{
+                        "android.car.hardware.property.AreaIdConfig",
+                        "android.car.hardware.property.CarInternalErrorException",
+                        "android.car.hardware.property.CarPropertyManager",
+                        "android.car.hardware.property.EvChargeState",
+                        "android.car.hardware.property.EvChargingConnectorType",
+                        "android.car.hardware.property.EvRegenerativeBrakingState",
+                        "android.car.hardware.property.LocationCharacterization",
+                        "android.car.hardware.property.PropertyAccessDeniedSecurityException",
+                        "android.car.hardware.property.PropertyNotAvailableAndRetryException",
+                        "android.car.hardware.property.PropertyNotAvailableErrorCode",
+                        "android.car.hardware.property.PropertyNotAvailableException",
+                        "android.car.hardware.property.VehicleElectronicTollCollectionCardStatus",
+                        "android.car.hardware.property.VehicleElectronicTollCollectionCardType"
+                };
+            case "content.pm":
+                return new String[]{
+                        "android.car.content.pm.CarPackageManager"
+                };
+            case "drivingstate":
+                return new String[]{
+                        "android.car.drivingstate.CarUxRestrictions",
+                        "android.car.drivingstate.CarUxRestrictionsManager"
+                };
+            case "input":
+                return new String[]{
+                        "android.car.input.CarInputManager"
+                };
+            case "media":
+                return new String[]{
+                        "android.car.media.CarAudioManager",
+                        "android.car.media.CarMediaIntents"
+                };
+            case "remoteaccess":
+                return new String[]{
+                        "android.car.remoteaccess.CarRemoteAccessManager",
+                        "android.car.remoteaccess.RemoteTaskClientRegistrationInfo"
+                };
+            case "watchdog":
+                return new String[]{
+                        "android.car.watchdog.CarWatchdogManager",
+                        "android.car.watchdog.IoOveruseStats",
+                        "android.car.watchdog.PerStateBytes",
+                        "android.car.watchdog.ResourceOveruseStats"
+                };
+            default:
+                return new String[0];
+        }
+    }
+    private void dumpCarHardwareHierarchyAndroid() {
+        String[] subs = {"hardware", "hardware.power", "hardware.property", "content.pm", "drivingstate", "input", "media", "remoteaccess", "watchdog"};
+        for (String sub : subs) {
+            String pkg = "android.car." + sub;
+            Log.d(TAG, "====================================================================");
+            Log.d(TAG, "====================================================================");
+            Log.d(TAG, "====================================================================");
+            Log.d(TAG, "\n--- Subpackage: " + pkg + " ---");
+
+            String[] classNames = getClassListForAndroid(sub);
             for (String fqcn : classNames) {
                 Class<?> cls = ReflectUtil.safeForName(fqcn);
                 if (cls == null) {
@@ -708,9 +857,7 @@ public class CarDataScreen extends Screen {
         }
     }
 
-    /**
-     * New signature: takes a label so we know whether this is DUMMY or REAL pass.
-     */
+    //Takes a label to know whether this is DUMMY or REAL pass.
     private void executeClassMembers(Class<?> cls, String label) {
         Log.d(TAG, /*label +*/ "Executing members of " + cls.getName());
 
