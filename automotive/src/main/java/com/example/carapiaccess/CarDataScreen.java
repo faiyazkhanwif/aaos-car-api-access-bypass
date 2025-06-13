@@ -9,6 +9,210 @@ import android.os.Looper;
 //AndroidX imports
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
+
+//import androidx.car.app.media.--- add all
+//import androidx.car.app.--- add all
+//import androidx.car.app.--- all classes --- add all
+//import androidx.car.app.--- all packages --- add all
+
+
+
+// update the method handling androidx.packages -> specify names
+// update the method handling androidx.classes -> specify names
+// update the method handling androidx
+
+import androidx.car.app.AppInfo;
+import androidx.car.app.AppManager;
+//import androidx.car.app.CarAppBinder;
+import androidx.car.app.CarAppMetadataHolderService;
+import androidx.car.app.CarAppPermission;
+import androidx.car.app.CarAppPermissionActivity;
+import androidx.car.app.CarAppService;
+import androidx.car.app.CarContext;
+import androidx.car.app.CarToast;
+import androidx.car.app.FailureResponse;
+import androidx.car.app.HandshakeInfo;
+import androidx.car.app.HostCall;
+import androidx.car.app.HostDispatcher;
+import androidx.car.app.HostException;
+import androidx.car.app.HostInfo;
+import androidx.car.app.IAppHost;
+import androidx.car.app.IAppManager;
+import androidx.car.app.ICarApp;
+import androidx.car.app.ICarHost;
+import androidx.car.app.IOnDoneCallback;
+import androidx.car.app.IOnRequestPermissionsListener;
+import androidx.car.app.IStartCarApp;
+import androidx.car.app.ISurfaceCallback;
+import androidx.car.app.OnDoneCallback;
+import androidx.car.app.OnRequestPermissionsListener;
+import androidx.car.app.OnScreenResultListener;
+import androidx.car.app.Screen;
+import androidx.car.app.ScreenManager;
+import androidx.car.app.Session;
+import androidx.car.app.SessionInfo;
+import androidx.car.app.SessionInfoIntentEncoder;
+import androidx.car.app.SurfaceCallback;
+import androidx.car.app.SurfaceContainer;
+import androidx.car.app.media.AutomotiveCarAudioRecord;
+import androidx.car.app.media.CarAudioCallback;
+import androidx.car.app.media.CarAudioCallbackDelegate;
+import androidx.car.app.media.CarAudioRecord;
+import androidx.car.app.media.ICarAudioCallback;
+import androidx.car.app.media.IMediaPlaybackHost;
+import androidx.car.app.media.MediaPlaybackManager;
+import androidx.car.app.media.OpenMicrophoneRequest;
+import androidx.car.app.media.OpenMicrophoneResponse;
+import androidx.car.app.messaging.model.CarMessage;
+import androidx.car.app.messaging.model.ConversationCallback;
+import androidx.car.app.messaging.model.ConversationCallbackDelegate;
+import androidx.car.app.messaging.model.ConversationItem;
+import androidx.car.app.messaging.model.IConversationCallback;
+import androidx.car.app.messaging.MessagingServiceConstants;
+import androidx.car.app.navigation.NavigationManager;
+import androidx.car.app.navigation.NavigationManagerCallback;
+import androidx.car.app.navigation.INavigationHost;
+import androidx.car.app.navigation.INavigationManager;
+import androidx.car.app.navigation.model.Destination;
+import androidx.car.app.navigation.model.IPanModeListener;
+import androidx.car.app.navigation.model.Lane;
+import androidx.car.app.navigation.model.LaneDirection;
+import androidx.car.app.navigation.model.Maneuver;
+import androidx.car.app.navigation.model.MapController;
+import androidx.car.app.navigation.model.MapTemplate;
+import androidx.car.app.navigation.model.MapWithContentTemplate;
+import androidx.car.app.navigation.model.MessageInfo;
+import androidx.car.app.navigation.model.NavigationTemplate;
+import androidx.car.app.navigation.model.PanModeDelegate;
+import androidx.car.app.navigation.model.PanModeDelegateImpl;
+import androidx.car.app.navigation.model.PanModeListener;
+import androidx.car.app.navigation.model.PlaceListNavigationTemplate;
+import androidx.car.app.navigation.model.RoutePreviewNavigationTemplate;
+import androidx.car.app.navigation.model.RoutingInfo;
+import androidx.car.app.navigation.model.Step;
+import androidx.car.app.navigation.model.TravelEstimate;
+import androidx.car.app.navigation.model.Trip;
+import androidx.car.app.model.Action;
+import androidx.car.app.model.ActionStrip;
+import androidx.car.app.model.Alert;
+import androidx.car.app.model.AlertCallback;
+import androidx.car.app.model.AlertCallbackDelegate;
+import androidx.car.app.model.AlertCallbackDelegateImpl;
+import androidx.car.app.model.Badge;
+import androidx.car.app.model.CarColor;
+import androidx.car.app.model.CarIcon;
+import androidx.car.app.model.CarIconSpan;
+import androidx.car.app.model.CarLocation;
+import androidx.car.app.model.CarSpan;
+import androidx.car.app.model.CarText;
+import androidx.car.app.model.ClickableSpan;
+import androidx.car.app.model.Content;
+import androidx.car.app.model.DateTimeWithZone;
+import androidx.car.app.model.Distance;
+import androidx.car.app.model.DistanceSpan;
+import androidx.car.app.model.DurationSpan;
+import androidx.car.app.model.ForegroundCarColorSpan;
+import androidx.car.app.model.GridItem;
+import androidx.car.app.model.GridTemplate;
+import androidx.car.app.model.Header;
+import androidx.car.app.model.IAlertCallback;
+import androidx.car.app.model.IInputCallback;
+import androidx.car.app.model.IOnCheckedChangeListener;
+import androidx.car.app.model.IOnClickListener;
+import androidx.car.app.model.IOnContentRefreshListener;
+import androidx.car.app.model.IOnItemVisibilityChangedListener;
+import androidx.car.app.model.IOnSelectedListener;
+import androidx.car.app.model.ISearchCallback;
+import androidx.car.app.model.ITabCallback;
+import androidx.car.app.model.InputCallback;
+import androidx.car.app.model.InputCallbackDelegate;
+import androidx.car.app.model.InputCallbackDelegateImpl;
+import androidx.car.app.model.Item;
+import androidx.car.app.model.ItemList;
+import androidx.car.app.model.ListTemplate;
+import androidx.car.app.model.LongMessageTemplate;
+import androidx.car.app.model.MessageTemplate;
+import androidx.car.app.model.Metadata;
+import androidx.car.app.model.ModelUtils;
+import androidx.car.app.model.OnCheckedChangeDelegate;
+import androidx.car.app.model.constraints.ActionsConstraints;
+import androidx.car.app.model.constraints.CarColorConstraints;
+import androidx.car.app.model.constraints.CarIconConstraints;
+import androidx.car.app.model.constraints.CarTextConstraints;
+import androidx.car.app.model.constraints.RowConstraints;
+import androidx.car.app.model.constraints.RowListConstraints;
+import androidx.car.app.model.constraints.TabContentsConstraints;
+import androidx.car.app.model.constraints.TabsConstraints;
+import androidx.car.app.model.signin.InputSignInMethod;
+import androidx.car.app.model.signin.PinSignInMethod;
+import androidx.car.app.model.signin.ProviderSignInMethod;
+import androidx.car.app.model.signin.SignInTemplate;
+import androidx.car.app.model.signin.QRCodeSignInMethod;
+import androidx.car.app.constraints.ConstraintManager;
+import androidx.car.app.constraints.IConstraintHost;
+import androidx.car.app.activity.renderer.ICarAppActivity;
+import androidx.car.app.activity.renderer.IInsetsListener;
+import androidx.car.app.activity.renderer.IProxyInputConnection;
+import androidx.car.app.activity.renderer.IRendererCallback;
+import androidx.car.app.activity.renderer.IRendererService;
+import androidx.car.app.activity.renderer.surface.ISurfaceControl;
+import androidx.car.app.activity.renderer.surface.ISurfaceListener;
+import androidx.car.app.activity.renderer.surface.LegacySurfacePackage;
+import androidx.car.app.activity.renderer.surface.OnBackPressedListener;
+import androidx.car.app.activity.renderer.surface.OnCreateInputConnectionListener;
+//import androidx.car.app.activity.renderer.surface.RemoteProxyInputConnection;
+import androidx.car.app.activity.renderer.surface.SurfaceControlCallback;
+import androidx.car.app.activity.renderer.surface.SurfaceHolderListener;
+import androidx.car.app.activity.renderer.surface.SurfaceWrapper;
+import androidx.car.app.activity.renderer.surface.SurfaceWrapperProvider;
+import androidx.car.app.activity.renderer.surface.TemplateSurfaceView;
+import androidx.car.app.activity.ui.ErrorMessageView;
+import androidx.car.app.activity.ui.LoadingView;
+//import androidx.car.app.activity.ActivityLifecycleDelegate;
+import androidx.car.app.activity.BaseCarAppActivity;
+import androidx.car.app.activity.CarAppActivity;
+import androidx.car.app.activity.CarAppViewModel;
+//import androidx.car.app.activity.CarAppViewModelFactory;
+import androidx.car.app.activity.ErrorHandler;
+import androidx.car.app.activity.HostUpdateReceiver;
+import androidx.car.app.activity.LauncherActivity;
+import androidx.car.app.activity.LogTags;
+import androidx.car.app.activity.ResultManagerAutomotive;
+import androidx.car.app.activity.ServiceConnectionManager;
+import androidx.car.app.activity.ServiceDispatcher;
+import androidx.car.app.annotations.ExperimentalCarApi;
+import androidx.car.app.annotations.CarProtocol;
+import androidx.car.app.annotations.RequiresCarApi;
+import androidx.car.app.annotations.KeepFields;
+import androidx.car.app.connection.CarConnection;
+import androidx.car.app.managers.Manager;
+import androidx.car.app.managers.ManagerFactory;
+import androidx.car.app.managers.ManagerCache;
+import androidx.car.app.managers.ResultManager;
+import androidx.car.app.mediaextensions.MetadataExtras;
+import androidx.car.app.suggestion.model.Suggestion;
+import androidx.car.app.suggestion.SuggestionManager;
+import androidx.car.app.suggestion.ISuggestionHost;
+import androidx.car.app.validation.HostValidator;
+import androidx.car.app.versioning.CarAppApiLevels;
+import androidx.car.app.versioning.CarAppApiLevel;
+import androidx.car.app.serialization.Bundleable;
+import androidx.car.app.serialization.BundlerException;
+import androidx.car.app.serialization.Bundler;
+import androidx.car.app.utils.CollectionUtils;
+import androidx.car.app.utils.CommonUtils;
+//import androidx.car.app.utils.LogTags;
+import androidx.car.app.utils.RemoteUtils;
+import androidx.car.app.utils.StringUtils;
+import androidx.car.app.utils.ThreadUtils;
+import androidx.car.app.utils.ThreadUtils;
+import androidx.car.app.notification.CarAppExtender;
+import androidx.car.app.notification.CarNotificationManager;
+import androidx.car.app.notification.CarPendingIntent;
+import androidx.car.app.notification.CarAppNotificationBroadcastReceiver;
+import androidx.car.app.R;
+
+
 import androidx.car.app.CarContext;
 import androidx.car.app.Screen;
 import androidx.car.app.annotations.ExperimentalCarApi;
@@ -169,8 +373,8 @@ public class CarDataScreen extends Screen {
     public Template onGetTemplate() {
         //fetchAllCarProperties();
         //registerRealInstances();
-        //dumpCarAppHardwareHierarchyAndroidX();
-        dumpCarHardwareHierarchyAndroid();
+        dumpCarAppHierarchyAndroidX();
+        //dumpCarHardwareHierarchyAndroid();
         return buildDynamicTemplate();
     }
 
@@ -639,90 +843,268 @@ public class CarDataScreen extends Screen {
     }
 */
 
-    // NEW: returns the list of class FQCNs for each sub-package
     private String[] getClassListForAndroidX(String sub) {
         switch (sub) {
-            case "common":
+            case "app":
                 return new String[]{
-                        "androidx.car.app.hardware.common.CarValue",
-                        "androidx.car.app.hardware.common.CarZone",
-                        "androidx.car.app.hardware.common.CarPropertyResponse",
-                        "androidx.car.app.hardware.common.PropertyManager",
-                        "androidx.car.app.hardware.common.CarUnit",
-                        "androidx.car.app.hardware.common.CarZoneAreaIdConstants",
-                        "androidx.car.app.hardware.common.CarZoneUtils",
-                        "androidx.car.app.hardware.common.GlobalCarZoneAreaIdConverter",
-                        "androidx.car.app.hardware.common.SeatCarZoneAreaIdConverter",
-                        "androidx.car.app.hardware.common.CarPropertyProfile",
-                        "androidx.car.app.hardware.common.CarValueUtils",
-                        "androidx.car.app.hardware.common.GetPropertyRequest",
-                        "androidx.car.app.hardware.common.PropertyIdAreaId",
-                        "androidx.car.app.hardware.common.PropertyUtils",
-                        "androidx.car.app.hardware.common.OnCarPropertyResponseListener",
-                        "androidx.car.app.hardware.common.OnCarDataAvailableListener",
-                        "androidx.car.app.hardware.common.CarSetOperationStatusCallback",
-                        "androidx.car.app.hardware.common.CarZoneAreaIdConverter"
+                        "androidx.car.app.AppInfo",
+                        "androidx.car.app.AppManager",
+                        "androidx.car.app.CarAppBinder",
+                        "androidx.car.app.CarAppMetadataHolderService",
+                        "androidx.car.app.CarAppPermission",
+                        "androidx.car.app.CarAppPermissionActivity",
+                        "androidx.car.app.CarAppService",
+                        "androidx.car.app.CarContext",
+                        "androidx.car.app.CarToast",
+                        "androidx.car.app.FailureResponse",
+                        "androidx.car.app.HandshakeInfo",
+                        "androidx.car.app.HostCall",
+                        "androidx.car.app.HostDispatcher",
+                        "androidx.car.app.HostException",
+                        "androidx.car.app.HostInfo",
+                        "androidx.car.app.IAppHost",
+                        "androidx.car.app.IAppManager",
+                        "androidx.car.app.ICarApp",
+                        "androidx.car.app.ICarHost",
+                        "androidx.car.app.IOnDoneCallback",
+                        "androidx.car.app.IOnRequestPermissionsListener",
+                        "androidx.car.app.IStartCarApp",
+                        "androidx.car.app.ISurfaceCallback",
+                        "androidx.car.app.OnDoneCallback",
+                        "androidx.car.app.OnRequestPermissionsListener",
+                        "androidx.car.app.OnScreenResultListener",
+                        "androidx.car.app.Screen",
+                        "androidx.car.app.ScreenManager",
+                        "androidx.car.app.Session",
+                        "androidx.car.app.SessionInfo",
+                        "androidx.car.app.SessionInfoIntentEncoder",
+                        "androidx.car.app.SurfaceCallback",
+                        "androidx.car.app.SurfaceContainer"
                 };
-            case "climate":
+            case "media":
                 return new String[]{
-                        "androidx.car.app.hardware.climate.AutomotiveCarClimate",
-                        "androidx.car.app.hardware.climate.CabinTemperatureProfile",
-                        "androidx.car.app.hardware.climate.CarClimate",
-                        "androidx.car.app.hardware.climate.CarClimateFeature",
-                        "androidx.car.app.hardware.climate.CarClimateProfileCallback",
-                        "androidx.car.app.hardware.climate.CarClimateStateCallback",
-                        "androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
-                        "androidx.car.app.hardware.climate.ClimateProfileRequest",
-                        "androidx.car.app.hardware.climate.ClimateStateRequest",
-                        "androidx.car.app.hardware.climate.DefrosterProfile",
-                        "androidx.car.app.hardware.climate.ElectricDefrosterProfile",
-                        "androidx.car.app.hardware.climate.FanDirectionProfile",
-                        "androidx.car.app.hardware.climate.FanSpeedLevelProfile",
-                        "androidx.car.app.hardware.climate.HvacAcProfile",
-                        "androidx.car.app.hardware.climate.HvacAutoModeProfile",
-                        "androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
-                        "androidx.car.app.hardware.climate.HvacDualModeProfile",
-                        "androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
-                        "androidx.car.app.hardware.climate.HvacPowerProfile",
-                        "androidx.car.app.hardware.climate.HvacRecirculationProfile",
-                        "androidx.car.app.hardware.climate.MaxDefrosterProfile",
-                        "androidx.car.app.hardware.climate.RegisterClimateStateRequest",
-                        "androidx.car.app.hardware.climate.SeatTemperatureProfile",
-                        "androidx.car.app.hardware.climate.SeatVentilationProfile",
-                        "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
+                        "androidx.car.app.media.AutomotiveCarAudioRecord",
+                        "androidx.car.app.media.CarAudioCallback",
+                        "androidx.car.app.media.CarAudioCallbackDelegate",
+                        "androidx.car.app.media.CarAudioRecord",
+                        "androidx.car.app.media.ICarAudioCallback",
+                        "androidx.car.app.media.IMediaPlaybackHost",
+                        "androidx.car.app.media.MediaPlaybackManager",
+                        "androidx.car.app.media.OpenMicrophoneRequest",
+                        "androidx.car.app.media.OpenMicrophoneResponse"
                 };
-            case "info":
+            case "messaging":
                 return new String[]{
-                        "androidx.car.app.hardware.info.Accelerometer",
-                        "androidx.car.app.hardware.info.AutomotiveCarInfo",
-                        "androidx.car.app.hardware.info.AutomotiveCarSensors",
-                        "androidx.car.app.hardware.info.CarHardwareLocation",
-                        "androidx.car.app.hardware.info.CarInfo",
-                        "androidx.car.app.hardware.info.CarSensors",
-                        "androidx.car.app.hardware.info.Compass",
-                        "androidx.car.app.hardware.info.EnergyLevel",
-                        "androidx.car.app.hardware.info.EnergyProfile",
-                        "androidx.car.app.hardware.info.EvStatus",
-                        "androidx.car.app.hardware.info.Gyroscope",
-                        "androidx.car.app.hardware.info.Mileage",
-                        "androidx.car.app.hardware.info.Model",
-                        "androidx.car.app.hardware.info.Speed",
-                        "androidx.car.app.hardware.info.TollCard"
+                        "androidx.car.app.messaging.MessagingServiceConstants",
+                        "androidx.car.app.messaging.model.CarMessage",
+                        "androidx.car.app.messaging.model.ConversationCallback",
+                        "androidx.car.app.messaging.model.ConversationCallbackDelegate",
+                        "androidx.car.app.messaging.model.ConversationItem",
+                        "androidx.car.app.messaging.model.IConversationCallback"
+                };
+            case "navigation":
+                return new String[]{
+                        "androidx.car.app.navigation.NavigationManager",
+                        "androidx.car.app.navigation.NavigationManagerCallback",
+                        "androidx.car.app.navigation.INavigationHost",
+                        "androidx.car.app.navigation.INavigationManager",
+                        // navigation.model
+                        "androidx.car.app.navigation.model.Destination",
+                        "androidx.car.app.navigation.model.IPanModeListener",
+                        "androidx.car.app.navigation.model.Lane",
+                        "androidx.car.app.navigation.model.LaneDirection",
+                        "androidx.car.app.navigation.model.Maneuver",
+                        "androidx.car.app.navigation.model.MapController",
+                        "androidx.car.app.navigation.model.MapTemplate",
+                        "androidx.car.app.navigation.model.MapWithContentTemplate",
+                        "androidx.car.app.navigation.model.MessageInfo",
+                        "androidx.car.app.navigation.model.NavigationTemplate",
+                        "androidx.car.app.navigation.model.PanModeDelegate",
+                        "androidx.car.app.navigation.model.PanModeDelegateImpl",
+                        "androidx.car.app.navigation.model.PanModeListener",
+                        "androidx.car.app.navigation.model.PlaceListNavigationTemplate",
+                        "androidx.car.app.navigation.model.RoutePreviewNavigationTemplate",
+                        "androidx.car.app.navigation.model.RoutingInfo",
+                        "androidx.car.app.navigation.model.Step",
+                        "androidx.car.app.navigation.model.TravelEstimate",
+                        "androidx.car.app.navigation.model.Trip"
+                };
+            case "model":
+                return new String[]{
+                        "androidx.car.app.model.Action",
+                        "androidx.car.app.model.ActionStrip",
+                        "androidx.car.app.model.Alert",
+                        "androidx.car.app.model.AlertCallback",
+                        "androidx.car.app.model.AlertCallbackDelegate",
+                        "androidx.car.app.model.Badge",
+                        "androidx.car.app.model.CarColor",
+                        "androidx.car.app.model.CarIcon",
+                        "androidx.car.app.model.CarIconSpan",
+                        "androidx.car.app.model.CarLocation",
+                        "androidx.car.app.model.CarSpan",
+                        "androidx.car.app.model.CarText",
+                        "androidx.car.app.model.ClickableSpan",
+                        "androidx.car.app.model.Content",
+                        "androidx.car.app.model.DateTimeWithZone",
+                        "androidx.car.app.model.Distance",
+                        "androidx.car.app.model.DistanceSpan",
+                        "androidx.car.app.model.DurationSpan",
+                        "androidx.car.app.model.ForegroundCarColorSpan",
+                        "androidx.car.app.model.GridItem",
+                        "androidx.car.app.model.GridTemplate",
+                        "androidx.car.app.model.Header",
+                        "androidx.car.app.model.IAlertCallback",
+                        "androidx.car.app.model.IInputCallback",
+                        "androidx.car.app.model.IOnCheckedChangeListener",
+                        "androidx.car.app.model.IOnClickListener",
+                        "androidx.car.app.model.IOnContentRefreshListener",
+                        "androidx.car.app.model.IOnItemVisibilityChangedListener",
+                        "androidx.car.app.model.IOnSelectedListener",
+                        "androidx.car.app.model.ISearchCallback",
+                        "androidx.car.app.model.ITabCallback",
+                        "androidx.car.app.model.InputCallback",
+                        "androidx.car.app.model.InputCallbackDelegate",
+                        "androidx.car.app.model.Item",
+                        "androidx.car.app.model.ItemList",
+                        "androidx.car.app.model.ListTemplate",
+                        "androidx.car.app.model.LongMessageTemplate",
+                        "androidx.car.app.model.MessageTemplate",
+                        "androidx.car.app.model.Metadata",
+                        "androidx.car.app.model.ModelUtils",
+                        "androidx.car.app.model.OnCheckedChangeDelegate"
+                };
+            case "signin":
+                return new String[]{
+                        "androidx.car.app.model.signin.InputSignInMethod",
+                        "androidx.car.app.model.signin.PinSignInMethod",
+                        "androidx.car.app.model.signin.ProviderSignInMethod",
+                        "androidx.car.app.model.signin.SignInTemplate",
+                        "androidx.car.app.model.signin.QRCodeSignInMethod"
+                };
+            case "constraints":
+                return new String[]{
+                        "androidx.car.app.model.constraints.ActionsConstraints",
+                        "androidx.car.app.model.constraints.CarColorConstraints",
+                        "androidx.car.app.model.constraints.CarIconConstraints",
+                        "androidx.car.app.model.constraints.CarTextConstraints",
+                        "androidx.car.app.model.constraints.RowConstraints",
+                        "androidx.car.app.model.constraints.RowListConstraints",
+                        "androidx.car.app.model.constraints.TabContentsConstraints",
+                        "androidx.car.app.model.constraints.TabsConstraints",
+                        "androidx.car.app.constraints.ConstraintManager",
+                        "androidx.car.app.constraints.IConstraintHost"
+                };
+            case "activity":
+                return new String[]{
+                        "androidx.car.app.activity.ActivityLifecycleDelegate",
+                        "androidx.car.app.activity.BaseCarAppActivity",
+                        "androidx.car.app.activity.CarAppActivity",
+                        "androidx.car.app.activity.CarAppViewModel",
+                        "androidx.car.app.activity.CarAppViewModelFactory",
+                        "androidx.car.app.activity.ErrorHandler",
+                        "androidx.car.app.activity.HostUpdateReceiver",
+                        "androidx.car.app.activity.LauncherActivity",
+                        "androidx.car.app.activity.LogTags",
+                        "androidx.car.app.activity.ResultManagerAutomotive",
+                        "androidx.car.app.activity.ServiceConnectionManager",
+                        "androidx.car.app.activity.ServiceDispatcher",
+                        // renderer
+                        "androidx.car.app.activity.renderer.ICarAppActivity",
+                        "androidx.car.app.activity.renderer.IInsetsListener",
+                        "androidx.car.app.activity.renderer.IProxyInputConnection",
+                        "androidx.car.app.activity.renderer.IRendererCallback",
+                        "androidx.car.app.activity.renderer.IRendererService",
+                        // renderer.surface
+                        "androidx.car.app.activity.renderer.surface.ISurfaceControl",
+                        "androidx.car.app.activity.renderer.surface.ISurfaceListener",
+                        "androidx.car.app.activity.renderer.surface.LegacySurfacePackage",
+                        "androidx.car.app.activity.renderer.surface.OnBackPressedListener",
+                        "androidx.car.app.activity.renderer.surface.OnCreateInputConnectionListener",
+                        "androidx.car.app.activity.renderer.surface.RemoteProxyInputConnection",
+                        "androidx.car.app.activity.renderer.surface.SurfaceControlCallback",
+                        "androidx.car.app.activity.renderer.surface.SurfaceHolderListener",
+                        "androidx.car.app.activity.renderer.surface.SurfaceWrapper",
+                        "androidx.car.app.activity.renderer.surface.SurfaceWrapperProvider",
+                        "androidx.car.app.activity.renderer.surface.TemplateSurfaceView",
+                        // ui
+                        "androidx.car.app.activity.ui.ErrorMessageView",
+                        "androidx.car.app.activity.ui.LoadingView"
+                };
+            case "annotations":
+                return new String[]{
+                        "androidx.car.app.annotations.ExperimentalCarApi",
+                        "androidx.car.app.annotations.CarProtocol",
+                        "androidx.car.app.annotations.RequiresCarApi",
+                        "androidx.car.app.annotations.KeepFields"
+                };
+            case "connection":
+                return new String[]{
+                        "androidx.car.app.connection.CarConnection"
+                };
+            case "managers":
+                return new String[]{
+                        "androidx.car.app.managers.Manager",
+                        "androidx.car.app.managers.ManagerFactory",
+                        "androidx.car.app.managers.ManagerCache",
+                        "androidx.car.app.managers.ResultManager"
+                };
+            case "mediaextensions":
+                return new String[]{
+                        "androidx.car.app.mediaextensions.MetadataExtras"
+                };
+            case "suggestion":
+                return new String[]{
+                        "androidx.car.app.suggestion.SuggestionManager",
+                        "androidx.car.app.suggestion.ISuggestionHost",
+                        "androidx.car.app.suggestion.model.Suggestion"
+                };
+            case "validation":
+                return new String[]{
+                        "androidx.car.app.validation.HostValidator"
+                };
+            case "versioning":
+                return new String[]{
+                        "androidx.car.app.versioning.CarAppApiLevels",
+                        "androidx.car.app.versioning.CarAppApiLevel"
+                };
+            case "serialization":
+                return new String[]{
+                        "androidx.car.app.serialization.Bundleable",
+                        "androidx.car.app.serialization.BundlerException",
+                        "androidx.car.app.serialization.Bundler"
+                };
+            case "utils":
+                return new String[]{
+                        "androidx.car.app.utils.CollectionUtils",
+                        "androidx.car.app.utils.CommonUtils",
+                        "androidx.car.app.utils.LogTags",
+                        "androidx.car.app.utils.RemoteUtils",
+                        "androidx.car.app.utils.StringUtils",
+                        "androidx.car.app.utils.ThreadUtils"
+                };
+            case "notification":
+                return new String[]{
+                        "androidx.car.app.notification.CarAppExtender",
+                        "androidx.car.app.notification.CarNotificationManager",
+                        "androidx.car.app.notification.CarPendingIntent",
+                        "androidx.car.app.notification.CarAppNotificationBroadcastReceiver"
                 };
             default:
                 return new String[0];
         }
     }
 
-    private void dumpCarAppHardwareHierarchyAndroidX() {
-        String[] subs = {"common", "climate", "info"};
+    private void dumpCarAppHierarchyAndroidX() {
+        String[] subs = {
+                "app", "media", "messaging", "navigation", "model",
+                "signin", "constraints", "activity", "annotations",
+                "connection", "managers", "mediaextensions", "suggestion",
+                "validation", "versioning", "serialization", "utils", "notification"
+        };
         for (String sub : subs) {
-            String pkg = "androidx.car.app.hardware." + sub;
+            String pkg = "androidx.car.app" + (sub.isEmpty() ? "" : "." + sub);
             Log.d(TAG, "====================================================================");
-            Log.d(TAG, "====================================================================");
-            Log.d(TAG, "====================================================================");
-            Log.d(TAG, "\n--- Subpackage: " + pkg + " ---");
-
+            Log.d(TAG, "--- Subpackage: " + pkg + " ---");
             String[] classNames = getClassListForAndroidX(sub);
             for (String fqcn : classNames) {
                 Class<?> cls = ReflectUtil.safeForName(fqcn);
@@ -732,16 +1114,13 @@ public class CarDataScreen extends Screen {
                 }
                 Log.d(TAG, "\n>>> Inspecting class: " + fqcn + " <<<");
                 dumpClassDetails(cls);
-
                 // FIRST: invoke on a dummy (empty) instance/args
                 executeClassMembers(cls, "DUMMY ");
-
                 // THEN: invoke on the real instance, if we have one
-                //executeClassMembers(cls, "REAL  ");
+                // executeClassMembers(cls, "REAL  ");
             }
         }
     }
-
     //For android.car
     private String[] getClassListForAndroid(String sub) {
         switch (sub) {
