@@ -843,6 +843,7 @@ public class CarDataScreen extends Screen {
     }
 */
 
+
     private String[] getClassListForAndroidX(String sub) {
         switch (sub) {
             case "app":
@@ -931,6 +932,7 @@ public class CarDataScreen extends Screen {
                 };
             case "model":
                 return new String[]{
+                        // core model
                         "androidx.car.app.model.Action",
                         "androidx.car.app.model.ActionStrip",
                         "androidx.car.app.model.Alert",
@@ -971,15 +973,18 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.model.MessageTemplate",
                         "androidx.car.app.model.Metadata",
                         "androidx.car.app.model.ModelUtils",
-                        "androidx.car.app.model.OnCheckedChangeDelegate"
-                };
-            case "signin":
-                return new String[]{
+                        "androidx.car.app.model.OnCheckedChangeDelegate",
+                        // signin
                         "androidx.car.app.model.signin.InputSignInMethod",
                         "androidx.car.app.model.signin.PinSignInMethod",
                         "androidx.car.app.model.signin.ProviderSignInMethod",
                         "androidx.car.app.model.signin.SignInTemplate",
-                        "androidx.car.app.model.signin.QRCodeSignInMethod"
+                        "androidx.car.app.model.signin.QRCodeSignInMethod",
+                        // extra model classes
+                        "androidx.car.app.model.Pane",
+                        "androidx.car.app.model.PaneTemplate",
+                        "androidx.car.app.model.Row",
+                        "androidx.car.app.model.Template"
                 };
             case "constraints":
                 return new String[]{
@@ -1089,6 +1094,78 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.notification.CarPendingIntent",
                         "androidx.car.app.notification.CarAppNotificationBroadcastReceiver"
                 };
+            case "hardware":
+                return new String[]{
+                        "androidx.car.app.hardware.CarHardwareManager",
+                        "androidx.car.app.hardware.AutomotiveCarHardwareManager"
+                };
+            case "hardware.common":
+                return new String[]{
+                        "androidx.car.app.hardware.common.CarValue",
+                        "androidx.car.app.hardware.common.CarZone",
+                        "androidx.car.app.hardware.common.CarPropertyResponse",
+                        "androidx.car.app.hardware.common.PropertyManager",
+                        "androidx.car.app.hardware.common.CarUnit",
+                        "androidx.car.app.hardware.common.CarZoneAreaIdConstants",
+                        "androidx.car.app.hardware.common.CarZoneUtils",
+                        "androidx.car.app.hardware.common.GlobalCarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.SeatCarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.CarPropertyProfile",
+                        "androidx.car.app.hardware.common.CarValueUtils",
+                        "androidx.car.app.hardware.common.GetPropertyRequest",
+                        "androidx.car.app.hardware.common.PropertyIdAreaId",
+                        "androidx.car.app.hardware.common.PropertyUtils",
+                        "androidx.car.app.hardware.common.OnCarPropertyResponseListener",
+                        "androidx.car.app.hardware.common.OnCarDataAvailableListener",
+                        "androidx.car.app.hardware.common.CarSetOperationStatusCallback",
+                        "androidx.car.app.hardware.common.CarZoneAreaIdConverter"
+                };
+            case "hardware.climate":
+                return new String[]{
+                        "androidx.car.app.hardware.climate.AutomotiveCarClimate",
+                        "androidx.car.app.hardware.climate.CabinTemperatureProfile",
+                        "androidx.car.app.hardware.climate.CarClimate",
+                        "androidx.car.app.hardware.climate.CarClimateFeature",
+                        "androidx.car.app.hardware.climate.CarClimateProfileCallback",
+                        "androidx.car.app.hardware.climate.CarClimateStateCallback",
+                        "androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
+                        "androidx.car.app.hardware.climate.ClimateProfileRequest",
+                        "androidx.car.app.hardware.climate.ClimateStateRequest",
+                        "androidx.car.app.hardware.climate.DefrosterProfile",
+                        "androidx.car.app.hardware.climate.ElectricDefrosterProfile",
+                        "androidx.car.app.hardware.climate.FanDirectionProfile",
+                        "androidx.car.app.hardware.climate.FanSpeedLevelProfile",
+                        "androidx.car.app.hardware.climate.HvacAcProfile",
+                        "androidx.car.app.hardware.climate.HvacAutoModeProfile",
+                        "androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
+                        "androidx.car.app.hardware.climate.HvacDualModeProfile",
+                        "androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
+                        "androidx.car.app.hardware.climate.HvacPowerProfile",
+                        "androidx.car.app.hardware.climate.HvacRecirculationProfile",
+                        "androidx.car.app.hardware.climate.MaxDefrosterProfile",
+                        "androidx.car.app.hardware.climate.RegisterClimateStateRequest",
+                        "androidx.car.app.hardware.climate.SeatTemperatureProfile",
+                        "androidx.car.app.hardware.climate.SeatVentilationProfile",
+                        "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
+                };
+            case "hardware.info":
+                return new String[]{
+                        "androidx.car.app.hardware.info.Accelerometer",
+                        "androidx.car.app.hardware.info.AutomotiveCarInfo",
+                        "androidx.car.app.hardware.info.AutomotiveCarSensors",
+                        "androidx.car.app.hardware.info.CarHardwareLocation",
+                        "androidx.car.app.hardware.info.CarInfo",
+                        "androidx.car.app.hardware.info.CarSensors",
+                        "androidx.car.app.hardware.info.Compass",
+                        "androidx.car.app.hardware.info.EnergyLevel",
+                        "androidx.car.app.hardware.info.EnergyProfile",
+                        "androidx.car.app.hardware.info.EvStatus",
+                        "androidx.car.app.hardware.info.Gyroscope",
+                        "androidx.car.app.hardware.info.Mileage",
+                        "androidx.car.app.hardware.info.Model",
+                        "androidx.car.app.hardware.info.Speed",
+                        "androidx.car.app.hardware.info.TollCard"
+                };
             default:
                 return new String[0];
         }
@@ -1099,7 +1176,9 @@ public class CarDataScreen extends Screen {
                 "app", "media", "messaging", "navigation", "model",
                 "signin", "constraints", "activity", "annotations",
                 "connection", "managers", "mediaextensions", "suggestion",
-                "validation", "versioning", "serialization", "utils", "notification"
+                "validation", "versioning", "serialization", "utils",
+                "notification", "hardware", "hardware.common",
+                "hardware.climate", "hardware.info"
         };
         for (String sub : subs) {
             String pkg = "androidx.car.app" + (sub.isEmpty() ? "" : "." + sub);
@@ -1121,6 +1200,7 @@ public class CarDataScreen extends Screen {
             }
         }
     }
+
     //For android.car
     private String[] getClassListForAndroid(String sub) {
         switch (sub) {
