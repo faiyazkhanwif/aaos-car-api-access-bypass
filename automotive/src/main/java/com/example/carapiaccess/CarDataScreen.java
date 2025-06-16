@@ -211,8 +211,6 @@ import androidx.car.app.notification.CarNotificationManager;
 import androidx.car.app.notification.CarPendingIntent;
 import androidx.car.app.notification.CarAppNotificationBroadcastReceiver;
 import androidx.car.app.R;
-
-
 import androidx.car.app.CarContext;
 import androidx.car.app.Screen;
 import androidx.car.app.annotations.ExperimentalCarApi;
@@ -1118,7 +1116,8 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.hardware.common.OnCarPropertyResponseListener",
                         "androidx.car.app.hardware.common.OnCarDataAvailableListener",
                         "androidx.car.app.hardware.common.CarSetOperationStatusCallback",
-                        "androidx.car.app.hardware.common.CarZoneAreaIdConverter"
+                        "androidx.car.app.hardware.common.CarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.PropertyRequestProcessor"
                 };
             case "hardware.climate":
                 return new String[]{
