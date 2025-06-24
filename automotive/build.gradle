@@ -41,6 +41,8 @@ dependencies {
     implementation libs.guava
     implementation libs.hiddenapibypass
     implementation libs.byte.buddy
+    implementation libs.poi
+    implementation libs.poi.ooxml
 }
 
 configurations.configureEach {
