@@ -378,7 +378,15 @@ public class CarDataScreen extends Screen {
         //dumpCarAppHierarchyAndroidX();
         //dumpCarHardwareHierarchyAndroid();
 
-        exercisePropertyRequestProcessor();
+        //exercisePropertyRequestProcessor();
+
+        updateDynamicRow("STATUS", "Dumping AndroidX hierarchy…");
+        long start = System.currentTimeMillis();
+        dumpCarAppHierarchyAndroidX();
+        long elapsed = System.currentTimeMillis() - start;
+        Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
+        updateDynamicRow("STATUS", "Done in " + elapsed + " ms");
+
         return buildDynamicTemplate();
     }
 
