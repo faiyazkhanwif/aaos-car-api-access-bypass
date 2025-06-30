@@ -1,6 +1,11 @@
 package com.example.carapiaccess;
 
 import android.annotation.SuppressLint;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.SparseArray;
 import android.os.Handler;
@@ -282,18 +287,18 @@ import androidx.car.app.model.Row;
 import androidx.car.app.model.Template;
 
 //Android.Car Imports
-import android.car.ApiVersion;
+//import android.car.ApiVersion;
 import android.car.Car;
 import android.car.CarAppFocusManager;
 import android.car.CarInfoManager;
 import android.car.CarNotConnectedException;
 import android.car.CarOccupantZoneManager;
-import android.car.CarVersion;
+//import android.car.CarVersion;
 import android.car.EvConnectorType;
 import android.car.FuelType;
-import android.car.GsrComplianceType;
-import android.car.PlatformVersion;
-import android.car.PlatformVersionMismatchException;
+//import android.car.GsrComplianceType;
+//import android.car.PlatformVersion;
+//import android.car.PlatformVersionMismatchException;
 import android.car.PortLocationType;
 import android.car.VehicleAreaSeat;
 import android.car.VehicleAreaType;
@@ -313,24 +318,24 @@ import android.car.hardware.power.CarPowerManager;
 import android.car.hardware.power.CarPowerPolicy;
 import android.car.hardware.power.CarPowerPolicyFilter;
 import android.car.hardware.power.PowerComponent;
-import android.car.hardware.property.AreaIdConfig;
+//import android.car.hardware.property.AreaIdConfig;
 import android.car.hardware.property.CarInternalErrorException;
 import android.car.hardware.property.CarPropertyManager;
-import android.car.hardware.property.EvChargeState;
+//import android.car.hardware.property.EvChargeState;
 import android.car.hardware.property.EvChargingConnectorType;
-import android.car.hardware.property.EvRegenerativeBrakingState;
-import android.car.hardware.property.LocationCharacterization;
+//import android.car.hardware.property.EvRegenerativeBrakingState;
+//import android.car.hardware.property.LocationCharacterization;
 import android.car.hardware.property.PropertyAccessDeniedSecurityException;
 import android.car.hardware.property.PropertyNotAvailableAndRetryException;
-import android.car.hardware.property.PropertyNotAvailableErrorCode;
+//import android.car.hardware.property.PropertyNotAvailableErrorCode;
 import android.car.hardware.property.PropertyNotAvailableException;
 import android.car.hardware.property.VehicleElectronicTollCollectionCardStatus;
 import android.car.hardware.property.VehicleElectronicTollCollectionCardType;
-import android.car.input.CarInputManager;
+//import android.car.input.CarInputManager;
 import android.car.media.CarAudioManager;
 import android.car.media.CarMediaIntents;
-import android.car.remoteaccess.CarRemoteAccessManager;
-import android.car.remoteaccess.RemoteTaskClientRegistrationInfo;
+//import android.car.remoteaccess.CarRemoteAccessManager;
+//import android.car.remoteaccess.RemoteTaskClientRegistrationInfo;
 import android.car.watchdog.CarWatchdogManager;
 import android.car.watchdog.IoOveruseStats;
 import android.car.watchdog.PerStateBytes;
@@ -346,6 +351,7 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -359,6 +365,8 @@ public class CarDataScreen extends Screen {
     // Hold real instances so we can call their methods
     private final Map<Class<?>,Object> instanceMap = new HashMap<>();
 
+    private boolean dumped = false;
+    private boolean systemInfoDumped = false;
 
     public CarDataScreen(@NonNull CarContext carContext) {
         super(carContext);
@@ -367,7 +375,7 @@ public class CarDataScreen extends Screen {
 
     private void initializeDefaultRows() {
         addDynamicRow("STATUS","Init...");
-        addDynamicRow("PROGRESS","Discovering...");
+        //addDynamicRow("PROGRESS","Discovering...");
     }
 
     @NonNull
@@ -377,18 +385,27 @@ public class CarDataScreen extends Screen {
         //registerRealInstances();
         //dumpCarAppHierarchyAndroidX();
         //dumpCarHardwareHierarchyAndroid();
-
         //exercisePropertyRequestProcessor();
+        //updateDynamicRow("STATUS", "Done in " + elapsed + " ms");
 
-        updateDynamicRow("STATUS", "Dumping AndroidX hierarchy…");
-        long start = System.currentTimeMillis();
-        dumpCarAppHierarchyAndroidX();
-        long elapsed = System.currentTimeMillis() - start;
-        Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
-        updateDynamicRow("STATUS", "Done in " + elapsed + " ms");
+        if (!dumped) {
+            updateDynamicRow("STATUS", "Dumping AndroidX hierarchy…");
+            long start = System.currentTimeMillis();
+            dumpCarAppHierarchyAndroidX();
+            long elapsed = System.currentTimeMillis() - start;
+            updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
+            Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
+            dumped = true;
+        }
+
+        if (!systemInfoDumped) {
+            dumpSystemImageDetails();
+        }
 
         return buildDynamicTemplate();
     }
+
+
 
     // function to fetch vehicle properties - previous reflection
     @OptIn(markerClass = ExperimentalCarApi.class)
@@ -1372,6 +1389,60 @@ public class CarDataScreen extends Screen {
 
             ReflectUtil.invokeMethod(m, receiver, args, label);
         }
+    }
+
+
+
+    private void dumpSystemImageDetails() {
+        addDynamicRow("IMG_NAME", "Device: " + Build.DEVICE + " (" + Build.MODEL + ")");
+        addDynamicRow("BUILD_FINGERPRINT","Fingerprint: " + Build.FINGERPRINT);
+        addDynamicRow("ANDROID_VERSION","Android Version: " + Build.VERSION.RELEASE + " (SDK " + Build.VERSION.SDK_INT + ")");
+        addDynamicRow("BUILD_DATE", "Build Date: " + new Date(Build.TIME).toString());
+
+        //App privileges & UID
+        ApplicationInfo ai = getCarContext().getApplicationContext().getApplicationInfo();
+        int uid = ai.uid;
+        boolean isSystemApp = (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+        addDynamicRow("APP_UID", "APP UID: " + String.valueOf(uid));
+        addDynamicRow("SYSTEM_APP", isSystemApp ? "System App: yes" : "System App: no");
+
+        //Declared vs. granted permissions
+        try {
+            PackageManager pm = getCarContext().getPackageManager();
+            PackageInfo pi = pm.getPackageInfo(
+                    getCarContext().getPackageName(),
+                    PackageManager.GET_PERMISSIONS
+            );
+
+            String[] requested = pi.requestedPermissions;
+            int[] flags = pi.requestedPermissionsFlags;
+            if (requested != null && flags != null) {
+                int grantedCount = 0;
+                List<String> grantedList = new ArrayList<>();
+                for (int i = 0; i < requested.length; i++) {
+                    boolean granted = (flags[i] & PackageInfo.REQUESTED_PERMISSION_GRANTED) != 0;
+                    if (granted) grantedList.add(requested[i]);
+                    if (granted) grantedCount++;
+                }
+                addDynamicRow("PERMS_REQ", String.valueOf(requested.length));
+                addDynamicRow("PERMS_GRANTED", grantedCount + " / " + requested.length);
+
+                addDynamicRow(
+                        "REQ_PERMS",
+                        TextUtils.join(", ", requested)
+                );
+                addDynamicRow(
+                        "GRANT_PERMS",
+                        TextUtils.join(", ", grantedList)
+                );
+            } else {
+                addDynamicRow("PERMS_REQ", "none");
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            addDynamicRow("PERMS_ERROR", e.getMessage());
+        }
+
+        systemInfoDumped = true;
     }
 
 
