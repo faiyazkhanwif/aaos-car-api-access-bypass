@@ -285,6 +285,7 @@ import androidx.car.app.model.Pane;
 import androidx.car.app.model.PaneTemplate;
 import androidx.car.app.model.Row;
 import androidx.car.app.model.Template;
+import androidx.collection.ArraySet;
 
 //Android.Car Imports
 //import android.car.ApiVersion;
@@ -355,6 +356,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class CarDataScreen extends Screen {
     private static final String TAG = "CarDataScreen";
@@ -395,6 +397,8 @@ public class CarDataScreen extends Screen {
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
             Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
+            exercisePropertyRequestProcessor();
+            //exercisePropertyRequestProcessorToGenerateErrorLog();
             dumped = true;
         }
 
@@ -875,6 +879,7 @@ public class CarDataScreen extends Screen {
 
     private String[] getClassListForAndroidX(String sub) {
         switch (sub) {
+            /*
             case "app":
                 return new String[]{
                         "androidx.car.app.AppInfo",
@@ -1106,95 +1111,97 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.serialization.Bundleable",
                         "androidx.car.app.serialization.BundlerException",
                         "androidx.car.app.serialization.Bundler"
-                };
+                };*/
             case "utils":
                 return new String[]{
-                        "androidx.car.app.utils.CollectionUtils",
-                        "androidx.car.app.utils.CommonUtils",
-                        "androidx.car.app.utils.LogTags",
-                        "androidx.car.app.utils.RemoteUtils",
-                        "androidx.car.app.utils.StringUtils",
-                        "androidx.car.app.utils.ThreadUtils"
+                        //"androidx.car.app.utils.CollectionUtils",
+                        //"androidx.car.app.utils.CommonUtils",
+                        //"androidx.car.app.utils.LogTags",
+                        //"androidx.car.app.utils.RemoteUtils",
+                        //"androidx.car.app.utils.StringUtils",
+                        //"androidx.car.app.utils.ThreadUtils"
                 };
             case "notification":
                 return new String[]{
-                        "androidx.car.app.notification.CarAppExtender",
-                        "androidx.car.app.notification.CarNotificationManager",
-                        "androidx.car.app.notification.CarPendingIntent",
-                        "androidx.car.app.notification.CarAppNotificationBroadcastReceiver"
+                        //"androidx.car.app.notification.CarAppExtender",
+                        //"androidx.car.app.notification.CarNotificationManager",
+                        //"androidx.car.app.notification.CarPendingIntent",
+                        //"androidx.car.app.notification.CarAppNotificationBroadcastReceiver"
                 };
             case "hardware":
                 return new String[]{
-                        "androidx.car.app.hardware.CarHardwareManager",
-                        "androidx.car.app.hardware.AutomotiveCarHardwareManager"
+                        //"androidx.car.app.hardware.CarHardwareManager",
+                        //"androidx.car.app.hardware.AutomotiveCarHardwareManager"
                 };
             case "hardware.common":
                 return new String[]{
-                        "androidx.car.app.hardware.common.CarValue",
-                        "androidx.car.app.hardware.common.CarZone",
+                        //"androidx.car.app.hardware.common.CarValue",
+                        //"androidx.car.app.hardware.common.CarZone",
                         "androidx.car.app.hardware.common.CarPropertyResponse",
                         "androidx.car.app.hardware.common.PropertyManager",
-                        "androidx.car.app.hardware.common.CarUnit",
-                        "androidx.car.app.hardware.common.CarZoneAreaIdConstants",
+                        //"androidx.car.app.hardware.common.CarUnit",
+                        //"androidx.car.app.hardware.common.CarZoneAreaIdConstants",
                         "androidx.car.app.hardware.common.CarZoneUtils",
-                        "androidx.car.app.hardware.common.GlobalCarZoneAreaIdConverter",
-                        "androidx.car.app.hardware.common.SeatCarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.PropertyResponseCache",
+                        //"androidx.car.app.hardware.common.GlobalCarZoneAreaIdConverter",
+                        //"androidx.car.app.hardware.common.SeatCarZoneAreaIdConverter",
                         "androidx.car.app.hardware.common.CarPropertyProfile",
                         "androidx.car.app.hardware.common.CarValueUtils",
                         "androidx.car.app.hardware.common.GetPropertyRequest",
                         "androidx.car.app.hardware.common.PropertyIdAreaId",
                         "androidx.car.app.hardware.common.PropertyUtils",
+                        "androidx.car.app.hardware.common.CarInternalError",
                         "androidx.car.app.hardware.common.OnCarPropertyResponseListener",
-                        "androidx.car.app.hardware.common.OnCarDataAvailableListener",
-                        "androidx.car.app.hardware.common.CarSetOperationStatusCallback",
-                        "androidx.car.app.hardware.common.CarZoneAreaIdConverter",
+                        //"androidx.car.app.hardware.common.OnCarDataAvailableListener",
+                        //"androidx.car.app.hardware.common.CarSetOperationStatusCallback",
+                        //"androidx.car.app.hardware.common.CarZoneAreaIdConverter",
                         "androidx.car.app.hardware.common.PropertyRequestProcessor"
                 };
             case "hardware.climate":
                 return new String[]{
                         "androidx.car.app.hardware.climate.AutomotiveCarClimate",
-                        "androidx.car.app.hardware.climate.CabinTemperatureProfile",
-                        "androidx.car.app.hardware.climate.CarClimate",
-                        "androidx.car.app.hardware.climate.CarClimateFeature",
-                        "androidx.car.app.hardware.climate.CarClimateProfileCallback",
-                        "androidx.car.app.hardware.climate.CarClimateStateCallback",
-                        "androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
-                        "androidx.car.app.hardware.climate.ClimateProfileRequest",
-                        "androidx.car.app.hardware.climate.ClimateStateRequest",
-                        "androidx.car.app.hardware.climate.DefrosterProfile",
-                        "androidx.car.app.hardware.climate.ElectricDefrosterProfile",
-                        "androidx.car.app.hardware.climate.FanDirectionProfile",
-                        "androidx.car.app.hardware.climate.FanSpeedLevelProfile",
-                        "androidx.car.app.hardware.climate.HvacAcProfile",
-                        "androidx.car.app.hardware.climate.HvacAutoModeProfile",
-                        "androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
-                        "androidx.car.app.hardware.climate.HvacDualModeProfile",
-                        "androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
-                        "androidx.car.app.hardware.climate.HvacPowerProfile",
-                        "androidx.car.app.hardware.climate.HvacRecirculationProfile",
-                        "androidx.car.app.hardware.climate.MaxDefrosterProfile",
-                        "androidx.car.app.hardware.climate.RegisterClimateStateRequest",
-                        "androidx.car.app.hardware.climate.SeatTemperatureProfile",
-                        "androidx.car.app.hardware.climate.SeatVentilationProfile",
-                        "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
+                        //"androidx.car.app.hardware.climate.CabinTemperatureProfile",
+                        //"androidx.car.app.hardware.climate.CarClimate",
+                        //"androidx.car.app.hardware.climate.CarClimateFeature",
+                        //"androidx.car.app.hardware.climate.CarClimateProfileCallback",
+                        //"androidx.car.app.hardware.climate.CarClimateStateCallback",
+                        //"androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
+                        //"androidx.car.app.hardware.climate.ClimateProfileRequest",
+                        //"androidx.car.app.hardware.climate.ClimateStateRequest",
+                        //"androidx.car.app.hardware.climate.DefrosterProfile",
+                        //"androidx.car.app.hardware.climate.ElectricDefrosterProfile",
+                        //"androidx.car.app.hardware.climate.FanDirectionProfile",
+                        //"androidx.car.app.hardware.climate.FanSpeedLevelProfile",
+                        //"androidx.car.app.hardware.climate.HvacAcProfile",
+                        //"androidx.car.app.hardware.climate.HvacAutoModeProfile",
+                        //"androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
+                        //"androidx.car.app.hardware.climate.HvacDualModeProfile",
+                        //"androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
+                        //"androidx.car.app.hardware.climate.HvacPowerProfile",
+                        //"androidx.car.app.hardware.climate.HvacRecirculationProfile",
+                        //"androidx.car.app.hardware.climate.MaxDefrosterProfile",
+                        //"androidx.car.app.hardware.climate.RegisterClimateStateRequest",
+                        //"androidx.car.app.hardware.climate.SeatTemperatureProfile",
+                        //"androidx.car.app.hardware.climate.SeatVentilationProfile",
+                        //"androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
                 };
             case "hardware.info":
                 return new String[]{
-                        "androidx.car.app.hardware.info.Accelerometer",
+                        //"androidx.car.app.hardware.info.Accelerometer",
                         "androidx.car.app.hardware.info.AutomotiveCarInfo",
-                        "androidx.car.app.hardware.info.AutomotiveCarSensors",
-                        "androidx.car.app.hardware.info.CarHardwareLocation",
-                        "androidx.car.app.hardware.info.CarInfo",
-                        "androidx.car.app.hardware.info.CarSensors",
-                        "androidx.car.app.hardware.info.Compass",
-                        "androidx.car.app.hardware.info.EnergyLevel",
-                        "androidx.car.app.hardware.info.EnergyProfile",
-                        "androidx.car.app.hardware.info.EvStatus",
-                        "androidx.car.app.hardware.info.Gyroscope",
-                        "androidx.car.app.hardware.info.Mileage",
-                        "androidx.car.app.hardware.info.Model",
-                        "androidx.car.app.hardware.info.Speed",
-                        "androidx.car.app.hardware.info.TollCard"
+                        "androidx.car.app.hardware.info.AutomotiveCarSensors"
+                        //"androidx.car.app.hardware.info.CarHardwareLocation",
+                        //"androidx.car.app.hardware.info.CarInfo",
+                        //"androidx.car.app.hardware.info.CarSensors",
+                        //"androidx.car.app.hardware.info.Compass",
+                        //"androidx.car.app.hardware.info.EnergyLevel",
+                        //"androidx.car.app.hardware.info.EnergyProfile",
+                        //"androidx.car.app.hardware.info.EvStatus",
+                        //"androidx.car.app.hardware.info.Gyroscope",
+                        //"androidx.car.app.hardware.info.Mileage",
+                        //"androidx.car.app.hardware.info.Model",
+                        //"androidx.car.app.hardware.info.Speed",
+                        //"androidx.car.app.hardware.info.TollCard"
                 };
             default:
                 return new String[0];
@@ -1447,7 +1454,7 @@ public class CarDataScreen extends Screen {
 
 
     @SuppressLint("RestrictedApi")
-    private void exercisePropertyRequestProcessor() {
+    private void exercisePropertyRequestProcessorToGenerateErrorLog() {
         try {
             CarHardwareManager hardwareManager = getCarContext().getCarService(CarHardwareManager.class);
             PropertyManager pm = getPropertyManager(hardwareManager);
@@ -1577,6 +1584,220 @@ public class CarDataScreen extends Screen {
         }
     }
 
+
+    @SuppressLint("RestrictedApi")
+    private void exercisePropertyRequestProcessor() {
+        try {
+            // 1) Obtain PropertyRequestProcessor
+            CarHardwareManager hwMgr = getCarContext().getCarService(CarHardwareManager.class);
+            PropertyManager pm = getPropertyManager(hwMgr);
+            if (pm == null) {
+                Log.w(TAG, "No PropertyManager; aborting.");
+                return;
+            }
+            Field procField = ReflectUtil.safeGetField(pm.getClass(), "mPropertyRequestProcessor");
+            Object processor = ReflectUtil.safeGetInstanceObject(procField, pm);
+            if (processor == null) {
+                Log.w(TAG, "PropertyRequestProcessor is null");
+                return;
+            }
+            Class<?> prpClass = processor.getClass();
+
+            // 2) Find a working propId by scanning VehiclePropertyIds
+            Class<?> vehicleIds = ReflectUtil.safeForName("android.car.VehiclePropertyIds");
+            Field[] vidFields = vehicleIds.getDeclaredFields();
+
+            // Prepare CarPropertyManager.getPropertyList(...) lookup
+            Field carPropMgrField = ReflectUtil.safeGetField(prpClass, "mCarPropertyManager");
+            Object carPropMgr = ReflectUtil.safeGetInstanceObject(carPropMgrField, processor);
+            if (carPropMgr == null) {
+                Log.w(TAG, "Cannot access mCarPropertyManager");
+                return;
+            }
+            Method getListMethod = null;
+            for (Method m : carPropMgr.getClass().getMethods()) {
+                if ("getPropertyList".equals(m.getName()) && m.getParameterCount() == 1) {
+                    getListMethod = m;
+                    getListMethod.setAccessible(true);
+                    break;
+                }
+            }
+            if (getListMethod == null) {
+                Log.w(TAG, "No single‑arg getPropertyList found");
+                return;
+            }
+
+            Field workingField = null;
+            List<?> workingConfigs = null;
+            int workingPropId = -1;
+
+            for (Field f : vidFields) {
+                if (f.getType() != int.class) continue;
+                f.setAccessible(true);
+                int propId = ReflectUtil.safeGetStaticInt(f, -1);
+                if (propId < 0) continue;
+
+                // Build correct argument: ArraySet or Set
+                Class<?> paramType = getListMethod.getParameterTypes()[0];
+                Object arg = paramType.getName().equals("android.util.ArraySet")
+                        ? new android.util.ArraySet<>(Collections.singleton(propId))
+                        : Collections.singleton(propId);
+
+                List<?> configs;
+                try {
+                    configs = (List<?>) getListMethod.invoke(carPropMgr, arg);
+                    Log.d(TAG, "getPropertyList(" + f.getName() + "=" + propId
+                            + ") returned " + configs.size() + " configs");
+                } catch (InvocationTargetException ite) {
+                    Log.w(TAG, "Skipping " + f.getName() + ": " +
+                            ite.getTargetException().getClass().getSimpleName());
+                    continue;
+                }
+
+                if (configs.size() > 0) {
+                    workingField = f;
+                    workingConfigs = configs;
+                    workingPropId = propId;
+                    break;
+                }
+            }
+
+            // —————————————————————————————————————————————
+            // -- Invoke the no‑arg getPropertyList() on CarPropertyManager
+            // —————————————————————————————————————————————
+            try {
+                Method getAllList = carPropMgr.getClass().getMethod("getPropertyList");
+                getAllList.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                List<?> allConfigs = (List<?>) getAllList.invoke(carPropMgr);
+                Log.d(TAG, "getPropertyList() [no‑arg] returned " + allConfigs.size() + " configs");
+                // Optionally log each config.toString()
+                for (Object cfg : allConfigs) {
+                    Log.v(TAG, "  Config: " + cfg.toString());
+                }
+            } catch (NoSuchMethodException e) {
+                Log.w(TAG, "No no‑arg getPropertyList() on CarPropertyManager");
+            }
+
+
+            if (workingField == null) {
+                Log.w(TAG, "No implemented property found");
+                return;
+            }
+            Log.i(TAG, "Selected working property: "
+                    + workingField.getName() + " = " + workingPropId);
+
+            // 3) Log each CarPropertyConfig from the filtered list
+            for (Object cfg : workingConfigs) {
+                Class<?> cfgCls = cfg.getClass();
+                Method getPid = cfgCls.getMethod("getPropertyId");
+                Method getAreas = cfgCls.getMethod("getAreaIds");
+                Method getType = cfgCls.getMethod("getPropertyType");
+                Object pid = getPid.invoke(cfg);
+                @SuppressWarnings("unchecked")
+                List<Integer> areas = (List<Integer>) getAreas.invoke(cfg);
+                Class<?> type = (Class<?>) getType.invoke(cfg);
+                Log.d(TAG, String.format(
+                        "  Config: propertyId=%s, areaIds=%s, type=%s",
+                        pid, areas, type.getSimpleName()));
+            }
+
+            // 4) Also inspect private getPropertyConfig(int)
+            Method getPropCfg = prpClass.getDeclaredMethod("getPropertyConfig", int.class);
+            getPropCfg.setAccessible(true);
+            Object singleCfg = getPropCfg.invoke(processor, workingPropId);
+            if (singleCfg != null) {
+                Class<?> scCls = singleCfg.getClass();
+                Method gp = scCls.getMethod("getPropertyId");
+                Method ga = scCls.getMethod("getAreaType");
+                Log.d(TAG, String.format(
+                        "getPropertyConfig → id=%s, areaType=%s",
+                        gp.invoke(singleCfg), ga.invoke(singleCfg)));
+            } else {
+                Log.w(TAG, "getPropertyConfig returned null");
+            }
+
+            // 5) Build PropertyIdAreaId list & invoke fetchCarPropertyValues(...)
+            Class<?> carZoneCls = ReflectUtil.safeForName(
+                    "androidx.car.app.hardware.common.CarZone");
+            Object globalZone = ReflectUtil.safeGetStaticObject(
+                    ReflectUtil.safeGetField(carZoneCls, "CAR_ZONE_GLOBAL"));
+            Map<Integer, List<Object>> map = new HashMap<>();
+            map.put(workingPropId, Collections.singletonList(globalZone));
+
+            Class<?> utilsCls = ReflectUtil.safeForName(
+                    "androidx.car.app.hardware.common.PropertyUtils");
+            Method getIdWithAreas = utilsCls.getDeclaredMethod("getPropertyIdWithAreaIds", Map.class);
+            getIdWithAreas.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            List<?> pidAidList = (List<?>) getIdWithAreas.invoke(null, map);
+
+            Class<?> onGetPropsIface = ReflectUtil.safeForName(
+                    "androidx.car.app.hardware.common.PropertyRequestProcessor$OnGetPropertiesListener");
+            Object getPropsListener = Proxy.newProxyInstance(
+                    onGetPropsIface.getClassLoader(),
+                    new Class[]{onGetPropsIface},
+                    (proxy, method, args) -> {
+                        if ("onGetProperties".equals(method.getName())) {
+                            @SuppressWarnings("unchecked")
+                            List<Object> vals = (List<Object>) args[0];
+                            @SuppressWarnings("unchecked")
+                            List<Object> errs = (List<Object>) args[1];
+                            Log.d(TAG, "Values=" + vals.size() + ", errors=" + errs.size());
+                        }
+                        return null;
+                    });
+
+            Method fetchValues = prpClass.getDeclaredMethod(
+                    "fetchCarPropertyValues", List.class, onGetPropsIface);
+            fetchValues.setAccessible(true);
+            fetchValues.invoke(processor, pidAidList, getPropsListener);
+
+            // 6) fetchCarPropertyProfiles(...)
+            Class<?> onGetProfilesIface = ReflectUtil.safeForName(
+                    "androidx.car.app.hardware.common.PropertyRequestProcessor$OnGetCarPropertyProfilesListener");
+            Object getProfilesListener = Proxy.newProxyInstance(
+                    onGetProfilesIface.getClassLoader(),
+                    new Class[]{onGetProfilesIface},
+                    (proxy, method, args) -> {
+                        if ("onGetCarPropertyProfiles".equals(method.getName())) {
+                            @SuppressWarnings("unchecked")
+                            List<Object> profs = (List<Object>) args[0];
+                            Log.d(TAG, "Profiles=" + profs.size());
+                        }
+                        return null;
+                    });
+            Method fetchProfiles = prpClass.getDeclaredMethod(
+                    "fetchCarPropertyProfiles", List.class, onGetProfilesIface);
+            fetchProfiles.setAccessible(true);
+            fetchProfiles.invoke(processor,
+                    Collections.singletonList(workingPropId),
+                    getProfilesListener);
+
+            // 7) registerProperty & unregisterProperty
+            Method registerProp = prpClass.getDeclaredMethod("registerProperty", int.class, float.class);
+            registerProp.setAccessible(true);
+            try {
+                registerProp.invoke(processor, workingPropId, 1.0f);
+            } catch (InvocationTargetException ite) {
+                Log.w(TAG, "registerProperty threw: " + ite.getTargetException());
+            }
+
+            Method unregisterProp = prpClass.getDeclaredMethod("unregisterProperty", int.class);
+            unregisterProp.setAccessible(true);
+            try {
+                unregisterProp.invoke(processor, workingPropId);
+            } catch (InvocationTargetException ite) {
+                Log.w(TAG, "unregisterProperty threw: " + ite.getTargetException());
+            }
+
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying throw:", ite.getTargetException());
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising PropertyRequestProcessor", e);
+        }
+    }
 
 
 }

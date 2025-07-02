@@ -9,6 +9,8 @@ junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
 appcompat = "1.7.0"
+poi = "5.2.3"
+collectionJvm = "1.5.0"
 
 [libraries]
 app = { module = "androidx.car.app:app", version.ref = "app" }
@@ -23,6 +25,9 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+poi = { module = "org.apache.poi:poi", version.ref = "poi" }
+poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
+collection-jvm = { group = "androidx.collection", name = "collection-jvm", version.ref = "collectionJvm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
