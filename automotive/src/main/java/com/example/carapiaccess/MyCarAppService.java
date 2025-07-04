@@ -11,6 +11,11 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 public class MyCarAppService extends CarAppService {
+
+    public MyCarAppService() {
+        // Exported services must have an empty public constructor.
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();

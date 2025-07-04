@@ -21,24 +21,125 @@
         android:name="android.hardware.screen.landscape"
         android:required="false"/>
 
+    <!-- For Access to Car Hardware. -->
+    <uses-permission android:name="android.car.permission.CAR_ENERGY"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_ENERGY"/>
+    <uses-permission android:name="android.car.permission.ADJUST_RANGE_REMAINING"/>
+    <uses-permission android:name="android.car.permission.CAR_IDENTIFICATION"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_CLIMATE"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_DOORS"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_WINDOWS"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_MIRRORS"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_SEATS"/>
+    <uses-permission android:name="android.car.permission.CAR_MILEAGE"/>
+    <uses-permission android:name="android.car.permission.CAR_TIRES"/>
+    <uses-permission android:name="android.car.permission.READ_CAR_STEERING"/>
+    <uses-permission android:name="android.car.permission.READ_CAR_DISPLAY_UNITS"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_DISPLAY_UNITS"/>
+    <uses-permission android:name="android.car.permission.CAR_SPEED"/>
+    <uses-permission android:name="android.car.permission.CAR_ENERGY_PORTS"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_ENERGY_PORTS"/>
+    <uses-permission android:name="android.car.permission.CAR_ENGINE_DETAILED"/>
+    <uses-permission android:name="android.car.permission.CAR_DYNAMICS_STATE"/>
+    <uses-permission android:name="android.car.permission.CAR_VENDOR_EXTENSION"/>
+    <uses-permission android:name="android.car.permission.CAR_PROJECTION"/>
+    <uses-permission android:name="android.car.permission.ACCESS_CAR_PROJECTION_STATUS"/>
+    <uses-permission android:name="android.car.permission.BIND_PROJECTION_SERVICE"/>
+    <uses-permission android:name="android.car.permission.CAR_MOCK_VEHICLE_HAL"/>
+    <uses-permission android:name="android.car.permission.CAR_INFO"/>
+    <uses-permission android:name="android.car.permission.PRIVILEGED_CAR_INFO"/>
+    <uses-permission android:name="android.car.permission.READ_CAR_VENDOR_PERMISSION_INFO"/>
+    <uses-permission android:name="android.car.permission.CAR_EXTERIOR_ENVIRONMENT"/>
+    <uses-permission android:name="android.car.permission.CAR_EPOCH_TIME"/>
+    <uses-permission android:name="android.car.permission.STORAGE_ENCRYPTION_BINDING_SEED"/>
+    <uses-permission android:name="android.car.permission.CAR_EXTERIOR_LIGHTS"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS"/>
+    <uses-permission android:name="android.car.permission.READ_CAR_INTERIOR_LIGHTS"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_INTERIOR_LIGHTS"/>
+    <uses-permission android:name="android.car.permission.CAR_POWER"/>
+    <uses-permission android:name="android.car.permission.CAR_POWERTRAIN"/>
+    <uses-permission android:name="android.car.permission.CAR_NAVIGATION_MANAGER"/>
+    <uses-permission android:name="android.car.permission.CAR_DIAGNOSTICS"/>
+    <uses-permission android:name="android.car.permission.CLEAR_CAR_DIAGNOSTICS"/>
+    <uses-permission android:name="android.car.permission.BIND_VMS_CLIENT"/>
+    <uses-permission android:name="android.car.permission.VMS_PUBLISHER"/>
+    <uses-permission android:name="android.car.permission.VMS_SUBSCRIBER"/>
+    <uses-permission android:name="android.car.permission.CAR_DRIVING_STATE"/>
+    <uses-permission android:name="android.car.permission.USE_CAR_TELEMETRY_SERVICE"/>
+    <uses-permission android:name="android.car.permission.REQUEST_CAR_EVS_ACTIVITY"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_EVS_ACTIVITY"/>
+    <uses-permission android:name="android.car.permission.USE_CAR_EVS_CAMERA"/>
+    <uses-permission android:name="android.car.permission.MONITOR_CAR_EVS_STATUS"/>
+    <uses-permission android:name="android.car.permission.CONTROL_APP_BLOCKING"/>
+    <uses-permission android:name="android.car.permission.CAR_CONTROL_AUDIO_VOLUME"/>
+    <uses-permission android:name="android.car.permission.CAR_CONTROL_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.car.permission.RECEIVE_CAR_AUDIO_DUCKING_EVENTS"/>
+    <uses-permission android:name="android.car.permission.BIND_INSTRUMENT_CLUSTER_RENDERER_SERVICE"/>
+    <uses-permission android:name="android.car.permission.BIND_CAR_INPUT_SERVICE"/>
+    <uses-permission android:name="android.car.permission.CAR_DISPLAY_IN_CLUSTER"/>
+    <uses-permission android:name="android.car.permission.CAR_INSTRUMENT_CLUSTER_CONTROL"/>
+    <uses-permission android:name="android.car.permission.CAR_MONITOR_CLUSTER_NAVIGATION_STATE"/>
+    <uses-permission android:name="android.car.permission.CAR_HANDLE_USB_AOAP_DEVICE"/>
+    <uses-permission android:name="android.car.permission.CAR_UX_RESTRICTIONS_CONFIGURATION"/>
+    <uses-permission android:name="android.car.permission.READ_CAR_OCCUPANT_AWARENESS_STATE"/>
+    <uses-permission android:name="android.car.permission.ACCESS_PRIVATE_DISPLAY_ID"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_OCCUPANT_AWARENESS_SYSTEM"/>
+    <uses-permission android:name="android.car.permission.STORAGE_MONITORING"/>
+    <uses-permission android:name="android.car.permission.CAR_ENROLL_TRUST"/>
+    <uses-permission android:name="android.car.permission.CAR_TEST_SERVICE"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_FEATURES"/>
+    <uses-permission android:name="android.car.permission.USE_CAR_WATCHDOG"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_WATCHDOG_CONFIG"/>
+    <uses-permission android:name="android.car.permission.COLLECT_CAR_WATCHDOG_METRICS"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_WINDOW"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_WINDOW"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_DOOR"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_DOOR"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_SEAT"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_SEAT"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_MIRROR"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_MIRROR"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_INFO"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_INFO"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_ENGINE"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_ENGINE"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_HVAC"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_HVAC"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_LIGHT"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_LIGHT"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_1"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_1"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_2"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_2"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_3"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_3"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_4"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_4"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_5"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_5"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_6"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_6"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_7"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_7"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_8"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_8"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_9"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_9"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_10"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_10"/>
+    <uses-permission android:name="android.car.permission.CAR_MONITOR_INPUT"/>
+    <uses-permission android:name="android.car.permission.READ_CAR_POWER_POLICY"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_POWER_POLICY"/>
+    <uses-permission android:name="android.car.permission.CONTROL_SHUTDOWN_PROCESS"/>
+    <uses-permission android:name="android.car.permission.TEMPLATE_RENDERER"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_APP_LAUNCH"/>
+
     <!--<uses-permission android:name="androidx.car.app.core.permission.BIND_CAR_APP_SERVICE" />-->
 
     <!--For Logging
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />-->
-<!--
-    <uses-permission android:name="android.car.permission.CAR_INFO" />
-    <uses-permission android:name="android.car.permission.CAR_VENDOR_EXTENSION" />
-    <uses-permission android:name="android.car.permission.READ_CAR_DISPLAY_UNITS" />
-    <uses-permission android:name="android.car.permission.CAR_ENERGY" />
 
-
-
-
-    <uses-permission android:name="android.car.permission.CAR_SPEED" />
-    <uses-permission android:name="android.car.permission.CAR_MILEAGE" />
-    <uses-permission android:name="android.car.permission.READ_CAR_DISPLAY_UNITS" />
-    -->
 
     <!-- Default
     <application
