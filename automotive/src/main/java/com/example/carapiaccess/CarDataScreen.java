@@ -1,10 +1,12 @@
 package com.example.carapiaccess;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.IBinder;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.SparseArray;
@@ -393,10 +395,15 @@ public class CarDataScreen extends Screen {
         if (!dumped) {
             updateDynamicRow("STATUS", "Dumping AndroidX hierarchy…");
             long start = System.currentTimeMillis();
+            /*
             dumpCarAppHierarchyAndroidX();
             exercisePropertyRequestProcessor();
+            */
             //exercisePropertyRequestProcessorToGenerateErrorLog();
             //fetchAllCarProperties();
+            //dumpCarAppHierarchyComAndroid();
+
+            dumpCarHardwareHierarchyAndroid();
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
             Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
@@ -1242,6 +1249,7 @@ public class CarDataScreen extends Screen {
     //For android.car
     private String[] getClassListForAndroid(String sub) {
         switch (sub) {
+            /*
             case "hardware":
                 return new String[]{
                         "android.car.hardware.CarPropertyConfig",
@@ -1249,13 +1257,16 @@ public class CarDataScreen extends Screen {
                         "android.car.hardware.CarSensorEvent",
                         "android.car.hardware.CarSensorManager"
                 };
+            */
             case "hardware.power":
                 return new String[]{
+                        "android.car.hardware.power.ICarPower",
                         "android.car.hardware.power.CarPowerManager",
                         "android.car.hardware.power.CarPowerPolicy",
                         "android.car.hardware.power.CarPowerPolicyFilter",
                         "android.car.hardware.power.PowerComponent"
                 };
+            /*
             case "hardware.property":
                 return new String[]{
                         "android.car.hardware.property.AreaIdConfig",
@@ -1302,6 +1313,7 @@ public class CarDataScreen extends Screen {
                         "android.car.watchdog.PerStateBytes",
                         "android.car.watchdog.ResourceOveruseStats"
                 };
+            */
             default:
                 return new String[0];
         }
@@ -1353,6 +1365,45 @@ public class CarDataScreen extends Screen {
             Log.e(TAG, "Error registering real instances", e);
         }
     }
+
+
+    private String[] getClassListForComAndroid(String sub) {
+        switch (sub) {
+            case "power":
+                return new String[]{
+                        //"androidx.car.app.hardware.info.Accelerometer",
+                        "com.android.car.power.CarPowerManagementService"
+                };
+            default:
+                return new String[0];
+        }
+    }
+
+    private void dumpCarAppHierarchyComAndroid() {
+        String[] subs = {
+                "power"
+        };
+        for (String sub : subs) {
+            String pkg = "com.android.car" + (sub.isEmpty() ? "" : "." + sub);
+            Log.d(TAG, "====================================================================");
+            Log.d(TAG, "--- Subpackage: " + pkg + " ---");
+            String[] classNames = getClassListForComAndroid(sub);
+            for (String fqcn : classNames) {
+                Class<?> cls = ReflectUtil.safeForName(fqcn);
+                if (cls == null) {
+                    Log.w(TAG, "Could not load class: " + fqcn);
+                    continue;
+                }
+                Log.d(TAG, "\n>>> Inspecting class: " + fqcn + " <<<");
+                dumpClassDetails(cls);
+                // FIRST: invoke on a dummy (empty) instance/args
+                executeClassMembers(cls, "DUMMY ");
+                // THEN: invoke on the real instance, if we have one
+                // executeClassMembers(cls, "REAL  ");
+            }
+        }
+    }
+
 
     //Takes a label to know whether this is DUMMY or REAL pass.
     private void executeClassMembers(Class<?> cls, String label) {
@@ -1443,6 +1494,7 @@ public class CarDataScreen extends Screen {
                         "GRANT_PERMS",
                         TextUtils.join(", ", grantedList)
                 );
+                Log.d(TAG, "GRANT_PERMS: " + TextUtils.join(", ", grantedList));
             } else {
                 addDynamicRow("PERMS_REQ", "none");
             }
@@ -1747,6 +1799,219 @@ public class CarDataScreen extends Screen {
         } catch (Exception e) {
             Log.e(TAG, "Error exercising PropertyRequestProcessor", e);
         }
+    }
+
+// -------------------------------------------------------Access system service test---------------------------------------------------------
+
+    public static void checkRunningServices() {
+        try {
+            Process process = Runtime.getRuntime().exec("dumpsys -l");
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream()));
+
+            String line;
+            System.out.println("Running system services:");
+            while ((line = reader.readLine()) != null) {
+                System.out.println("  - " + line);
+            }
+
+        } catch (Exception e) {
+            System.out.println("Failed to check running services: " + e.getMessage());
+        }
+    }
+
+    public static IBinder getAAOSSystemService(String serviceName) {
+        try {
+            @SuppressLint("PrivateApi") Class<?> serviceManagerClass = Class.forName("android.os.ServiceManager");
+            Method getServiceMethod = serviceManagerClass.getMethod("getService", String.class);
+            IBinder binder = (IBinder) getServiceMethod.invoke(null, serviceName);
+            return binder;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public static void accessCarService() {
+        try {
+            IBinder carServiceBinder = getAAOSSystemService("car_service");
+
+            if (carServiceBinder != null) {
+                @SuppressLint("PrivateApi") Class<?> carServiceStub = Class.forName("android.car.ICar$Stub");
+                Method asInterfaceMethod = carServiceStub.getMethod("asInterface", IBinder.class);
+                Object carService = asInterfaceMethod.invoke(null, carServiceBinder);
+
+                System.out.println("Car Service accessed successfully");
+
+                // Try to get available methods
+                Method[] methods = carService.getClass().getMethods();
+                System.out.println("Available Car Service methods:");
+                for (Method method : methods) {
+                    if (method.getName().startsWith("get") || method.getName().startsWith("is")) {
+                        System.out.println("  - " + method.getName() + "(" +
+                                java.util.Arrays.toString(method.getParameterTypes()) + ")");
+                    }
+                }
+                tryCarServiceMethod(carService, "getCarService", new Class[]{String.class}, "power");
+
+            } else {
+                System.out.println("Car Service not available");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void tryCarServiceMethod(Object carService, String methodName, Class<?>[] paramTypes, Object... args) {
+        try {
+            Method method = carService.getClass().getMethod(methodName, paramTypes);
+            Object result = method.invoke(carService, args);
+            System.out.println("Successfully called " + methodName + " with result: " + result);
+
+            // If we got a BinderProxy, try to use it
+            if (result != null && result.getClass().getName().contains("BinderProxy")) {
+                exploreBinderProxy(result, methodName);
+            }
+
+        } catch (Exception e) {
+            System.out.println("Failed to call " + methodName + ": " + e.getMessage());
+        }
+    }
+
+    private static void exploreBinderProxy(Object binderProxy, String serviceName) {
+        try {
+            System.out.println("=== Exploring BinderProxy for " + serviceName + " ===");
+
+            // Get the interface descriptor
+            if (binderProxy instanceof IBinder) {
+                IBinder binder = (IBinder) binderProxy;
+                String interfaceDescriptor = binder.getInterfaceDescriptor();
+                System.out.println("Interface Descriptor: " + interfaceDescriptor);
+
+                // Try to create a service interface from the binder
+                tryCreateServiceInterface(binder, interfaceDescriptor);
+            }
+
+            // List all methods available on this proxy
+            Method[] methods = binderProxy.getClass().getMethods();
+            System.out.println("Available methods on BinderProxy:");
+            for (Method method : methods) {
+                if (!method.getName().startsWith("java.") &&
+                        !method.getName().equals("toString") &&
+                        !method.getName().equals("hashCode") &&
+                        !method.getName().equals("equals")) {
+                    System.out.println("  - " + method.getName() + "(" +
+                            java.util.Arrays.toString(method.getParameterTypes()) + ")");
+                }
+            }
+
+        } catch (Exception e) {
+            System.out.println("Error exploring BinderProxy: " + e.getMessage());
+        }
+    }
+
+    private static void tryCreateServiceInterface(IBinder binder, String interfaceDescriptor) {
+        try {
+            System.out.println("Trying to create service interface for: " + interfaceDescriptor);
+
+            // Common car service interface patterns
+            String[] possibleInterfaces = {
+                    "android.car.ICar$Stub",
+                    "android.car.media.ICarAudio$Stub",
+                    "android.car.hardware.property.ICarProperty$Stub",
+                    "android.car.hardware.power.ICarPower$Stub",
+                    "android.car.hardware.cabin.ICarCabin$Stub"
+            };
+
+            for (String interfaceName : possibleInterfaces) {
+                try {
+                    Class<?> stubClass = Class.forName(interfaceName);
+                    Method asInterfaceMethod = stubClass.getMethod("asInterface", IBinder.class);
+                    Object serviceInterface = asInterfaceMethod.invoke(null, binder);
+
+                    if (serviceInterface != null) {
+                        System.out.println("Successfully created interface: " + interfaceName);
+                        exploreServiceInterface(serviceInterface, interfaceName);
+                        return;
+                    }
+                } catch (Exception e) {
+                    // Continue trying other interfaces
+                }
+            }
+
+        } catch (Exception e) {
+            System.out.println("Failed to create service interface: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Explore methods available on a service interface
+     */
+    private static void exploreServiceInterface(Object serviceInterface, String interfaceName) {
+        try {
+            System.out.println("=== Methods available on " + interfaceName + " ===");
+
+            Method[] methods = serviceInterface.getClass().getMethods();
+            for (Method method : methods) {
+                if (!method.getName().startsWith("java.") &&
+                        !method.getName().equals("toString") &&
+                        !method.getName().equals("hashCode") &&
+                        !method.getName().equals("equals") &&
+                        !method.getName().equals("asBinder")) {
+
+                    System.out.println("  - " + method.getName() + "(" +
+                            java.util.Arrays.toString(method.getParameterTypes()) + ") -> " +
+                            method.getReturnType().getSimpleName());
+                }
+            }
+
+            // Try to call some safe methods
+            tryCallSafeMethods(serviceInterface);
+
+        } catch (Exception e) {
+            System.out.println("Error exploring service interface: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Try to call some safe methods on the service interface
+     */
+    private static void tryCallSafeMethods(Object serviceInterface) {
+        try {
+            System.out.println("=== Trying safe method calls ===");
+
+            // Try common getter methods
+            String[] safeMethods = {
+                    "getCarConnectionType",
+                    "getCarAudioZoneIds",
+                    "getAudioZoneIds",
+                    "getVolumeGroupCount",
+                    "getPropertyList",
+                    "getSupportedProperties",
+                    "isFeatureEnabled",
+                    "getVersion"
+            };
+
+            for (String methodName : safeMethods) {
+                try {
+                    Method method = serviceInterface.getClass().getMethod(methodName);
+                    Object result = method.invoke(serviceInterface);
+                    System.out.println("  " + methodName + "() -> " + result);
+                } catch (Exception e) {
+                    // Method doesn't exist or failed, continue
+                }
+            }
+
+        } catch (Exception e) {
+            System.out.println("Error calling safe methods: " + e.getMessage());
+        }
+    }
+
+    public static void exampleAAOSUsage() {
+        System.out.println("=== AAOS System Service Access ===");
+        //checkRunningServices();
+        accessCarService();
     }
 
 
