@@ -345,6 +345,10 @@ import android.car.watchdog.PerStateBytes;
 import android.car.watchdog.ResourceOveruseStats;
 
 //Reflection Imports
+import com.google.common.collect.ImmutableBiMap;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
@@ -353,13 +357,16 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 public class CarDataScreen extends Screen {
     private static final String TAG = "CarDataScreen";
@@ -403,7 +410,8 @@ public class CarDataScreen extends Screen {
             //fetchAllCarProperties();
             //dumpCarAppHierarchyComAndroid();
 
-            dumpCarHardwareHierarchyAndroid();
+            exerciseAutomotiveCarClimate();
+            //dumpCarAppHierarchyAndroidX();
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
             Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
@@ -924,6 +932,7 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.SurfaceCallback",
                         "androidx.car.app.SurfaceContainer"
                 };
+             */
             case "media":
                 return new String[]{
                         "androidx.car.app.media.AutomotiveCarAudioRecord",
@@ -936,6 +945,7 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.media.OpenMicrophoneRequest",
                         "androidx.car.app.media.OpenMicrophoneResponse"
                 };
+            /*
             case "messaging":
                 return new String[]{
                         "androidx.car.app.messaging.MessagingServiceConstants",
@@ -1095,10 +1105,13 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.managers.ManagerCache",
                         "androidx.car.app.managers.ResultManager"
                 };
+
+             */
             case "mediaextensions":
                 return new String[]{
                         "androidx.car.app.mediaextensions.MetadataExtras"
                 };
+                /*
             case "suggestion":
                 return new String[]{
                         "androidx.car.app.suggestion.SuggestionManager",
@@ -1120,6 +1133,7 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.serialization.BundlerException",
                         "androidx.car.app.serialization.Bundler"
                 };*/
+            /*
             case "utils":
                 return new String[]{
                         //"androidx.car.app.utils.CollectionUtils",
@@ -1211,6 +1225,7 @@ public class CarDataScreen extends Screen {
                         //"androidx.car.app.hardware.info.Speed",
                         //"androidx.car.app.hardware.info.TollCard"
                 };
+                */
             default:
                 return new String[0];
         }
@@ -1800,6 +1815,179 @@ public class CarDataScreen extends Screen {
             Log.e(TAG, "Error exercising PropertyRequestProcessor", e);
         }
     }
+
+    @SuppressLint("RestrictedApi")
+    private void exerciseAutomotiveCarClimate() {
+        try {
+            // 1) Obtain PropertyManager
+            CarHardwareManager hwMgr =
+                    getCarContext().getCarService(CarHardwareManager.class);
+            PropertyManager pm = getPropertyManager(hwMgr);
+            if (pm == null) {
+                Log.w(TAG, "No PropertyManager; aborting.");
+                return;
+            }
+
+            // 2) Instantiate AutomotiveCarClimate(PropertyManager)
+            Class<?> accCls = Class.forName(
+                    "androidx.car.app.hardware.climate.AutomotiveCarClimate");
+            Constructor<?> accCtor = accCls.getConstructor(PropertyManager.class);
+            Object climate = accCtor.newInstance(pm);
+            Log.d(TAG, "Created AutomotiveCarClimate");
+
+            // 3) Grab the static feature→propertyId map
+            Field mapField = accCls.getDeclaredField("sFeatureToPropertyId");
+            mapField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<Integer, Integer> featureMap =
+                    (Map<Integer, Integer>) mapField.get(null);
+
+            // ========= PROFILE PHASE =========
+
+            // 4) Build CarClimateFeature[] for every feature
+            Class<?> featBuilderCls = Class.forName(
+                    "androidx.car.app.hardware.climate.CarClimateFeature$Builder");
+            Constructor<?> featBuilderCtor = featBuilderCls.getConstructor(int.class);
+            Method buildFeatM = featBuilderCls.getDeclaredMethod("build");
+            buildFeatM.setAccessible(true);
+
+            Class<?> featCls = Class.forName(
+                    "androidx.car.app.hardware.climate.CarClimateFeature");
+            List<Object> featList = new ArrayList<>();
+            for (Integer feature : featureMap.keySet()) {
+                Object fb = featBuilderCtor.newInstance(feature);
+                featList.add(buildFeatM.invoke(fb));
+            }
+            Object featArray = Array.newInstance(featCls, featList.size());
+            for (int i = 0; i < featList.size(); i++) {
+                Array.set(featArray, i, featList.get(i));
+            }
+
+            // 5) Build ClimateProfileRequest
+            Class<?> profReqBuilderCls = Class.forName(
+                    "androidx.car.app.hardware.climate.ClimateProfileRequest$Builder");
+            Object profReqBuilder = profReqBuilderCls.getConstructor().newInstance();
+            Method addProfFeatures = profReqBuilderCls.getDeclaredMethod(
+                    "addClimateProfileFeatures", featArray.getClass());
+            addProfFeatures.setAccessible(true);
+            addProfFeatures.invoke(profReqBuilder, new Object[]{ featArray });
+            Object profReq = profReqBuilderCls.getDeclaredMethod("build")
+                    .invoke(profReqBuilder);
+            Log.d(TAG, "Built ClimateProfileRequest with " + featList.size() + " features");
+
+            // 6) Profile callback: log each toString()
+            Class<?> profCbIface = Class.forName(
+                    "androidx.car.app.hardware.climate.CarClimateProfileCallback");
+            Object profCb = Proxy.newProxyInstance(
+                    profCbIface.getClassLoader(),
+                    new Class[]{ profCbIface },
+                    (proxy, method, args) -> {
+                        if (args != null && args.length == 1) {
+                            Log.i(TAG, String.format(
+                                    "ClimateProfileCallback.%s → %s",
+                                    method.getName(), args[0].toString()));
+                        }
+                        return null;
+                    });
+
+            // 7) Invoke fetchClimateProfile(...)
+            Executor executor = Runnable::run;
+            Method fetchProfM = accCls.getDeclaredMethod(
+                    "fetchClimateProfile",
+                    Executor.class,
+                    profReq.getClass(),
+                    profCbIface);
+            fetchProfM.setAccessible(true);
+            fetchProfM.invoke(climate, executor, profReq, profCb);
+
+            // ========= STATE PHASE (ALL FEATURES) =========
+
+            // 8) CarZone.CAR_ZONE_GLOBAL for every feature
+            Class<?> carZoneCls = Class.forName(
+                    "androidx.car.app.hardware.common.CarZone");
+            Field globalZoneField = carZoneCls.getDeclaredField("CAR_ZONE_GLOBAL");
+            globalZoneField.setAccessible(true);
+            Object globalZone = globalZoneField.get(null);
+
+            // 9) addCarZones(CarZone...) varargs
+            Method addZonesM = featBuilderCls.getDeclaredMethod(
+                    "addCarZones", Array.newInstance(carZoneCls,0).getClass());
+            addZonesM.setAccessible(true);
+
+            // 10) Build new array of CarClimateFeature with CAR_ZONE_GLOBAL
+            List<Object> stateFeatList = new ArrayList<>();
+            for (Integer feature : featureMap.keySet()) {
+                Object fb = featBuilderCtor.newInstance(feature);
+                Object czArr = Array.newInstance(carZoneCls, 1);
+                Array.set(czArr, 0, globalZone);
+                addZonesM.invoke(fb, new Object[]{ czArr });
+                stateFeatList.add(buildFeatM.invoke(fb));
+            }
+            Object stateFeatArray = Array.newInstance(
+                    featCls, stateFeatList.size());
+            for (int i = 0; i < stateFeatList.size(); i++) {
+                Array.set(stateFeatArray, i, stateFeatList.get(i));
+            }
+
+            // 11) Build RegisterClimateStateRequest(true allFeatures=false builder)
+            Class<?> regReqBuilderCls = Class.forName(
+                    "androidx.car.app.hardware.climate.RegisterClimateStateRequest$Builder");
+            Constructor<?> regCtor = regReqBuilderCls.getConstructor(boolean.class);
+            Object regBuilder = regCtor.newInstance(false);
+            Method addRegsM = regReqBuilderCls.getDeclaredMethod(
+                    "addClimateRegisterFeatures", stateFeatArray.getClass());
+            addRegsM.setAccessible(true);
+            addRegsM.invoke(regBuilder, new Object[]{ stateFeatArray });
+            Object regReq = regReqBuilderCls
+                    .getDeclaredMethod("build")
+                    .invoke(regBuilder);
+
+            // 12) State callback: dump CarValue.toString()
+            Class<?> stateCbIface = Class.forName(
+                    "androidx.car.app.hardware.climate.CarClimateStateCallback");
+            Object stateCb = Proxy.newProxyInstance(
+                    stateCbIface.getClassLoader(),
+                    new Class[]{ stateCbIface },
+                    (proxy, method, args) -> {
+                        if (args != null && args.length == 1) {
+                            Log.i(TAG, String.format(
+                                    "StateCallback.%s → %s",
+                                    method.getName(), args[0].toString()));
+                        }
+                        return null;
+                    });
+
+            // 13) Invoke registerClimateStateCallback(...)
+            Method regM = accCls.getDeclaredMethod(
+                    "registerClimateStateCallback",
+                    Executor.class,
+                    regReq.getClass(),
+                    stateCbIface);
+            regM.setAccessible(true);
+            regM.invoke(climate, executor, regReq, stateCb);
+            Log.d(TAG, "Registered climate state callback for ALL features");
+
+            // 14) Unregister after 2s
+            handler.postDelayed(() -> {
+                try {
+                    Method unregM = accCls.getDeclaredMethod(
+                            "unregisterClimateStateCallback", stateCbIface);
+                    unregM.setAccessible(true);
+                    unregM.invoke(climate, stateCb);
+                    Log.d(TAG, "Unregistered climate state callback");
+                } catch (Exception ex) {
+                    Log.w(TAG, "Error unregistering climate callback", ex);
+                }
+            }, 2_000);
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying exception in AutomotiveCarClimate:",
+                    ite.getTargetException());
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising AutomotiveCarClimate", e);
+        }
+    }
+
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
 
