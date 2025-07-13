@@ -410,8 +410,12 @@ public class CarDataScreen extends Screen {
             //fetchAllCarProperties();
             //dumpCarAppHierarchyComAndroid();
 
-            exerciseAutomotiveCarClimate();
+            //exerciseAutomotiveCarClimate();
             //dumpCarAppHierarchyAndroidX();
+
+            //exerciseAutomotiveCarSensors();
+
+            exerciseAutomotiveCarInfo();
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
             Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
@@ -1985,6 +1989,283 @@ public class CarDataScreen extends Screen {
                     ite.getTargetException());
         } catch (Exception e) {
             Log.e(TAG, "Error exercising AutomotiveCarClimate", e);
+        }
+    }
+
+    @SuppressLint("RestrictedApi")
+    private void exerciseAutomotiveCarSensors() {
+        try {
+            // 1) Load and instantiate AutomotiveCarSensors
+            Class<?> sensorsCls = Class.forName(
+                    "androidx.car.app.hardware.info.AutomotiveCarSensors");
+            Constructor<?> sensorsCtor = sensorsCls.getConstructor();
+            Object sensors = sensorsCtor.newInstance();
+            Log.d(TAG, "Created AutomotiveCarSensors");
+
+            // 2) Prepare a simple Executor
+            Executor executor = Runnable::run;
+
+            // 3) Find the listener interface
+            Class<?> listenerIface = Class.forName(
+                    "androidx.car.app.hardware.common.OnCarDataAvailableListener");
+
+            // 4) Build a Proxy that logs the callback data
+            Object listenerProxy = Proxy.newProxyInstance(
+                    listenerIface.getClassLoader(),
+                    new Class[]{ listenerIface },
+                    (proxy, method, args) -> {
+                        if ("onCarDataAvailable".equals(method.getName())
+                                && args.length == 1) {
+                            Object dataObj = args[0];
+                            Log.i(TAG, "SensorCallback."
+                                    + dataObj.getClass().getSimpleName()
+                                    + " → " + dataObj.toString());
+                        }
+                        return null;
+                    });
+
+            // 5) The list of sensor types to exercise
+            String[] sensorTypes = {
+                    "Accelerometer",
+                    "Gyroscope",
+                    "Compass",
+                    "CarHardwareLocation"
+            };
+
+            for (String type : sensorTypes) {
+                String addName    = "add"    + type + "Listener";
+                String removeName = "remove" + type + "Listener";
+
+                // 5a) addXListener(int rate, Executor, OnCarDataAvailableListener)
+                Method addM = sensorsCls.getMethod(
+                        addName, int.class, Executor.class, listenerIface);
+                addM.setAccessible(true);
+                addM.invoke(sensors, /*rate=*/1, executor, listenerProxy);
+                Log.d(TAG, addName + "(1, executor, listener) invoked");
+
+                // 5b) removeXListener(OnCarDataAvailableListener)
+                Method remM = sensorsCls.getMethod(removeName, listenerIface);
+                remM.setAccessible(true);
+                remM.invoke(sensors, listenerProxy);
+                Log.d(TAG, removeName + "(listener) invoked");
+            }
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying exception in AutomotiveCarSensors:",
+                    ite.getTargetException());
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising AutomotiveCarSensors", e);
+        }
+    }
+
+/*
+    @SuppressLint("RestrictedApi")
+    private void exerciseAutomotiveCarInfo() {
+        try {
+            // 1) Get your hidden PropertyManager
+            CarHardwareManager hwMgr =
+                    getCarContext().getCarService(CarHardwareManager.class);
+            PropertyManager pm = getPropertyManager(hwMgr);
+            if (pm == null) {
+                Log.w(TAG, "No PropertyManager; cannot exercise AutomotiveCarInfo");
+                return;
+            }
+
+            // 2) Instantiate AutomotiveCarInfo(PropertyManager)
+            Class<?> infoCls = Class.forName(
+                    "androidx.car.app.hardware.info.AutomotiveCarInfo");
+            Constructor<?> infoCtor = infoCls.getConstructor(PropertyManager.class);
+            Object info = infoCtor.newInstance(pm);
+            Log.d(TAG, "Created AutomotiveCarInfo");
+
+            // 3) Prepare Executor and listener proxy
+            Executor executor = Runnable::run;
+            Class<?> listenerIface = Class.forName(
+                    "androidx.car.app.hardware.common.OnCarDataAvailableListener");
+            Object dataListener = Proxy.newProxyInstance(
+                    listenerIface.getClassLoader(),
+                    new Class[]{ listenerIface },
+                    (proxy, method, args) -> {
+                        if ("onCarDataAvailable".equals(method.getName())
+                                && args.length == 1) {
+                            Object payload = args[0];
+                            Log.i(TAG, "InfoCallback."
+                                    + payload.getClass().getSimpleName()
+                                    + " → " + payload.toString());
+                        }
+                        return null;
+                    });
+
+            // 4) DYNAMICALLY invoke every fetchXxx(...) with (Executor, Listener)
+            for (Method m : infoCls.getMethods()) {
+                if (m.getName().startsWith("fetch")
+                        && m.getParameterCount() == 2
+                        && Executor.class.isAssignableFrom(m.getParameterTypes()[0])
+                        && listenerIface.isAssignableFrom(m.getParameterTypes()[1])) {
+                    m.setAccessible(true);
+                    m.invoke(info, executor, dataListener);
+                    Log.d(TAG, m.getName() + "(executor, listener) invoked");
+                }
+            }
+
+            // 5) Now invoke every addXxxListener(...) & removeXxxListener(...)
+            //    Methods look like addFooListener(Executor, Listener) or just (Listener)
+            //    We pair them by name: add... ↔ remove...
+            List<String> addNames = new ArrayList<>();
+            for (Method m : infoCls.getMethods()) {
+                String name = m.getName();
+                if (name.startsWith("add") && name.endsWith("Listener")
+                        && m.getParameterCount() == 2
+                        && Executor.class.isAssignableFrom(m.getParameterTypes()[0])
+                        && listenerIface.isAssignableFrom(m.getParameterTypes()[1])) {
+                    addNames.add(name);
+                }
+            }
+            for (String addName : addNames) {
+                String removeName = addName.replaceFirst("^add", "remove");
+                // invoke add
+                Method addM = infoCls.getMethod(addName,
+                        Executor.class, listenerIface);
+                addM.setAccessible(true);
+                addM.invoke(info, executor, dataListener);
+                Log.d(TAG, addName + "(executor, listener) invoked");
+
+                // invoke remove
+                try {
+                    Method remM = infoCls.getMethod(removeName, listenerIface);
+                    remM.setAccessible(true);
+                    remM.invoke(info, dataListener);
+                    Log.d(TAG, removeName + "(listener) invoked");
+                } catch (NoSuchMethodException nsme) {
+                    Log.w(TAG, "No matching remove method for " + addName);
+                }
+            }
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying exception in AutomotiveCarInfo:",
+                    ite.getTargetException());
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising AutomotiveCarInfo", e);
+        }
+    }
+*/
+
+    @SuppressLint("RestrictedApi")
+    private void exerciseAutomotiveCarInfo() {
+        try {
+            // 1) Obtain your hidden PropertyManager
+            CarHardwareManager hwMgr =
+                    getCarContext().getCarService(CarHardwareManager.class);
+            PropertyManager pm = getPropertyManager(hwMgr);
+            if (pm == null) {
+                Log.w(TAG, "No PropertyManager; cannot exercise AutomotiveCarInfo");
+                return;
+            }
+
+            // 2) Instantiate AutomotiveCarInfo(PropertyManager)
+            Class<?> infoCls = Class.forName(
+                    "androidx.car.app.hardware.info.AutomotiveCarInfo");
+            Constructor<?> infoCtor = infoCls.getConstructor(PropertyManager.class);
+            Object info = infoCtor.newInstance(pm);
+            Log.d(TAG, "Created AutomotiveCarInfo");
+
+            // 3) Prepare Executor
+            Executor executor = Runnable::run;
+
+            // 4) Build a robust OnCarDataAvailableListener<T> proxy
+            Class<?> listenerIface = Class.forName(
+                    "androidx.car.app.hardware.common.OnCarDataAvailableListener");
+            Object dataListener = Proxy.newProxyInstance(
+                    listenerIface.getClassLoader(),
+                    new Class[]{ listenerIface },
+                    new InvocationHandler() {
+                        // Stable identity for equals/hashCode
+                        private final int identityHash = System.identityHashCode(this);
+
+                        @Override
+                        public Object invoke(Object proxy, Method method, Object[] args)
+                                throws Throwable {
+                            String name = method.getName();
+
+                            // equals(Object)
+                            if ("equals".equals(name) && args != null && args.length == 1) {
+                                return proxy == args[0];
+                            }
+                            // hashCode()
+                            if ("hashCode".equals(name) && (args == null || args.length == 0)) {
+                                return identityHash;
+                            }
+                            // toString()
+                            if ("toString".equals(name) && (args == null || args.length == 0)) {
+                                return "OnCarDataAvailableListenerProxy@" + identityHash;
+                            }
+                            // onCarDataAvailable(T data)
+                            if ("onCarDataAvailable".equals(name)
+                                    && args != null && args.length == 1) {
+                                Object payload = args[0];
+                                Log.i(TAG, "InfoCallback."
+                                        + payload.getClass().getSimpleName()
+                                        + " → " + payload.toString());
+                                return null;
+                            }
+                            // default no‑op
+                            return null;
+                        }
+                    });
+
+            // 5) Dynamically invoke all fetchXxx(executor, listener) methods
+            for (Method m : infoCls.getMethods()) {
+                if (m.getName().startsWith("fetch")
+                        && m.getParameterCount() == 2
+                        && Executor.class.isAssignableFrom(m.getParameterTypes()[0])
+                        && listenerIface.isAssignableFrom(m.getParameterTypes()[1])) {
+                    m.setAccessible(true);
+                    m.invoke(info, executor, dataListener);
+                    Log.d(TAG, m.getName() + "(executor, listener) invoked");
+                }
+            }
+
+            // 6) Dynamically invoke each addXxxListener(executor, listener),
+            //    then schedule removeXxxListener(listener) after 2 seconds
+            List<String> addNames = new ArrayList<>();
+            for (Method m : infoCls.getMethods()) {
+                String nm = m.getName();
+                if (nm.startsWith("add") && nm.endsWith("Listener")
+                        && m.getParameterCount() == 2
+                        && Executor.class.isAssignableFrom(m.getParameterTypes()[0])
+                        && listenerIface.isAssignableFrom(m.getParameterTypes()[1])) {
+                    addNames.add(nm);
+                }
+            }
+            for (String addName : addNames) {
+                String removeName = addName.replaceFirst("^add", "remove");
+
+                // invoke addXxxListener(executor, listener)
+                Method addM = infoCls.getMethod(addName, Executor.class, listenerIface);
+                addM.setAccessible(true);
+                addM.invoke(info, executor, dataListener);
+                Log.d(TAG, addName + "(executor, listener) invoked");
+
+                // schedule removeXxxListener(listener) after 2 seconds
+                handler.postDelayed(() -> {
+                    try {
+                        Method remM = infoCls.getMethod(removeName, listenerIface);
+                        remM.setAccessible(true);
+                        remM.invoke(info, dataListener);
+                        Log.d(TAG, removeName + "(listener) invoked");
+                    } catch (NoSuchMethodException nsme) {
+                        Log.w(TAG, "No matching remove method for " + addName);
+                    } catch (Exception ex) {
+                        Log.e(TAG, "Error during " + removeName, ex);
+                    }
+                }, 2_000);
+            }
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying exception in AutomotiveCarInfo:",
+                    ite.getTargetException());
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising AutomotiveCarInfo", e);
         }
     }
 
