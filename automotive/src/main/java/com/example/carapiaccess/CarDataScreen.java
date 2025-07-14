@@ -347,6 +347,7 @@ import android.car.watchdog.ResourceOveruseStats;
 //Reflection Imports
 import com.google.common.collect.ImmutableBiMap;
 
+import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -415,7 +416,10 @@ public class CarDataScreen extends Screen {
 
             //exerciseAutomotiveCarSensors();
 
-            exerciseAutomotiveCarInfo();
+            //exerciseAutomotiveCarInfo();
+
+            exerciseAutomotiveCarAudioRecord();
+
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
             Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
@@ -2265,6 +2269,90 @@ public class CarDataScreen extends Screen {
         }
     }
 
+    @SuppressLint("RestrictedApi")
+    private void exerciseAutomotiveCarAudioRecord() {
+        try {
+            // 1) Load and instantiate AutomotiveCarAudioRecord(CarContext)
+            Class<?> audioRecCls = Class.forName(
+                    "androidx.car.app.media.AutomotiveCarAudioRecord");
+            Constructor<?> audioRecCtor = audioRecCls.getConstructor(CarContext.class);
+            Object audioRec = audioRecCtor.newInstance(getCarContext());
+            Log.d(TAG, "Created AutomotiveCarAudioRecord");
+
+            // 2) Build a CarAudioCallback proxy to log callback events
+            Class<?> carAudioCbIface = Class.forName(
+                    "androidx.car.app.media.CarAudioCallback");
+            Object carAudioCb = Proxy.newProxyInstance(
+                    carAudioCbIface.getClassLoader(),
+                    new Class[]{ carAudioCbIface },
+                    (proxy, method, args) -> {
+                        Log.i(TAG, "CarAudioCallback." + method.getName()
+                                + Arrays.toString(args));
+                        return null;
+                    });
+
+            // 3) Build an OpenMicrophoneResponse via its Builder(CarAudioCallback)
+            Class<?> obrBuilderCls = Class.forName(
+                    "androidx.car.app.media.OpenMicrophoneResponse$Builder");
+            Constructor<?> obrBuilderCtor = obrBuilderCls.getConstructor(carAudioCbIface);
+            Object obrBuilder = obrBuilderCtor.newInstance(carAudioCb);
+            Method buildObr = obrBuilderCls.getMethod("build");
+            Object openMicResp = buildObr.invoke(obrBuilder);
+            Log.d(TAG, "Built OpenMicrophoneResponse");
+
+            // 4) Call startRecordingInternal(OpenMicrophoneResponse)
+            Method startRecM = audioRecCls.getDeclaredMethod(
+                    "startRecordingInternal", openMicResp.getClass());
+            startRecM.setAccessible(true);
+            startRecM.invoke(audioRec, openMicResp);
+            Log.d(TAG, "startRecordingInternal(...) invoked");
+
+            // 5) Wait for 5 seconds to capture audio
+            Log.d(TAG, "Recording for 5 seconds…");
+            Thread.sleep(5_000);
+
+            // 6) Prepare buffer for readInternal(...)
+            Class<?> baseCarAudioRecCls = Class.forName(
+                    "androidx.car.app.media.CarAudioRecord");
+            Field bufField = baseCarAudioRecCls.getDeclaredField("AUDIO_CONTENT_BUFFER_SIZE");
+            bufField.setAccessible(true);
+            int bufSize = bufField.getInt(null);
+            byte[] buffer = new byte[bufSize];
+
+            // 7) Call readInternal(byte[], int, int)
+            Method readInternalM = audioRecCls.getDeclaredMethod(
+                    "readInternal", byte[].class, int.class, int.class);
+            readInternalM.setAccessible(true);
+            int bytesRead = (Integer) readInternalM.invoke(
+                    audioRec, buffer, 0, bufSize);
+            Log.i(TAG, "readInternal returned bytesRead=" + bytesRead);
+
+            // 8) Call stopRecordingInternal()
+            Method stopRecM = audioRecCls.getDeclaredMethod("stopRecordingInternal");
+            stopRecM.setAccessible(true);
+            stopRecM.invoke(audioRec);
+            Log.d(TAG, "stopRecordingInternal() invoked");
+
+            // 9) Dump first few bytes
+            int toDump = Math.min(bytesRead, 16);
+            StringBuilder sb = new StringBuilder("First " + toDump + " bytes: ");
+            for (int i = 0; i < toDump; i++) {
+                sb.append(buffer[i]).append(" ");
+            }
+            Log.i(TAG, sb.toString());
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying exception in AutomotiveCarAudioRecord:",
+                    ite.getTargetException());
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            Log.e(TAG, "Interrupted while waiting during recording", ie);
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising AutomotiveCarAudioRecord", e);
+        }
+    }
+
+
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
 
@@ -2327,7 +2415,6 @@ public class CarDataScreen extends Screen {
             e.printStackTrace();
         }
     }
-
     private static void tryCarServiceMethod(Object carService, String methodName, Class<?>[] paramTypes, Object... args) {
         try {
             Method method = carService.getClass().getMethod(methodName, paramTypes);
