@@ -1823,7 +1823,7 @@ public class CarDataScreen extends Screen {
     @SuppressLint("RestrictedApi")
     private void exerciseAutomotiveCarClimate() {
         try {
-            // 1) Obtain PropertyManager
+            //Obtain PropertyManager
             CarHardwareManager hwMgr =
                     getCarContext().getCarService(CarHardwareManager.class);
             PropertyManager pm = getPropertyManager(hwMgr);
@@ -1832,14 +1832,14 @@ public class CarDataScreen extends Screen {
                 return;
             }
 
-            // 2) Instantiate AutomotiveCarClimate(PropertyManager)
+            //Instantiate AutomotiveCarClimate(PropertyManager)
             Class<?> accCls = Class.forName(
                     "androidx.car.app.hardware.climate.AutomotiveCarClimate");
             Constructor<?> accCtor = accCls.getConstructor(PropertyManager.class);
             Object climate = accCtor.newInstance(pm);
             Log.d(TAG, "Created AutomotiveCarClimate");
 
-            // 3) Grab the static feature→propertyId map
+            //Grab the static feature
             Field mapField = accCls.getDeclaredField("sFeatureToPropertyId");
             mapField.setAccessible(true);
             @SuppressWarnings("unchecked")
@@ -1848,7 +1848,7 @@ public class CarDataScreen extends Screen {
 
             // ========= PROFILE PHASE =========
 
-            // 4) Build CarClimateFeature[] for every feature
+            //Build CarClimateFeature[] for every feature
             Class<?> featBuilderCls = Class.forName(
                     "androidx.car.app.hardware.climate.CarClimateFeature$Builder");
             Constructor<?> featBuilderCtor = featBuilderCls.getConstructor(int.class);
@@ -1867,7 +1867,7 @@ public class CarDataScreen extends Screen {
                 Array.set(featArray, i, featList.get(i));
             }
 
-            // 5) Build ClimateProfileRequest
+            //Build ClimateProfileRequest
             Class<?> profReqBuilderCls = Class.forName(
                     "androidx.car.app.hardware.climate.ClimateProfileRequest$Builder");
             Object profReqBuilder = profReqBuilderCls.getConstructor().newInstance();
@@ -1879,7 +1879,7 @@ public class CarDataScreen extends Screen {
                     .invoke(profReqBuilder);
             Log.d(TAG, "Built ClimateProfileRequest with " + featList.size() + " features");
 
-            // 6) Profile callback: log each toString()
+            //Profile callback: log each toString()
             Class<?> profCbIface = Class.forName(
                     "androidx.car.app.hardware.climate.CarClimateProfileCallback");
             Object profCb = Proxy.newProxyInstance(
@@ -1894,7 +1894,7 @@ public class CarDataScreen extends Screen {
                         return null;
                     });
 
-            // 7) Invoke fetchClimateProfile(...)
+            //Invoke fetchClimateProfile(...)
             Executor executor = Runnable::run;
             Method fetchProfM = accCls.getDeclaredMethod(
                     "fetchClimateProfile",
@@ -1906,19 +1906,19 @@ public class CarDataScreen extends Screen {
 
             // ========= STATE PHASE (ALL FEATURES) =========
 
-            // 8) CarZone.CAR_ZONE_GLOBAL for every feature
+            //CarZone.CAR_ZONE_GLOBAL for every feature
             Class<?> carZoneCls = Class.forName(
                     "androidx.car.app.hardware.common.CarZone");
             Field globalZoneField = carZoneCls.getDeclaredField("CAR_ZONE_GLOBAL");
             globalZoneField.setAccessible(true);
             Object globalZone = globalZoneField.get(null);
 
-            // 9) addCarZones(CarZone...) varargs
+            //addCarZones(CarZone...) varargs
             Method addZonesM = featBuilderCls.getDeclaredMethod(
                     "addCarZones", Array.newInstance(carZoneCls,0).getClass());
             addZonesM.setAccessible(true);
 
-            // 10) Build new array of CarClimateFeature with CAR_ZONE_GLOBAL
+            //uild new array of CarClimateFeature with CAR_ZONE_GLOBAL
             List<Object> stateFeatList = new ArrayList<>();
             for (Integer feature : featureMap.keySet()) {
                 Object fb = featBuilderCtor.newInstance(feature);
@@ -1933,7 +1933,7 @@ public class CarDataScreen extends Screen {
                 Array.set(stateFeatArray, i, stateFeatList.get(i));
             }
 
-            // 11) Build RegisterClimateStateRequest(true allFeatures=false builder)
+            //Build RegisterClimateStateRequest(true allFeatures=false builder)
             Class<?> regReqBuilderCls = Class.forName(
                     "androidx.car.app.hardware.climate.RegisterClimateStateRequest$Builder");
             Constructor<?> regCtor = regReqBuilderCls.getConstructor(boolean.class);
@@ -1946,7 +1946,7 @@ public class CarDataScreen extends Screen {
                     .getDeclaredMethod("build")
                     .invoke(regBuilder);
 
-            // 12) State callback: dump CarValue.toString()
+            //State callback: dump CarValue.toString()
             Class<?> stateCbIface = Class.forName(
                     "androidx.car.app.hardware.climate.CarClimateStateCallback");
             Object stateCb = Proxy.newProxyInstance(
@@ -1961,7 +1961,7 @@ public class CarDataScreen extends Screen {
                         return null;
                     });
 
-            // 13) Invoke registerClimateStateCallback(...)
+            //Invoke registerClimateStateCallback(...)
             Method regM = accCls.getDeclaredMethod(
                     "registerClimateStateCallback",
                     Executor.class,
@@ -1971,7 +1971,7 @@ public class CarDataScreen extends Screen {
             regM.invoke(climate, executor, regReq, stateCb);
             Log.d(TAG, "Registered climate state callback for ALL features");
 
-            // 14) Unregister after 2s
+            //Unregister after 2s
             handler.postDelayed(() -> {
                 try {
                     Method unregM = accCls.getDeclaredMethod(
@@ -1995,21 +1995,20 @@ public class CarDataScreen extends Screen {
     @SuppressLint("RestrictedApi")
     private void exerciseAutomotiveCarSensors() {
         try {
-            // 1) Load and instantiate AutomotiveCarSensors
+            //Load and instantiate AutomotiveCarSensors
             Class<?> sensorsCls = Class.forName(
                     "androidx.car.app.hardware.info.AutomotiveCarSensors");
             Constructor<?> sensorsCtor = sensorsCls.getConstructor();
             Object sensors = sensorsCtor.newInstance();
             Log.d(TAG, "Created AutomotiveCarSensors");
 
-            // 2) Prepare a simple Executor
             Executor executor = Runnable::run;
 
-            // 3) Find the listener interface
+            //Find the listener interface
             Class<?> listenerIface = Class.forName(
                     "androidx.car.app.hardware.common.OnCarDataAvailableListener");
 
-            // 4) Build a Proxy that logs the callback data
+            //Build a Proxy that logs the callback data
             Object listenerProxy = Proxy.newProxyInstance(
                     listenerIface.getClassLoader(),
                     new Class[]{ listenerIface },
@@ -2024,7 +2023,6 @@ public class CarDataScreen extends Screen {
                         return null;
                     });
 
-            // 5) The list of sensor types to exercise
             String[] sensorTypes = {
                     "Accelerometer",
                     "Gyroscope",
@@ -2036,14 +2034,14 @@ public class CarDataScreen extends Screen {
                 String addName    = "add"    + type + "Listener";
                 String removeName = "remove" + type + "Listener";
 
-                // 5a) addXListener(int rate, Executor, OnCarDataAvailableListener)
+                //addXListener(int rate, Executor, OnCarDataAvailableListener)
                 Method addM = sensorsCls.getMethod(
                         addName, int.class, Executor.class, listenerIface);
                 addM.setAccessible(true);
                 addM.invoke(sensors, /*rate=*/1, executor, listenerProxy);
                 Log.d(TAG, addName + "(1, executor, listener) invoked");
 
-                // 5b) removeXListener(OnCarDataAvailableListener)
+                //removeXListener(OnCarDataAvailableListener)
                 Method remM = sensorsCls.getMethod(removeName, listenerIface);
                 remM.setAccessible(true);
                 remM.invoke(sensors, listenerProxy);
@@ -2153,7 +2151,7 @@ public class CarDataScreen extends Screen {
     @SuppressLint("RestrictedApi")
     private void exerciseAutomotiveCarInfo() {
         try {
-            // 1) Obtain your hidden PropertyManager
+            //Obtain hidden PropertyManager
             CarHardwareManager hwMgr =
                     getCarContext().getCarService(CarHardwareManager.class);
             PropertyManager pm = getPropertyManager(hwMgr);
@@ -2162,17 +2160,16 @@ public class CarDataScreen extends Screen {
                 return;
             }
 
-            // 2) Instantiate AutomotiveCarInfo(PropertyManager)
+            //Instantiate AutomotiveCarInfo(PropertyManager)
             Class<?> infoCls = Class.forName(
                     "androidx.car.app.hardware.info.AutomotiveCarInfo");
             Constructor<?> infoCtor = infoCls.getConstructor(PropertyManager.class);
             Object info = infoCtor.newInstance(pm);
             Log.d(TAG, "Created AutomotiveCarInfo");
 
-            // 3) Prepare Executor
             Executor executor = Runnable::run;
 
-            // 4) Build a robust OnCarDataAvailableListener<T> proxy
+            //Build OnCarDataAvailableListener<T> proxy
             Class<?> listenerIface = Class.forName(
                     "androidx.car.app.hardware.common.OnCarDataAvailableListener");
             Object dataListener = Proxy.newProxyInstance(
@@ -2213,7 +2210,7 @@ public class CarDataScreen extends Screen {
                         }
                     });
 
-            // 5) Dynamically invoke all fetchXxx(executor, listener) methods
+            //Dynamically invoke all fetchXxx(executor, listener) methods
             for (Method m : infoCls.getMethods()) {
                 if (m.getName().startsWith("fetch")
                         && m.getParameterCount() == 2
@@ -2225,8 +2222,7 @@ public class CarDataScreen extends Screen {
                 }
             }
 
-            // 6) Dynamically invoke each addXxxListener(executor, listener),
-            //    then schedule removeXxxListener(listener) after 2 seconds
+            // schedule removeXxxListener(listener) after 2 seconds
             List<String> addNames = new ArrayList<>();
             for (Method m : infoCls.getMethods()) {
                 String nm = m.getName();
