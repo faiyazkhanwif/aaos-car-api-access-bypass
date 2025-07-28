@@ -2,9 +2,12 @@ package com.example.carapiaccess;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.ContextWrapper;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.os.Build;
 import android.os.IBinder;
 import android.text.TextUtils;
@@ -287,7 +290,12 @@ import androidx.car.app.model.Pane;
 import androidx.car.app.model.PaneTemplate;
 import androidx.car.app.model.Row;
 import androidx.car.app.model.Template;
+import androidx.car.app.validation.HostValidator;
+import androidx.car.app.versioning.CarAppApiLevels;
+
+
 import androidx.collection.ArraySet;
+import androidx.lifecycle.Lifecycle;
 
 //Android.Car Imports
 //import android.car.ApiVersion;
@@ -357,6 +365,7 @@ import java.lang.reflect.Method;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -412,13 +421,24 @@ public class CarDataScreen extends Screen {
             //dumpCarAppHierarchyComAndroid();
 
             //exerciseAutomotiveCarClimate();
-            //dumpCarAppHierarchyAndroidX();
+
+            dumpCarAppHierarchyAndroidX();
 
             //exerciseAutomotiveCarSensors();
 
             //exerciseAutomotiveCarInfo();
 
-            exerciseAutomotiveCarAudioRecord();
+            //exerciseAutomotiveCarInfo();
+
+            //fetchAllCarProperties();
+
+            //exerciseCarConnection();
+
+            //exerciseHostDispatcherNavigationRpc();
+
+            //exerciseHostValidator();
+
+            fetchAllCarProperties();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -704,6 +724,60 @@ public class CarDataScreen extends Screen {
         return (PropertyManager) fieldValue;
     }
 
+    @SuppressLint("RestrictedApi")
+    private PropertyManager getSensorManager(CarHardwareManager hardwareManager) throws Exception {
+        Object rawSensors = hardwareManager.getCarSensors();
+        if (!(rawSensors instanceof AutomotiveCarSensors)) {
+            Log.e(TAG, "CarSensors returned is not AutomotiveCarSensors; got: " +
+                    (rawSensors == null ? "null" : rawSensors.getClass().getName()));
+            return null;
+        }
+        AutomotiveCarSensors carSensors = (AutomotiveCarSensors) rawSensors;
+
+        // Fetch the private instance field "mSensorManager"
+        Field smField = ReflectUtil.safeGetField(AutomotiveCarSensors.class, "mPropertyManager");
+        if (smField == null) {
+            Log.e(TAG, "Field 'mSensorManager' not found in AutomotiveCarSensors");
+            return null;
+        }
+
+        Object fieldValue = ReflectUtil.safeGetInstanceObject(smField, carSensors);
+        if (!(fieldValue instanceof PropertyManager)) {
+            Log.e(TAG, "mSensorManager is not a SensorManager; class=" +
+                    (fieldValue == null ? "null" : fieldValue.getClass().getName()));
+            return null;
+        }
+        return (PropertyManager) fieldValue;
+    }
+
+    @OptIn(markerClass = ExperimentalCarApi.class)
+    @SuppressLint("RestrictedApi")
+    private PropertyManager getClimatePropertyManager(CarHardwareManager hardwareManager) throws Exception {
+        Object rawClimate = hardwareManager.getCarClimate();
+        if (!(rawClimate instanceof AutomotiveCarClimate)) {
+            Log.e(TAG, "CarClimate returned is not AutomotiveCarClimate; got: " +
+                    (rawClimate == null ? "null" : rawClimate.getClass().getName()));
+            return null;
+        }
+        AutomotiveCarClimate carClimate = (AutomotiveCarClimate) rawClimate;
+
+        // Fetch the private instance field "mPropertyManager"
+        Field pmField = ReflectUtil.safeGetField(AutomotiveCarClimate.class, "mPropertyManager");
+        if (pmField == null) {
+            Log.e(TAG, "Field 'mPropertyManager' not found in AutomotiveCarClimate");
+            return null;
+        }
+
+        Object fieldValue = ReflectUtil.safeGetInstanceObject(pmField, carClimate);
+        if (!(fieldValue instanceof PropertyManager)) {
+            Log.e(TAG, "mPropertyManager is not a PropertyManager; class=" +
+                    (fieldValue == null ? "null" : fieldValue.getClass().getName()));
+            return null;
+        }
+        return (PropertyManager) fieldValue;
+    }
+
+
     private List<Integer> getAllVehiclePropertyIds() throws Exception {
         List<Integer> propertyIds = new ArrayList<>();
 
@@ -940,7 +1014,6 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.SurfaceCallback",
                         "androidx.car.app.SurfaceContainer"
                 };
-             */
             case "media":
                 return new String[]{
                         "androidx.car.app.media.AutomotiveCarAudioRecord",
@@ -953,7 +1026,6 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.media.OpenMicrophoneRequest",
                         "androidx.car.app.media.OpenMicrophoneResponse"
                 };
-            /*
             case "messaging":
                 return new String[]{
                         "androidx.car.app.messaging.MessagingServiceConstants",
@@ -1059,6 +1131,44 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.constraints.ConstraintManager",
                         "androidx.car.app.constraints.IConstraintHost"
                 };
+            case "connection":
+                return new String[]{
+                        "androidx.car.app.connection.CarConnection",
+                        "androidx.car.app.connection.CarConnectionTypeLiveData"
+                };
+            case "managers":
+                return new String[]{
+                        "androidx.car.app.managers.Manager",
+                        "androidx.car.app.managers.ManagerFactory",
+                        "androidx.car.app.managers.ManagerCache",
+                        "androidx.car.app.managers.ResultManager"
+                };
+            case "mediaextensions":
+                return new String[]{
+                        "androidx.car.app.mediaextensions.MetadataExtras"
+                };
+            case "validation":
+                return new String[]{
+                        "androidx.car.app.validation.HostValidator"
+                };
+            case "versioning":
+                return new String[]{
+                        "androidx.car.app.versioning.CarAppApiLevels",
+                        "androidx.car.app.versioning.CarAppApiLevel"
+                };
+            case "suggestion":
+                return new String[]{
+                        "androidx.car.app.suggestion.SuggestionManager",
+                        "androidx.car.app.suggestion.ISuggestionHost",
+                        "androidx.car.app.suggestion.model.Suggestion"
+                };
+            case "annotations":
+                return new String[]{
+                        "androidx.car.app.annotations.ExperimentalCarApi",
+                        "androidx.car.app.annotations.CarProtocol",
+                        "androidx.car.app.annotations.RequiresCarApi",
+                        "androidx.car.app.annotations.KeepFields"
+                };
             case "activity":
                 return new String[]{
                         "androidx.car.app.activity.ActivityLifecycleDelegate",
@@ -1085,7 +1195,7 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.activity.renderer.surface.LegacySurfacePackage",
                         "androidx.car.app.activity.renderer.surface.OnBackPressedListener",
                         "androidx.car.app.activity.renderer.surface.OnCreateInputConnectionListener",
-                        //"androidx.car.app.activity.renderer.surface.RemoteProxyInputConnection",
+                        "androidx.car.app.activity.renderer.surface.RemoteProxyInputConnection",
                         "androidx.car.app.activity.renderer.surface.SurfaceControlCallback",
                         "androidx.car.app.activity.renderer.surface.SurfaceHolderListener",
                         "androidx.car.app.activity.renderer.surface.SurfaceWrapper",
@@ -1095,86 +1205,49 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.activity.ui.ErrorMessageView",
                         "androidx.car.app.activity.ui.LoadingView"
                 };
-            case "annotations":
-                return new String[]{
-                        "androidx.car.app.annotations.ExperimentalCarApi",
-                        "androidx.car.app.annotations.CarProtocol",
-                        "androidx.car.app.annotations.RequiresCarApi",
-                        "androidx.car.app.annotations.KeepFields"
-                };
-            case "connection":
-                return new String[]{
-                        "androidx.car.app.connection.CarConnection"
-                };
-            case "managers":
-                return new String[]{
-                        "androidx.car.app.managers.Manager",
-                        "androidx.car.app.managers.ManagerFactory",
-                        "androidx.car.app.managers.ManagerCache",
-                        "androidx.car.app.managers.ResultManager"
-                };
-
-             */
-            case "mediaextensions":
-                return new String[]{
-                        "androidx.car.app.mediaextensions.MetadataExtras"
-                };
-                /*
-            case "suggestion":
-                return new String[]{
-                        "androidx.car.app.suggestion.SuggestionManager",
-                        "androidx.car.app.suggestion.ISuggestionHost",
-                        "androidx.car.app.suggestion.model.Suggestion"
-                };
-            case "validation":
-                return new String[]{
-                        "androidx.car.app.validation.HostValidator"
-                };
-            case "versioning":
-                return new String[]{
-                        "androidx.car.app.versioning.CarAppApiLevels",
-                        "androidx.car.app.versioning.CarAppApiLevel"
-                };
             case "serialization":
                 return new String[]{
                         "androidx.car.app.serialization.Bundleable",
                         "androidx.car.app.serialization.BundlerException",
                         "androidx.car.app.serialization.Bundler"
-                };*/
-            /*
+                };
             case "utils":
                 return new String[]{
-                        //"androidx.car.app.utils.CollectionUtils",
-                        //"androidx.car.app.utils.CommonUtils",
-                        //"androidx.car.app.utils.LogTags",
-                        //"androidx.car.app.utils.RemoteUtils",
-                        //"androidx.car.app.utils.StringUtils",
-                        //"androidx.car.app.utils.ThreadUtils"
+                        "androidx.car.app.utils.CollectionUtils",
+                        "androidx.car.app.utils.CommonUtils",
+                        "androidx.car.app.utils.LogTags",
+                        "androidx.car.app.utils.RemoteUtils",
+                        "androidx.car.app.utils.StringUtils",
+                        "androidx.car.app.utils.ThreadUtils"
                 };
             case "notification":
                 return new String[]{
-                        //"androidx.car.app.notification.CarAppExtender",
-                        //"androidx.car.app.notification.CarNotificationManager",
-                        //"androidx.car.app.notification.CarPendingIntent",
-                        //"androidx.car.app.notification.CarAppNotificationBroadcastReceiver"
+                        "androidx.car.app.notification.CarAppExtender",
+                        "androidx.car.app.notification.CarNotificationManager",
+                        "androidx.car.app.notification.CarPendingIntent",
+                        "androidx.car.app.notification.CarAppNotificationBroadcastReceiver"
                 };
+             */
             case "hardware":
                 return new String[]{
-                        //"androidx.car.app.hardware.CarHardwareManager",
-                        //"androidx.car.app.hardware.AutomotiveCarHardwareManager"
+                        "androidx.car.app.hardware.CarHardwareManager",
+                        "androidx.car.app.hardware.AutomotiveCarHardwareManager"
                 };
+
+
+            /*
             case "hardware.common":
                 return new String[]{
-                        //"androidx.car.app.hardware.common.CarValue",
-                        //"androidx.car.app.hardware.common.CarZone",
+                        "androidx.car.app.hardware.common.CarValue",
+                        "androidx.car.app.hardware.common.CarZone",
                         "androidx.car.app.hardware.common.CarPropertyResponse",
                         "androidx.car.app.hardware.common.PropertyManager",
-                        //"androidx.car.app.hardware.common.CarUnit",
-                        //"androidx.car.app.hardware.common.CarZoneAreaIdConstants",
+                        "androidx.car.app.hardware.common.CarUnit",
+                        "androidx.car.app.hardware.common.CarZoneAreaIdConstants",
                         "androidx.car.app.hardware.common.CarZoneUtils",
                         "androidx.car.app.hardware.common.PropertyResponseCache",
-                        //"androidx.car.app.hardware.common.GlobalCarZoneAreaIdConverter",
-                        //"androidx.car.app.hardware.common.SeatCarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.GlobalCarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.SeatCarZoneAreaIdConverter",
                         "androidx.car.app.hardware.common.CarPropertyProfile",
                         "androidx.car.app.hardware.common.CarValueUtils",
                         "androidx.car.app.hardware.common.GetPropertyRequest",
@@ -1182,58 +1255,59 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.hardware.common.PropertyUtils",
                         "androidx.car.app.hardware.common.CarInternalError",
                         "androidx.car.app.hardware.common.OnCarPropertyResponseListener",
-                        //"androidx.car.app.hardware.common.OnCarDataAvailableListener",
-                        //"androidx.car.app.hardware.common.CarSetOperationStatusCallback",
-                        //"androidx.car.app.hardware.common.CarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.OnCarDataAvailableListener",
+                        "androidx.car.app.hardware.common.CarSetOperationStatusCallback",
+                        "androidx.car.app.hardware.common.CarZoneAreaIdConverter",
                         "androidx.car.app.hardware.common.PropertyRequestProcessor"
                 };
             case "hardware.climate":
                 return new String[]{
                         "androidx.car.app.hardware.climate.AutomotiveCarClimate",
-                        //"androidx.car.app.hardware.climate.CabinTemperatureProfile",
-                        //"androidx.car.app.hardware.climate.CarClimate",
-                        //"androidx.car.app.hardware.climate.CarClimateFeature",
-                        //"androidx.car.app.hardware.climate.CarClimateProfileCallback",
-                        //"androidx.car.app.hardware.climate.CarClimateStateCallback",
-                        //"androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
-                        //"androidx.car.app.hardware.climate.ClimateProfileRequest",
-                        //"androidx.car.app.hardware.climate.ClimateStateRequest",
-                        //"androidx.car.app.hardware.climate.DefrosterProfile",
-                        //"androidx.car.app.hardware.climate.ElectricDefrosterProfile",
-                        //"androidx.car.app.hardware.climate.FanDirectionProfile",
-                        //"androidx.car.app.hardware.climate.FanSpeedLevelProfile",
-                        //"androidx.car.app.hardware.climate.HvacAcProfile",
-                        //"androidx.car.app.hardware.climate.HvacAutoModeProfile",
-                        //"androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
-                        //"androidx.car.app.hardware.climate.HvacDualModeProfile",
-                        //"androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
-                        //"androidx.car.app.hardware.climate.HvacPowerProfile",
-                        //"androidx.car.app.hardware.climate.HvacRecirculationProfile",
-                        //"androidx.car.app.hardware.climate.MaxDefrosterProfile",
-                        //"androidx.car.app.hardware.climate.RegisterClimateStateRequest",
-                        //"androidx.car.app.hardware.climate.SeatTemperatureProfile",
-                        //"androidx.car.app.hardware.climate.SeatVentilationProfile",
-                        //"androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
+                        "androidx.car.app.hardware.climate.CabinTemperatureProfile",
+                        "androidx.car.app.hardware.climate.CarClimate",
+                        "androidx.car.app.hardware.climate.CarClimateFeature",
+                        "androidx.car.app.hardware.climate.CarClimateProfileCallback",
+                        "androidx.car.app.hardware.climate.CarClimateStateCallback",
+                        "androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
+                        "androidx.car.app.hardware.climate.ClimateProfileRequest",
+                        "androidx.car.app.hardware.climate.ClimateStateRequest",
+                        "androidx.car.app.hardware.climate.DefrosterProfile",
+                        "androidx.car.app.hardware.climate.ElectricDefrosterProfile",
+                        "androidx.car.app.hardware.climate.FanDirectionProfile",
+                        "androidx.car.app.hardware.climate.FanSpeedLevelProfile",
+                        "androidx.car.app.hardware.climate.HvacAcProfile",
+                        "androidx.car.app.hardware.climate.HvacAutoModeProfile",
+                        "androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
+                        "androidx.car.app.hardware.climate.HvacDualModeProfile",
+                        "androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
+                        "androidx.car.app.hardware.climate.HvacPowerProfile",
+                        "androidx.car.app.hardware.climate.HvacRecirculationProfile",
+                        "androidx.car.app.hardware.climate.MaxDefrosterProfile",
+                        "androidx.car.app.hardware.climate.RegisterClimateStateRequest",
+                        "androidx.car.app.hardware.climate.SeatTemperatureProfile",
+                        "androidx.car.app.hardware.climate.SeatVentilationProfile",
+                        "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
                 };
             case "hardware.info":
                 return new String[]{
-                        //"androidx.car.app.hardware.info.Accelerometer",
+                        "androidx.car.app.hardware.info.Accelerometer",
                         "androidx.car.app.hardware.info.AutomotiveCarInfo",
-                        "androidx.car.app.hardware.info.AutomotiveCarSensors"
-                        //"androidx.car.app.hardware.info.CarHardwareLocation",
-                        //"androidx.car.app.hardware.info.CarInfo",
-                        //"androidx.car.app.hardware.info.CarSensors",
-                        //"androidx.car.app.hardware.info.Compass",
-                        //"androidx.car.app.hardware.info.EnergyLevel",
-                        //"androidx.car.app.hardware.info.EnergyProfile",
-                        //"androidx.car.app.hardware.info.EvStatus",
-                        //"androidx.car.app.hardware.info.Gyroscope",
-                        //"androidx.car.app.hardware.info.Mileage",
-                        //"androidx.car.app.hardware.info.Model",
-                        //"androidx.car.app.hardware.info.Speed",
-                        //"androidx.car.app.hardware.info.TollCard"
+                        "androidx.car.app.hardware.info.AutomotiveCarSensors",
+                        "androidx.car.app.hardware.info.CarHardwareLocation",
+                        "androidx.car.app.hardware.info.CarInfo",
+                        "androidx.car.app.hardware.info.CarSensors",
+                        "androidx.car.app.hardware.info.Compass",
+                        "androidx.car.app.hardware.info.EnergyLevel",
+                        "androidx.car.app.hardware.info.EnergyProfile",
+                        "androidx.car.app.hardware.info.EvStatus",
+                        "androidx.car.app.hardware.info.Gyroscope",
+                        "androidx.car.app.hardware.info.Mileage",
+                        "androidx.car.app.hardware.info.Model",
+                        "androidx.car.app.hardware.info.Speed",
+                        "androidx.car.app.hardware.info.TollCard"
                 };
-                */
+
+                 */
             default:
                 return new String[0];
         }
@@ -2352,6 +2426,455 @@ public class CarDataScreen extends Screen {
         }
     }
 
+
+    @SuppressLint("RestrictedApi")
+    private void exerciseConversationCallbackDelegateImpl() {
+        try {
+            // 1) Load the delegate class
+            Class<?> delegateCls = Class.forName(
+                    "androidx.car.app.messaging.model.ConversationCallbackDelegateImpl");
+
+            // 2) Prepare a dynamic ConversationCallback proxy
+            Class<?> convoCbIface = Class.forName(
+                    "androidx.car.app.messaging.model.ConversationCallback");
+            Object convoCb = Proxy.newProxyInstance(
+                    convoCbIface.getClassLoader(),
+                    new Class[]{ convoCbIface },
+                    (proxy, method, args) -> {
+                        String name = method.getName();
+                        if ("onMarkAsRead".equals(name)) {
+                            Log.i(TAG, "ConversationCallback.onMarkAsRead() invoked");
+                        } else if ("onTextReply".equals(name) && args.length == 1) {
+                            Log.i(TAG, "ConversationCallback.onTextReply(\""
+                                    + args[0] + "\") invoked");
+                        }
+                        return null;
+                    });
+
+            // 3) Instantiate ConversationCallbackDelegateImpl(ConversationCallback)
+            Constructor<?> delegateCtor = delegateCls.getDeclaredConstructor(convoCbIface);
+            delegateCtor.setAccessible(true);
+            Object delegate = delegateCtor.newInstance(convoCb);
+            Log.d(TAG, "Created ConversationCallbackDelegateImpl");
+
+            // 4) Prepare an OnDoneCallback proxy that logs success/failure
+            Class<?> onDoneIface = Class.forName(
+                    "androidx.car.app.OnDoneCallback");
+            Object onDoneCb = Proxy.newProxyInstance(
+                    onDoneIface.getClassLoader(),
+                    new Class[]{ onDoneIface },
+                    (proxy, method, args) -> {
+                        String name = method.getName();
+                        if ("onSuccess".equals(name)) {
+                            Log.i(TAG, "OnDoneCallback.onSuccess - "
+                                    + (args != null && args.length == 1 ? args[0] : "null"));
+                        } else if ("onFailure".equals(name)) {
+                            Log.i(TAG, "OnDoneCallback.onFailure - "
+                                    + (args != null && args.length == 1 ? args[0] : "null"));
+                        }
+                        return null;
+                    });
+
+            // 5) Invoke sendMarkAsRead(OnDoneCallback)
+            Method sendMark = delegateCls.getDeclaredMethod(
+                    "sendMarkAsRead", onDoneIface);
+            sendMark.setAccessible(true);
+            sendMark.invoke(delegate, onDoneCb);
+            Log.d(TAG, "sendMarkAsRead(onDoneCb) invoked");
+
+            // 6) Invoke sendTextReply(String, OnDoneCallback)
+            Method sendReply = delegateCls.getDeclaredMethod(
+                    "sendTextReply", String.class, onDoneIface);
+            sendReply.setAccessible(true);
+            sendReply.invoke(delegate, "Hello from reflection!", onDoneCb);
+            Log.d(TAG, "sendTextReply(\"Hello from reflection!\", onDoneCb) invoked");
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying exception in ConversationCallbackDelegateImpl:",
+                    ite.getTargetException());
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising ConversationCallbackDelegateImpl", e);
+        }
+    }
+
+    private void exerciseCarConnection() {
+        try {
+            // Instantiate CarConnection(Context)
+            Class<?> connCls = Class.forName("androidx.car.app.connection.CarConnection");
+            Constructor<?> connCtor = connCls.getConstructor(Context.class);
+            Object carConn = connCtor.newInstance(getCarContext());
+            Log.d(TAG, "Created CarConnection");
+
+            // Get the LiveData<Integer> via getType()
+            Method getTypeM = connCls.getDeclaredMethod("getType");
+            getTypeM.setAccessible(true);
+            Object liveData = getTypeM.invoke(carConn);  // LiveData<Integer>
+            Class<?> liveDataCls = liveData.getClass();
+
+            // Build a robust Observer<Integer> proxy
+            Class<?> observerIface = Class.forName("androidx.lifecycle.Observer");
+            Object observer = Proxy.newProxyInstance(
+                    observerIface.getClassLoader(),
+                    new Class[]{ observerIface },
+                    new InvocationHandler() {
+                        private final int identityHash = System.identityHashCode(this);
+
+                        @Override
+                        public Object invoke(Object proxy, Method method, Object[] args)
+                                throws Throwable {
+                            String name = method.getName();
+                            // equals(Object)
+                            if ("equals".equals(name) && args != null && args.length == 1) {
+                                return proxy == args[0];
+                            }
+                            // hashCode()
+                            if ("hashCode".equals(name) && (args == null || args.length == 0)) {
+                                return identityHash;
+                            }
+                            // toString()
+                            if ("toString".equals(name) && (args == null || args.length == 0)) {
+                                return "CarConnectionObserverProxy@" + identityHash;
+                            }
+                            // onChanged(T value)
+                            if ("onChanged".equals(name) && args != null && args.length == 1) {
+                                Object value = args[0];
+                                Log.i(TAG, "CarConnection type changed → " + value);
+                                return null;
+                            }
+                            // default no-op
+                            return null;
+                        }
+                    });
+
+            // observeForever(observer)
+            Method observeForeverM = liveDataCls.getMethod("observeForever", observerIface);
+            observeForeverM.setAccessible(true);
+            observeForeverM.invoke(liveData, observer);
+            Log.d(TAG, "Attached observer via observeForever(...)");
+
+            // Immediately log current value: getValue()
+            Method getValueM = liveDataCls.getMethod("getValue");
+            getValueM.setAccessible(true);
+            Object current = getValueM.invoke(liveData);
+            Log.i(TAG, "Initial CarConnection type = " + current);
+
+            // Fire the ACTION_CAR_CONNECTION_UPDATED broadcast to force a re-query
+            String action = (String) connCls.getField("ACTION_CAR_CONNECTION_UPDATED").get(null);
+            Intent intent = new Intent(action);
+            getCarContext().sendBroadcast(intent);
+            Log.d(TAG, "Sent broadcast " + action);
+
+            // Wait
+            Thread.sleep(500);
+
+            //removeObserver(observer)
+            Method removeObsM = liveDataCls.getMethod("removeObserver", observerIface);
+            removeObsM.setAccessible(true);
+            removeObsM.invoke(liveData, observer);
+            Log.d(TAG, "Removed observer via removeObserver(...)");
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying exception in CarConnection:",
+                    ite.getTargetException());
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising CarConnection", e);
+        }
+    }
+
+    @SuppressLint("RestrictedApi")
+    private void exerciseHostDispatcher() {
+        try {
+            // 1) Instantiate HostDispatcher
+            Class<?> hdCls = Class.forName("androidx.car.app.HostDispatcher");
+            Object hostDispatcher = hdCls.getConstructor().newInstance();
+            Log.d(TAG, "Created HostDispatcher");
+
+            // 2) Build a fake ICarHost proxy (implements ICarHost & IInterface)
+            Class<?> iCarHostIface    = Class.forName("androidx.car.app.ICarHost");
+            Class<?> iInterfaceIface  = Class.forName("android.os.IInterface");
+            Object fakeCarHost = Proxy.newProxyInstance(
+                    iCarHostIface.getClassLoader(),
+                    new Class[]{ iCarHostIface, iInterfaceIface },
+                    (proxy, method, args) -> {
+                        // asBinder() must return an IBinder, but for CAR_SERVICE we directly cast proxy IInterface
+                        if ("asBinder".equals(method.getName())) {
+                            return proxy;
+                        }
+                        // We never call getHost("car") when hostType == CAR_SERVICE
+                        return null;
+                    });
+
+            // 3) Bind our fake ICarHost
+            Method setCarHostM = hdCls.getDeclaredMethod("setCarHost", iCarHostIface);
+            setCarHostM.setAccessible(true);
+            setCarHostM.invoke(hostDispatcher, fakeCarHost);
+            Log.d(TAG, "Bound fake ICarHost to HostDispatcher");
+
+            // 4) Find dispatchForResult(...) & dispatch(...) reflectively
+            Method dispatchForResultM = null, dispatchVoidM = null;
+            for (Method m : hdCls.getMethods()) {
+                if (m.getName().equals("dispatchForResult") && m.getParameterCount() == 3) {
+                    dispatchForResultM = m;
+                }
+                if (m.getName().equals("dispatch") && m.getParameterCount() == 3) {
+                    dispatchVoidM = m;
+                }
+            }
+            if (dispatchForResultM == null || dispatchVoidM == null) {
+                Log.e(TAG, "Cannot find dispatch methods");
+                return;
+            }
+            dispatchForResultM.setAccessible(true);
+            dispatchVoidM   .setAccessible(true);
+
+            // 5) Build the HostCall<ServiceT,ReturnT> proxy from the actual third parameter type
+            Class<?> hostCallType = dispatchForResultM.getParameterTypes()[2];
+            InvocationHandler callHandler = new InvocationHandler() {
+                private final int hash = System.identityHashCode(this);
+
+                @Override
+                public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                    String name = method.getName();
+                    if ("dispatch".equals(name) && args.length == 1) {
+                        Object svc = args[0];
+                        Log.i(TAG, "HostCall.dispatch() service = "
+                                + (svc != null ? svc.getClass().getSimpleName() : "null"));
+                        return "object";
+                    }
+                    if ("equals".equals(name) && args.length == 1) {
+                        return proxy == args[0];
+                    }
+                    if ("hashCode".equals(name) && (args == null || args.length == 0)) {
+                        return hash;
+                    }
+                    if ("toString".equals(name) && (args == null || args.length == 0)) {
+                        return "HostCallProxy@" + hash;
+                    }
+                    return null;
+                }
+            };
+            Object hostCallProxy = Proxy.newProxyInstance(
+                    hostCallType.getClassLoader(),
+                    new Class[]{ hostCallType },
+                    callHandler);
+
+            // 6) Invoke **only** the CAR_SERVICE path
+            String carSvc = CarContext.CAR_SERVICE; // "car"
+            Object result = dispatchForResultM.invoke(
+                    hostDispatcher,
+                    carSvc,
+                    "testForResult:car",
+                    hostCallProxy);
+            Log.i(TAG, "dispatchForResult(car) - " + result);
+
+            dispatchVoidM.invoke(
+                    hostDispatcher,
+                    carSvc,
+                    "testDispatch:car",
+                    hostCallProxy);
+            Log.i(TAG, "dispatch(car) invoked");
+
+            // 7) Clean up
+            Method resetM = hdCls.getDeclaredMethod("resetHosts");
+            resetM.setAccessible(true);
+            resetM.invoke(hostDispatcher);
+            Log.d(TAG, "resetHosts() invoked");
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying exception in HostDispatcher:",
+                    ite.getTargetException());
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising HostDispatcher", e);
+        }
+    }
+
+    @SuppressLint("RestrictedApi")
+    private void exerciseHostDispatcherNavigationRpc() {
+        try {
+            // 1) Grab HostDispatcher
+            Field hdField = CarContext.class.getDeclaredField("mHostDispatcher");
+            hdField.setAccessible(true);
+            Object hostDispatcher = hdField.get(getCarContext());
+            Class<?> hdCls = hostDispatcher.getClass();
+            Log.d(TAG, "Found HostDispatcher: " + hdCls.getName());
+
+            // 2) Locate dispatchForResult(String, String, HostCall) dynamically
+            Method dispatchForResultM = null;
+            Class<?> hostCallIface = null;
+            for (Method m : hdCls.getMethods()) {
+                if (m.getName().equals("dispatchForResult")
+                        && m.getParameterCount() == 3
+                        && m.getParameterTypes()[0] == String.class
+                        && m.getParameterTypes()[1] == String.class) {
+                    dispatchForResultM = m;
+                    hostCallIface = m.getParameterTypes()[2];
+                    break;
+                }
+            }
+            if (dispatchForResultM == null) {
+                Log.w(TAG, "Could not locate dispatchForResult(hostType,callName,hostCall)");
+                return;
+            }
+
+            // 3) Build HostCall proxy that only calls start/stop navigation
+            Object hostCallProxy = Proxy.newProxyInstance(
+                    hostCallIface.getClassLoader(),
+                    new Class[]{ hostCallIface },
+                    (proxy, method, args) -> {
+                        if (!"dispatch".equals(method.getName()) || args.length != 1) {
+                            return null;
+                        }
+                        Object navHost = args[0];  // INavigationHost.Stub.Proxy
+                        Class<?> navCls = navHost.getClass();
+
+                        try {
+                            // navigationStarted()
+                            Method startM = navCls.getMethod("navigationStarted");
+                            startM.invoke(navHost);
+                            Log.i(TAG, "Called navigationStarted()");
+                        } catch (NoSuchMethodException ignore) { /* skip */ }
+
+                        try {
+                            // navigationEnded()
+                            Method endM = navCls.getMethod("navigationEnded");
+                            endM.invoke(navHost);
+                            Log.i(TAG, "Called navigationEnded()");
+                        } catch (NoSuchMethodException ignore) { /* skip */ }
+
+                        return null;
+                    });
+
+            // 4) Dispatch via HostDispatcher
+            dispatchForResultM.setAccessible(true);
+            String navService = CarContext.NAVIGATION_SERVICE;  // "navigation"
+            dispatchForResultM.invoke(
+                    hostDispatcher,
+                    navService,
+                    "navLifecycle",
+                    hostCallProxy);
+
+            Log.d(TAG, "dispatchForResult(“navigation”, “navLifecycle”, hostCall) done");
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying exception in navigation RPC:",
+                    ite.getTargetException());
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising HostDispatcher navigation RPC", e);
+        }
+    }
+
+    @SuppressLint("RestrictedApi")
+    private void exerciseHostValidator() {
+        try {
+            // Load HostValidator class
+            Class<?> hvCls = Class.forName("androidx.car.app.validation.HostValidator");
+
+            // Prepare HostInfo for our own app package & uid
+            Class<?> hostInfoCls = Class.forName("androidx.car.app.HostInfo");
+            Constructor<?> hiCtor = hostInfoCls.getConstructor(String.class, int.class);
+            String myPackage = getCarContext().getPackageName();
+            int myUid = android.os.Process.myUid();
+            Object hostInfo = hiCtor.newInstance(myPackage, myUid);
+            Log.d(TAG, "HostInfo for package=" + myPackage + ", uid=" + myUid);
+
+            // Compute SHA‑256 digest of our app’s signing cert
+            PackageManager pm = getCarContext().getPackageManager();
+            PackageInfo pkgInfo;
+            if (Build.VERSION.SDK_INT >= 28) {
+                pkgInfo = pm.getPackageInfo(
+                        myPackage,
+                        PackageManager.GET_SIGNING_CERTIFICATES | PackageManager.GET_PERMISSIONS);
+                Signature[] sigs = pkgInfo.signingInfo.getApkContentsSigners();
+                pkgInfo.signatures = sigs;
+            } else {
+                pkgInfo = pm.getPackageInfo(
+                        myPackage,
+                        PackageManager.GET_SIGNATURES | PackageManager.GET_PERMISSIONS);
+            }
+            Signature[] signatures = pkgInfo.signatures;
+            if (signatures == null || signatures.length == 0) {
+                Log.w(TAG, "No signatures for package " + myPackage);
+                return;
+            }
+            // Use first signature
+            byte[] certBytes = signatures[0].toByteArray();
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digestBytes = md.digest(certBytes);
+            // Build hex‐string (lowercase, two‐digit pairs separated by colon)
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < digestBytes.length; i++) {
+                sb.append(String.format("%02x", digestBytes[i]));
+                if (i < digestBytes.length - 1) {
+                    sb.append(":");
+                }
+            }
+            String realDigest = sb.toString();
+            Log.d(TAG, "Computed SHA‑256 digest: " + realDigest);
+
+            // Use the ALLOW_ALL singleton to show it always returns true
+            Field allowAllField = hvCls.getField("ALLOW_ALL_HOSTS_VALIDATOR");
+            Object allowAll = allowAllField.get(null);
+            Method isValidM = hvCls.getMethod("isValidHost", hostInfoCls);
+            boolean alwaysOk = (Boolean) isValidM.invoke(allowAll, hostInfo);
+            Log.i(TAG, "ALLOW_ALL_VALIDATOR.isValidHost - " + alwaysOk);
+
+            // Build a real HostValidator via Builder, adding our package + real digest
+            Class<?> builderCls = Class.forName(
+                    "androidx.car.app.validation.HostValidator$Builder");
+            Constructor<?> builderCtor = builderCls.getConstructor(Context.class);
+            Object builder = builderCtor.newInstance(getCarContext());
+
+            Method addHostM = builderCls.getMethod("addAllowedHost",
+                    String.class, String.class);
+            addHostM.invoke(builder, myPackage, realDigest);
+            //Log.d(TAG, "Builder.addAllowedHost(" + myPackage + ", " + realDigest + ")");
+
+            Method buildM = builderCls.getMethod("build");
+            Object customValidator = buildM.invoke(builder);
+            Log.d(TAG, "Built custom HostValidator");
+
+            // Inspect getAllowedHosts()
+            Method getAllowedM = hvCls.getMethod("getAllowedHosts");
+            // HostValidator.getAllowedHosts() returns Map<String,List<String>>
+            @SuppressWarnings("unchecked")
+            Map<String,List<String>> allowed =
+                    (Map<String,List<String>>) getAllowedM.invoke(customValidator);
+            Log.i(TAG, "Custom.getAllowedHosts - " + allowed);
+
+            // Verify isValidHost(...) now returns true for our real HostInfo
+            boolean customOk = (Boolean) isValidM.invoke(customValidator, hostInfo);
+            Log.i(TAG, "CustomValidator.isValidHost(" + myPackage + ") - " + customOk);
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying exception in HostValidator:",
+                    ite.getTargetException());
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising HostValidator", e);
+        }
+    }
+
+
+    @SuppressLint("RestrictedApi")
+    private void exerciseCommonUtils() {
+        try {
+            //Load CommonUtils
+            Class<?> cuCls = Class.forName("androidx.car.app.utils.CommonUtils");
+            Method isAutoM = cuCls.getMethod("isAutomotiveOS", Context.class);
+
+            //CarContext
+            Context carCtx = getCarContext();
+            boolean carRes = (Boolean) isAutoM.invoke(null, carCtx);
+            Log.i(TAG, "isAutomotiveOS(getCarContext()) - " + carRes);
+
+            //BaseContext
+            Context appBase = carCtx.getApplicationContext();
+            boolean baseRes = (Boolean) isAutoM.invoke(null, appBase);
+            Log.i(TAG, "isAutomotiveOS(appBaseContext) - " + baseRes);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising CommonUtils", e);
+        }
+    }
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------

@@ -134,6 +134,8 @@
     <uses-permission android:name="android.car.permission.TEMPLATE_RENDERER"/>
     <uses-permission android:name="android.car.permission.CONTROL_CAR_APP_LAUNCH"/>
 
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!--<uses-permission android:name="androidx.car.app.core.permission.BIND_CAR_APP_SERVICE" />-->
 
     <!--For Logging
