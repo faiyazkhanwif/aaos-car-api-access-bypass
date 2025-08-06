@@ -5,6 +5,7 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
@@ -14,6 +15,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.text.TextUtils;
@@ -301,6 +303,8 @@ import androidx.car.app.versioning.CarAppApiLevels;
 
 
 import androidx.collection.ArraySet;
+import androidx.core.app.NotificationChannelCompat;
+import androidx.core.app.NotificationChannelGroupCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
@@ -450,7 +454,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseCarNotificationManagerGeneratesPath2();
+            exerciseCarPendingIntent    ();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1490,7 +1494,7 @@ public class CarDataScreen extends Screen {
                     .getCarService(CarHardwareManager.class);
             instanceMap.put(hwMgr.getClass(), hwMgr);
 
-            // PropertyManager (hidden inside AutomotiveCarHardwareManager → AutomotiveCarInfo)
+            // PropertyManager (hidden inside AutomotiveCarHardwareManager - AutomotiveCarInfo)
             @SuppressLint("RestrictedApi") PropertyManager pm = getPropertyManager(hwMgr);
             if (pm != null) {
                 instanceMap.put(PropertyManager.class, pm);
@@ -1883,7 +1887,7 @@ public class CarDataScreen extends Screen {
                                 List<Object> values = (List<Object>) args[0];
                                 @SuppressWarnings("unchecked")
                                 List<Object> errors = (List<Object>) args[1];
-                                Log.d(TAG, "fetchCarPropertyValues → values=" + values.size()
+                                Log.d(TAG, "fetchCarPropertyValues - values=" + values.size()
                                         + ", errors=" + errors.size());
                                 // print value
                                 for (Object valObj : values) {
@@ -1896,7 +1900,7 @@ public class CarDataScreen extends Screen {
                                         Object area = getArea.invoke(valObj);
                                         Object v = getVal.invoke(valObj);
                                         Log.d(TAG, String.format(
-                                                "  [%s] area=%s → %s",
+                                                "  [%s] area=%s - %s",
                                                 id, area, v));
                                     } catch (NoSuchMethodException nsme) {
                                         // fallback to toString()
@@ -2006,7 +2010,7 @@ public class CarDataScreen extends Screen {
                     (proxy, method, args) -> {
                         if (args != null && args.length == 1) {
                             Log.i(TAG, String.format(
-                                    "ClimateProfileCallback.%s → %s",
+                                    "ClimateProfileCallback.%s - %s",
                                     method.getName(), args[0].toString()));
                         }
                         return null;
@@ -2073,7 +2077,7 @@ public class CarDataScreen extends Screen {
                     (proxy, method, args) -> {
                         if (args != null && args.length == 1) {
                             Log.i(TAG, String.format(
-                                    "StateCallback.%s → %s",
+                                    "StateCallback.%s - %s",
                                     method.getName(), args[0].toString()));
                         }
                         return null;
@@ -2136,7 +2140,7 @@ public class CarDataScreen extends Screen {
                             Object dataObj = args[0];
                             Log.i(TAG, "SensorCallback."
                                     + dataObj.getClass().getSimpleName()
-                                    + " → " + dataObj.toString());
+                                    + " - " + dataObj.toString());
                         }
                         return null;
                     });
@@ -2207,7 +2211,7 @@ public class CarDataScreen extends Screen {
                             Object payload = args[0];
                             Log.i(TAG, "InfoCallback."
                                     + payload.getClass().getSimpleName()
-                                    + " → " + payload.toString());
+                                    + " - " + payload.toString());
                         }
                         return null;
                     });
@@ -2320,7 +2324,7 @@ public class CarDataScreen extends Screen {
                                 Object payload = args[0];
                                 Log.i(TAG, "InfoCallback."
                                         + payload.getClass().getSimpleName()
-                                        + " → " + payload.toString());
+                                        + " - " + payload.toString());
                                 return null;
                             }
                             // default no‑op
@@ -2578,7 +2582,7 @@ public class CarDataScreen extends Screen {
                             // onChanged(T value)
                             if ("onChanged".equals(name) && args != null && args.length == 1) {
                                 Object value = args[0];
-                                Log.i(TAG, "CarConnection type changed → " + value);
+                                Log.i(TAG, "CarConnection type changed - " + value);
                                 return null;
                             }
                             // default no-op
@@ -3242,17 +3246,17 @@ public class CarDataScreen extends Screen {
             // getNotificationChannel(String)
             Object gotChan = mgrCls.getMethod("getNotificationChannel", String.class)
                     .invoke(mgr, "chan1");
-            Log.d(TAG, "getNotificationChannel → " + gotChan);
+            Log.d(TAG, "getNotificationChannel - " + gotChan);
             // getNotificationChannel(String,String)
             Object gotChan2 = mgrCls.getMethod("getNotificationChannel",
                             String.class, String.class)
                     .invoke(mgr, "chan1", "conv1");
-            Log.d(TAG, "getNotificationChannel(tag) → " + gotChan2);
+            Log.d(TAG, "getNotificationChannel(tag) - " + gotChan2);
 
             // getNotificationChannelGroup(String)
             Object gotGroup = mgrCls.getMethod("getNotificationChannelGroup", String.class)
                     .invoke(mgr, "group1");
-            Log.d(TAG, "getNotificationChannelGroup → " + gotGroup);
+            Log.d(TAG, "getNotificationChannelGroup - " + gotGroup);
 
             // getNotificationChannels()
             List<?> chans = (List<?>) mgrCls.getMethod("getNotificationChannels").invoke(mgr);
@@ -3271,7 +3275,7 @@ public class CarDataScreen extends Screen {
             Method updateForCarM = mgrCls.getDeclaredMethod("updateForCar", notifCompatBuilderCls);
             updateForCarM.setAccessible(true);
             Notification carNotif = (Notification) updateForCarM.invoke(mgr, notifBuilder);
-            Log.d(TAG, "updateForCar() → " + carNotif);
+            Log.d(TAG, "updateForCar() - " + carNotif);
 
             // getColorInt(CarColor)  – need a CarColor instance
             Class<?> carColorCls = Class.forName("androidx.car.app.model.CarColor");
@@ -3281,13 +3285,13 @@ public class CarDataScreen extends Screen {
             Method getColorIntM = mgrCls.getDeclaredMethod("getColorInt", carColorCls);
             getColorIntM.setAccessible(true);
             Integer blueInt = (Integer) getColorIntM.invoke(mgr, blueColor);
-            Log.d(TAG, "CarColor.BLUE → colorInt=" + blueInt);
+            Log.d(TAG, "CarColor.BLUE - colorInt=" + blueInt);
 
             // loadThemeId(Context)
             Method loadThemeIdM = mgrCls.getDeclaredMethod("loadThemeId", Context.class);
             loadThemeIdM.setAccessible(true);
             int themeId = (int) loadThemeIdM.invoke(null, context);
-            Log.d(TAG, "loadThemeId → " + themeId);
+            Log.d(TAG, "loadThemeId - " + themeId);
 
             // getColor(int, Resources.Theme)
             // retrieve a real Theme
@@ -3297,7 +3301,7 @@ public class CarDataScreen extends Screen {
             // use a known attr (android.R.attr.colorAccent), fallback to NULL
             Integer accent = (Integer) getColorM.invoke(null,
                     android.R.attr.colorAccent, theme);
-            Log.d(TAG, "getColor(android:colorAccent) → " + accent);
+            Log.d(TAG, "getColor(android:colorAccent) - " + accent);
 
             Log.d(TAG, "Finished exercising CarNotificationManager");
         } catch (Exception e) {
@@ -3338,11 +3342,11 @@ public class CarDataScreen extends Screen {
 
             Method areEnabled = cnmCls.getDeclaredMethod("areNotificationsEnabled");
             boolean enabled = (boolean) areEnabled.invoke(carNotifMgr);
-            Log.d(TAG, "areNotificationsEnabled → " + enabled);
+            Log.d(TAG, "areNotificationsEnabled - " + enabled);
 
             Method getImp = cnmCls.getDeclaredMethod("getImportance");
             int imp = (int) getImp.invoke(carNotifMgr);
-            Log.d(TAG, "getImportance → " + imp);
+            Log.d(TAG, "getImportance - " + imp);
 
             Class<?> chanCompatCls = Class.forName("androidx.core.app.NotificationChannelCompat");
 
@@ -3381,28 +3385,28 @@ public class CarDataScreen extends Screen {
 
             Method getChan = cnmCls.getDeclaredMethod("getNotificationChannel", String.class);
             Object fetchedChan = getChan.invoke(carNotifMgr, "car_channel");
-            Log.d(TAG, "getNotificationChannel → " + fetchedChan);
+            Log.d(TAG, "getNotificationChannel - " + fetchedChan);
 
             Method getChanConv = cnmCls.getDeclaredMethod("getNotificationChannel", String.class, String.class);
             Object fetchedChan2 = getChanConv.invoke(carNotifMgr, "car_channel", "conv123");
-            Log.d(TAG, "getNotificationChannel(tag) → " + fetchedChan2);
+            Log.d(TAG, "getNotificationChannel(tag) - " + fetchedChan2);
 
             Method getGrp = cnmCls.getDeclaredMethod("getNotificationChannelGroup", String.class);
             Object fetchedGroup = getGrp.invoke(carNotifMgr, "group1");
-            Log.d(TAG, "getNotificationChannelGroup → " + fetchedGroup);
+            Log.d(TAG, "getNotificationChannelGroup - " + fetchedGroup);
 
             Method getChansList = cnmCls.getDeclaredMethod("getNotificationChannels");
             List<?> channels = (List<?>) getChansList.invoke(carNotifMgr);
-            Log.d(TAG, "getNotificationChannels → size=" + channels.size());
+            Log.d(TAG, "getNotificationChannels - size=" + channels.size());
 
             Method getGrpList = cnmCls.getDeclaredMethod("getNotificationChannelGroups");
             List<?> groups = (List<?>) getGrpList.invoke(carNotifMgr);
-            Log.d(TAG, "getNotificationChannelGroups → size=" + groups.size());
+            Log.d(TAG, "getNotificationChannelGroups - size=" + groups.size());
 
             Method getListeners = cnmCls.getDeclaredMethod("getEnabledListenerPackages", Context.class);
             @SuppressWarnings("unchecked")
             Set<String> enabledPkgs = (Set<String>) getListeners.invoke(null, getCarContext());
-            Log.d(TAG, "getEnabledListenerPackages → " + enabledPkgs);
+            Log.d(TAG, "getEnabledListenerPackages - " + enabledPkgs);
 
             //Call private / @VisibleForTesting
 
@@ -3423,18 +3427,17 @@ public class CarDataScreen extends Screen {
             Method getColorInt = cnmCls.getDeclaredMethod("getColorInt", carColorCls);
             getColorInt.setAccessible(true);
             Integer resultColor = (Integer) getColorInt.invoke(carNotifMgr, customColor);
-            Log.d(TAG, "getColorInt(custom) → " + resultColor);
-
+            Log.d(TAG, "getColorInt(custom) - " + resultColor);
             Method loadTheme = cnmCls.getDeclaredMethod("loadThemeId", Context.class);
             loadTheme.setAccessible(true);
             int themeId = (int) loadTheme.invoke(null, getCarContext());
-            Log.d(TAG, "loadThemeId → " + themeId);
+            Log.d(TAG, "loadThemeId - " + themeId);
 
             Method getColorM = cnmCls.getDeclaredMethod("getColor", int.class, Resources.Theme.class);
             getColorM.setAccessible(true);
             Resources.Theme t = getCarContext().getTheme();
             Integer themeColor = (Integer) getColorM.invoke(null, themeId, t);
-            Log.d(TAG, "getColor(metaAttr) → " + themeColor);
+            Log.d(TAG, "getColor(metaAttr) - " + themeColor);
 
         } catch (InvocationTargetException ite) {
             Log.e(TAG, "Underlying exception in CarNotificationManager:", ite.getTargetException());
@@ -3469,6 +3472,305 @@ public class CarDataScreen extends Screen {
                                 .build());
 
         return b;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void exerciseCarNotificationManager() {
+        CarNotificationManager mgr = null;
+        try {
+            // CarContext is your 'this.getCarContext()'
+            Context ctx = getCarContext();
+            mgr = CarNotificationManager.from(ctx);
+            Log.d(TAG, "Created CarNotificationManager: " + mgr);
+        } catch (Exception e) {
+            Log.e(TAG, "Could not create CarNotificationManager", e);
+            return;
+        }
+
+        Context ctx = getCarContext();
+
+        // Build NotificationCompat.Builder
+        String channelId = "test_channel_" + System.currentTimeMillis();
+        NotificationCompat.Builder builder =
+                new NotificationCompat.Builder(ctx, channelId)
+                        .setSmallIcon(android.R.drawable.sym_def_app_icon)
+                        .setContentTitle("Reflective Test")
+                        .setContentText("CarNotificationManager reflection")
+                        .setOnlyAlertOnce(true);
+        // Dummy PendingIntent
+        Intent dummy = new Intent(ctx, getCarContext().getClass());
+        PendingIntent pi = PendingIntent.getActivity(
+                ctx, 0, dummy, PendingIntent.FLAG_IMMUTABLE);
+        builder.setContentIntent(pi).setDeleteIntent(pi);
+
+        // Create NotificationChannelCompat
+        NotificationChannelCompat chan =
+                new NotificationChannelCompat.Builder(channelId,
+                        NotificationManagerCompat.IMPORTANCE_HIGH)
+                        .setName("Reflect Test Channel")
+                        .build();
+
+        String groupId = "test_group";
+        NotificationChannelGroupCompat group =
+                new NotificationChannelGroupCompat.Builder(groupId)
+                        .setName("Reflect Test Group")
+                        .build();
+
+        // Reflectively invoke public methods
+        try {
+            Method notify1 = CarNotificationManager.class.getMethod(
+                    "notify", int.class, NotificationCompat.Builder.class);
+            Log.d(TAG, "notify(int) - ");
+            notify1.invoke(mgr, 123, builder);
+
+            Method notify2 = CarNotificationManager.class.getMethod(
+                    "notify", String.class, int.class, NotificationCompat.Builder.class);
+            Log.d(TAG, "notify(String,int) - ");
+            notify2.invoke(mgr, "tagA", 456, builder);
+
+            CarNotificationManager.class.getMethod("cancel", int.class)
+                    .invoke(mgr, 123);
+            Log.d(TAG, "cancel(123)");
+
+            CarNotificationManager.class.getMethod("cancel", String.class, int.class)
+                    .invoke(mgr, "tagA", 456);
+            Log.d(TAG, "cancel(\"tagA\",456)");
+
+            CarNotificationManager.class.getMethod("cancelAll")
+                    .invoke(mgr);
+            Log.d(TAG, "cancelAll()");
+
+            boolean enabled = (boolean) CarNotificationManager.class
+                    .getMethod("areNotificationsEnabled")
+                    .invoke(mgr);
+            Log.d(TAG, "areNotificationsEnabled() = " + enabled);
+
+            int imp = (int) CarNotificationManager.class
+                    .getMethod("getImportance")
+                    .invoke(mgr);
+            Log.d(TAG, "getImportance() = " + imp);
+
+            CarNotificationManager.class
+                    .getMethod("createNotificationChannel", NotificationChannelCompat.class)
+                    .invoke(mgr, chan);
+            Log.d(TAG, "createNotificationChannel(chan)");
+
+            CarNotificationManager.class
+                    .getMethod("createNotificationChannelGroup", NotificationChannelGroupCompat.class)
+                    .invoke(mgr, group);
+            Log.d(TAG, "createNotificationChannelGroup(group)");
+
+            CarNotificationManager.class
+                    .getMethod("createNotificationChannels", List.class)
+                    .invoke(mgr, Collections.singletonList(chan));
+            Log.d(TAG, "createNotificationChannels(list)");
+
+            CarNotificationManager.class
+                    .getMethod("createNotificationChannelGroups", List.class)
+                    .invoke(mgr, Collections.singletonList(group));
+            Log.d(TAG, "createNotificationChannelGroups(list)");
+
+            CarNotificationManager.class
+                    .getMethod("deleteNotificationChannel", String.class)
+                    .invoke(mgr, channelId);
+            Log.d(TAG, "deleteNotificationChannel(" + channelId + ")");
+
+            CarNotificationManager.class
+                    .getMethod("deleteNotificationChannelGroup", String.class)
+                    .invoke(mgr, groupId);
+            Log.d(TAG, "deleteNotificationChannelGroup(" + groupId + ")");
+
+            CarNotificationManager.class
+                    .getMethod("deleteUnlistedNotificationChannels", Collection.class)
+                    .invoke(mgr, Collections.singleton("foo"));
+            Log.d(TAG, "deleteUnlistedNotificationChannels([foo])");
+
+            NotificationChannelCompat gotChan = (NotificationChannelCompat) CarNotificationManager.class
+                    .getMethod("getNotificationChannel", String.class)
+                    .invoke(mgr, channelId);
+            Log.d(TAG, "getNotificationChannel(" + channelId + ") = " + gotChan);
+
+            NotificationChannelCompat gotChan2 = (NotificationChannelCompat) CarNotificationManager.class
+                    .getMethod("getNotificationChannel", String.class, String.class)
+                    .invoke(mgr, channelId, "someConv");
+            Log.d(TAG, "getNotificationChannel(" + channelId + ", someConv) = " + gotChan2);
+
+            NotificationChannelGroupCompat gotGroup = (NotificationChannelGroupCompat) CarNotificationManager.class
+                    .getMethod("getNotificationChannelGroup", String.class)
+                    .invoke(mgr, groupId);
+            Log.d(TAG, "getNotificationChannelGroup(" + groupId + ") = " + gotGroup);
+
+            List<NotificationChannelCompat> listCh = (List) CarNotificationManager.class
+                    .getMethod("getNotificationChannels")
+                    .invoke(mgr);
+            Log.d(TAG, "getNotificationChannels() = " + listCh);
+
+            List<NotificationChannelGroupCompat> listGr = (List) CarNotificationManager.class
+                    .getMethod("getNotificationChannelGroups")
+                    .invoke(mgr);
+            Log.d(TAG, "getNotificationChannelGroups() = " + listGr);
+
+            Set<String> listeners = (Set<String>) CarNotificationManager.class
+                    .getMethod("getEnabledListenerPackages", Context.class)
+                    .invoke(null, ctx);
+            Log.d(TAG, "getEnabledListenerPackages(ctx) = " + listeners);
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising CarNotificationManager", e);
+        }
+
+        // Reflectively invoke private & @VisibleForTesting
+        try {
+            Method upd = CarNotificationManager.class.getDeclaredMethod(
+                    "updateForCar", NotificationCompat.Builder.class);
+            upd.setAccessible(true);
+            Notification n1 = (Notification) upd.invoke(mgr, builder);
+            Log.d(TAG, "updateForCar(builder) - " + n1);
+
+            Method gc = CarNotificationManager.class.getDeclaredMethod(
+                    "getColorInt", CarColor.class);
+            gc.setAccessible(true);
+            // Try each standard CarColor:
+            for (CarColor c : new CarColor[]{
+                    CarColor.DEFAULT, CarColor.PRIMARY, CarColor.SECONDARY,
+                    CarColor.RED, CarColor.GREEN, CarColor.BLUE, CarColor.YELLOW})
+            {
+                Object val = gc.invoke(mgr, c);
+                Log.d(TAG, "getColorInt(" + c + ") = " + val);
+            }
+
+            // private static loadThemeId(Context)
+            Method loadTheme = CarNotificationManager.class.getDeclaredMethod("loadThemeId", Context.class);
+            loadTheme.setAccessible(true);
+            int themeId = (int) loadTheme.invoke(null, ctx);
+            Log.d(TAG, "loadThemeId(ctx) = " + themeId);
+
+            // private static getColor(int, Theme)
+            Method getColor = CarNotificationManager.class.getDeclaredMethod(
+                    "getColor", int.class, Resources.Theme.class);
+            getColor.setAccessible(true);
+            // test with your app theme:
+            Resources.Theme t = ctx.getTheme();
+            Integer col = (Integer) getColor.invoke(null, android.R.attr.colorAccent, t);
+            Log.d(TAG, "getColor(android.R.attr.colorAccent, theme) - " + col);
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising private helpers in CarNotificationManager", e);
+        }
+    }
+
+    private void exerciseCarPendingIntent() {
+        try {
+            // 1) Load the class
+            Class<?> clazz = Class.forName("androidx.car.app.notification.CarPendingIntent");
+
+            // 2) Prepare context
+            Context ctx = getCarContext(); // your CarContext
+            String pkg = ctx.getPackageName();
+
+            // 3) Build Intents for each supported path:
+
+            // 3a) Valid navigation Intent with lat/long
+            Uri navUriLL = Uri.parse("geo:37.4219983,-122.084?q=37.4219983,-122.084");
+            Intent navIntentLL = new Intent(CarContext.ACTION_NAVIGATE, navUriLL);
+
+            // 3b) Valid navigation Intent with address query
+            Uri navUriQ = Uri.parse("geo:0,0?q=1600+Amphitheatre+Parkway");
+            Intent navIntentQ = new Intent(CarContext.ACTION_NAVIGATE, navUriQ);
+
+            // 3c) Valid phone Intent (dial)
+            Intent phoneDial = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:1234567890"));
+
+            // 3d) Valid phone Intent (call)
+            Intent phoneCall = new Intent(Intent.ACTION_CALL, Uri.parse("tel:0987654321"));
+
+            // 3e) Explicit CarAppService start
+            ComponentName svc = new ComponentName(pkg, MyCarAppService.class.getName());
+            Intent svcIntent = new Intent().setComponent(svc);
+
+            // 4) Find & invoke validateIntent (VisibleForTesting)
+            Method mValidate = clazz.getDeclaredMethod(
+                    "validateIntent", Context.class, Intent.class);
+            mValidate.setAccessible(true);
+            // should be no exception
+            mValidate.invoke(null, ctx, navIntentLL);
+            mValidate.invoke(null, ctx, navIntentQ);
+            mValidate.invoke(null, ctx, phoneDial);
+            mValidate.invoke(null, ctx, phoneCall);
+            mValidate.invoke(null, ctx, svcIntent);
+
+            Log.i("PendingIntentTest", "validateIntent passed");
+
+            // 5) isLatitudeLongitude (private static)
+            Method mIsLatLng = clazz.getDeclaredMethod(
+                    "isLatitudeLongitude", String.class);
+            mIsLatLng.setAccessible(true);
+            boolean okLL = (boolean) mIsLatLng.invoke(null, "37.4219983,-122.084");
+            Log.i("PendingIntentTest", "isLatitudeLongitude - " + okLL);
+
+            // 6) getQueryString (private static)
+            Method mGetQuery = clazz.getDeclaredMethod(
+                    "getQueryString", Uri.class);
+            mGetQuery.setAccessible(true);
+            String q1 = (String) mGetQuery.invoke(null, navUriLL);
+            String q2 = (String) mGetQuery.invoke(null, navUriQ);
+            Log.i("PendingIntentTest", "getQueryString(LL) - " + q1);
+            Log.i("PendingIntentTest", "getQueryString(Q) - " + q2);
+
+            // 7) validatePhoneIntentIsValid
+            Method mValidatePhone = clazz.getDeclaredMethod(
+                    "validatePhoneIntentIsValid", Intent.class);
+            mValidatePhone.setAccessible(true);
+            mValidatePhone.invoke(null, phoneDial);
+            mValidatePhone.invoke(null, phoneCall);
+            Log.i("PendingIntentTest", "validatePhoneIntentIsValid passed");
+
+            // 8) validateNavigationIntentIsValid
+            Method mValidateNav = clazz.getDeclaredMethod(
+                    "validateNavigationIntentIsValid", Intent.class);
+            mValidateNav.setAccessible(true);
+            mValidateNav.invoke(null, navIntentLL);
+            mValidateNav.invoke(null, navIntentQ);
+            Log.i("PendingIntentTest", "validateNavigationIntentIsValid passed");
+
+            // 9) now call getCarApp (public static)
+            Method mGetCarApp = clazz.getMethod(
+                    "getCarApp", Context.class, int.class, Intent.class, int.class);
+
+            PendingIntent piNav = (PendingIntent) mGetCarApp.invoke(
+                    null, ctx, 42, navIntentLL, 0);
+            Log.i("PendingIntentTest", "getCarApp(nav) - " + piNav);
+
+            PendingIntent piDial = (PendingIntent) mGetCarApp.invoke(
+                    null, ctx, 43, phoneDial, 0);
+            Log.i("PendingIntentTest", "getCarApp(dial) - " + piDial);
+
+            PendingIntent piSvc = (PendingIntent) mGetCarApp.invoke(
+                    null, ctx, 44, svcIntent, 0);
+            Log.i("PendingIntentTest", "getCarApp(explicit) - " + piSvc);
+
+            // 10) Call createForAutomotive & createForProjected directly (private static)
+            Method mCreateAuto = clazz.getDeclaredMethod(
+                    "createForAutomotive", Context.class, int.class, Intent.class, int.class);
+            Method mCreateProj = clazz.getDeclaredMethod(
+                    "createForProjected", Context.class, int.class, Intent.class, int.class);
+            mCreateAuto.setAccessible(true);
+            mCreateProj.setAccessible(true);
+
+            PendingIntent autoNav = (PendingIntent) mCreateAuto.invoke(
+                    null, ctx, 100, navIntentLL, PendingIntent.FLAG_UPDATE_CURRENT);
+            Log.i("PendingIntentTest", "createForAutomotive - " + autoNav);
+
+            PendingIntent projSvc = (PendingIntent) mCreateProj.invoke(
+                    null, ctx, 101, svcIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+            Log.i("PendingIntentTest", "createForProjected - " + projSvc);
+
+            Log.i("PendingIntentTest", "✅ CarPendingIntent reflection exercise completed successfully");
+
+        } catch (InvocationTargetException ite) {
+            Log.e("PendingIntentTest",
+                    "Underlying exception in CarPendingIntent: ", ite.getTargetException());
+        } catch (Exception e) {
+            Log.e("PendingIntentTest", "Error exercising CarPendingIntent", e);
+        }
     }
 
 
