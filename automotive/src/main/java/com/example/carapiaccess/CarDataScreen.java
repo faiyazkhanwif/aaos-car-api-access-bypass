@@ -7,7 +7,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
@@ -40,334 +39,57 @@ import androidx.annotation.OptIn;
 // update the method handling androidx.classes -> specify names
 // update the method handling androidx
 
-import androidx.car.app.AppInfo;
-import androidx.car.app.AppManager;
 //import androidx.car.app.CarAppBinder;
-import androidx.car.app.CarAppMetadataHolderService;
-import androidx.car.app.CarAppPermission;
-import androidx.car.app.CarAppPermissionActivity;
-import androidx.car.app.CarAppService;
 import androidx.car.app.CarContext;
-import androidx.car.app.CarToast;
-import androidx.car.app.FailureResponse;
-import androidx.car.app.HandshakeInfo;
-import androidx.car.app.HostCall;
-import androidx.car.app.HostDispatcher;
-import androidx.car.app.HostException;
-import androidx.car.app.HostInfo;
-import androidx.car.app.IAppHost;
-import androidx.car.app.IAppManager;
-import androidx.car.app.ICarApp;
-import androidx.car.app.ICarHost;
-import androidx.car.app.IOnDoneCallback;
-import androidx.car.app.IOnRequestPermissionsListener;
-import androidx.car.app.IStartCarApp;
-import androidx.car.app.ISurfaceCallback;
-import androidx.car.app.OnDoneCallback;
-import androidx.car.app.OnRequestPermissionsListener;
-import androidx.car.app.OnScreenResultListener;
 import androidx.car.app.Screen;
 //import androidx.car.app.hardware.common.PropertyRequestProcessor;
-import androidx.car.app.ScreenManager;
-import androidx.car.app.Session;
-import androidx.car.app.SessionInfo;
-import androidx.car.app.SessionInfoIntentEncoder;
-import androidx.car.app.SurfaceCallback;
-import androidx.car.app.SurfaceContainer;
-import androidx.car.app.media.AutomotiveCarAudioRecord;
-import androidx.car.app.media.CarAudioCallback;
-import androidx.car.app.media.CarAudioCallbackDelegate;
-import androidx.car.app.media.CarAudioRecord;
-import androidx.car.app.media.ICarAudioCallback;
-import androidx.car.app.media.IMediaPlaybackHost;
-import androidx.car.app.media.MediaPlaybackManager;
-import androidx.car.app.media.OpenMicrophoneRequest;
-import androidx.car.app.media.OpenMicrophoneResponse;
-import androidx.car.app.messaging.model.CarMessage;
-import androidx.car.app.messaging.model.ConversationCallback;
-import androidx.car.app.messaging.model.ConversationCallbackDelegate;
-import androidx.car.app.messaging.model.ConversationItem;
-import androidx.car.app.messaging.model.IConversationCallback;
-import androidx.car.app.messaging.MessagingServiceConstants;
-import androidx.car.app.navigation.NavigationManager;
-import androidx.car.app.navigation.NavigationManagerCallback;
-import androidx.car.app.navigation.INavigationHost;
-import androidx.car.app.navigation.INavigationManager;
-import androidx.car.app.navigation.model.Destination;
-import androidx.car.app.navigation.model.IPanModeListener;
-import androidx.car.app.navigation.model.Lane;
-import androidx.car.app.navigation.model.LaneDirection;
-import androidx.car.app.navigation.model.Maneuver;
-import androidx.car.app.navigation.model.MapController;
-import androidx.car.app.navigation.model.MapTemplate;
-import androidx.car.app.navigation.model.MapWithContentTemplate;
-import androidx.car.app.navigation.model.MessageInfo;
-import androidx.car.app.navigation.model.NavigationTemplate;
-import androidx.car.app.navigation.model.PanModeDelegate;
-import androidx.car.app.navigation.model.PanModeDelegateImpl;
-import androidx.car.app.navigation.model.PanModeListener;
-import androidx.car.app.navigation.model.PlaceListNavigationTemplate;
-import androidx.car.app.navigation.model.RoutePreviewNavigationTemplate;
-import androidx.car.app.navigation.model.RoutingInfo;
-import androidx.car.app.navigation.model.Step;
-import androidx.car.app.navigation.model.TravelEstimate;
-import androidx.car.app.navigation.model.Trip;
 import androidx.car.app.model.Action;
-import androidx.car.app.model.ActionStrip;
-import androidx.car.app.model.Alert;
-import androidx.car.app.model.AlertCallback;
-import androidx.car.app.model.AlertCallbackDelegate;
-import androidx.car.app.model.AlertCallbackDelegateImpl;
-import androidx.car.app.model.Badge;
 import androidx.car.app.model.CarColor;
-import androidx.car.app.model.CarIcon;
-import androidx.car.app.model.CarIconSpan;
-import androidx.car.app.model.CarLocation;
-import androidx.car.app.model.CarSpan;
-import androidx.car.app.model.CarText;
-import androidx.car.app.model.ClickableSpan;
-import androidx.car.app.model.Content;
-import androidx.car.app.model.DateTimeWithZone;
-import androidx.car.app.model.Distance;
-import androidx.car.app.model.DistanceSpan;
-import androidx.car.app.model.DurationSpan;
-import androidx.car.app.model.ForegroundCarColorSpan;
-import androidx.car.app.model.GridItem;
-import androidx.car.app.model.GridTemplate;
-import androidx.car.app.model.Header;
-import androidx.car.app.model.IAlertCallback;
-import androidx.car.app.model.IInputCallback;
-import androidx.car.app.model.IOnCheckedChangeListener;
-import androidx.car.app.model.IOnClickListener;
-import androidx.car.app.model.IOnContentRefreshListener;
-import androidx.car.app.model.IOnItemVisibilityChangedListener;
-import androidx.car.app.model.IOnSelectedListener;
-import androidx.car.app.model.ISearchCallback;
-import androidx.car.app.model.ITabCallback;
-import androidx.car.app.model.InputCallback;
-import androidx.car.app.model.InputCallbackDelegate;
-import androidx.car.app.model.InputCallbackDelegateImpl;
-import androidx.car.app.model.Item;
-import androidx.car.app.model.ItemList;
-import androidx.car.app.model.ListTemplate;
-import androidx.car.app.model.LongMessageTemplate;
-import androidx.car.app.model.MessageTemplate;
-import androidx.car.app.model.Metadata;
-import androidx.car.app.model.ModelUtils;
-import androidx.car.app.model.OnCheckedChangeDelegate;
 import androidx.car.app.model.constraints.ActionsConstraints;
-import androidx.car.app.model.constraints.CarColorConstraints;
-import androidx.car.app.model.constraints.CarIconConstraints;
 import androidx.car.app.model.constraints.CarTextConstraints;
-import androidx.car.app.model.constraints.RowConstraints;
-import androidx.car.app.model.constraints.RowListConstraints;
-import androidx.car.app.model.constraints.TabContentsConstraints;
-import androidx.car.app.model.constraints.TabsConstraints;
-import androidx.car.app.model.signin.InputSignInMethod;
-import androidx.car.app.model.signin.PinSignInMethod;
-import androidx.car.app.model.signin.ProviderSignInMethod;
-import androidx.car.app.model.signin.SignInTemplate;
-import androidx.car.app.model.signin.QRCodeSignInMethod;
-import androidx.car.app.constraints.ConstraintManager;
-import androidx.car.app.constraints.IConstraintHost;
-import androidx.car.app.activity.renderer.ICarAppActivity;
-import androidx.car.app.activity.renderer.IInsetsListener;
-import androidx.car.app.activity.renderer.IProxyInputConnection;
-import androidx.car.app.activity.renderer.IRendererCallback;
-import androidx.car.app.activity.renderer.IRendererService;
-import androidx.car.app.activity.renderer.surface.ISurfaceControl;
-import androidx.car.app.activity.renderer.surface.ISurfaceListener;
-import androidx.car.app.activity.renderer.surface.LegacySurfacePackage;
-import androidx.car.app.activity.renderer.surface.OnBackPressedListener;
-import androidx.car.app.activity.renderer.surface.OnCreateInputConnectionListener;
 //import androidx.car.app.activity.renderer.surface.RemoteProxyInputConnection;
-import androidx.car.app.activity.renderer.surface.SurfaceControlCallback;
-import androidx.car.app.activity.renderer.surface.SurfaceHolderListener;
-import androidx.car.app.activity.renderer.surface.SurfaceWrapper;
-import androidx.car.app.activity.renderer.surface.SurfaceWrapperProvider;
-import androidx.car.app.activity.renderer.surface.TemplateSurfaceView;
-import androidx.car.app.activity.ui.ErrorMessageView;
-import androidx.car.app.activity.ui.LoadingView;
 //import androidx.car.app.activity.ActivityLifecycleDelegate;
-import androidx.car.app.activity.BaseCarAppActivity;
-import androidx.car.app.activity.CarAppActivity;
-import androidx.car.app.activity.CarAppViewModel;
 //import androidx.car.app.activity.CarAppViewModelFactory;
-import androidx.car.app.activity.ErrorHandler;
-import androidx.car.app.activity.HostUpdateReceiver;
-import androidx.car.app.activity.LauncherActivity;
-import androidx.car.app.activity.LogTags;
-import androidx.car.app.activity.ResultManagerAutomotive;
-import androidx.car.app.activity.ServiceConnectionManager;
-import androidx.car.app.activity.ServiceDispatcher;
 import androidx.car.app.annotations.ExperimentalCarApi;
-import androidx.car.app.annotations.CarProtocol;
-import androidx.car.app.annotations.RequiresCarApi;
-import androidx.car.app.annotations.KeepFields;
-import androidx.car.app.connection.CarConnection;
-import androidx.car.app.managers.Manager;
-import androidx.car.app.managers.ManagerFactory;
-import androidx.car.app.managers.ManagerCache;
-import androidx.car.app.managers.ResultManager;
-import androidx.car.app.mediaextensions.MetadataExtras;
-import androidx.car.app.suggestion.model.Suggestion;
-import androidx.car.app.suggestion.SuggestionManager;
-import androidx.car.app.suggestion.ISuggestionHost;
-import androidx.car.app.validation.HostValidator;
-import androidx.car.app.versioning.CarAppApiLevels;
-import androidx.car.app.versioning.CarAppApiLevel;
-import androidx.car.app.serialization.Bundleable;
-import androidx.car.app.serialization.BundlerException;
-import androidx.car.app.serialization.Bundler;
-import androidx.car.app.utils.CollectionUtils;
-import androidx.car.app.utils.CommonUtils;
 //import androidx.car.app.utils.LogTags;
-import androidx.car.app.utils.RemoteUtils;
-import androidx.car.app.utils.StringUtils;
-import androidx.car.app.utils.ThreadUtils;
-import androidx.car.app.utils.ThreadUtils;
-import androidx.car.app.notification.CarAppExtender;
 import androidx.car.app.notification.CarNotificationManager;
-import androidx.car.app.notification.CarPendingIntent;
-import androidx.car.app.notification.CarAppNotificationBroadcastReceiver;
-import androidx.car.app.R;
-import androidx.car.app.CarContext;
-import androidx.car.app.Screen;
-import androidx.car.app.annotations.ExperimentalCarApi;
 import androidx.car.app.hardware.CarHardwareManager;
-import androidx.car.app.hardware.AutomotiveCarHardwareManager;
 import androidx.car.app.hardware.common.CarValue;
 import androidx.car.app.hardware.common.CarZone;
 import androidx.car.app.hardware.common.CarPropertyResponse;
 import androidx.car.app.hardware.common.PropertyManager;
-import androidx.car.app.hardware.common.CarUnit;
-import androidx.car.app.hardware.common.CarZoneAreaIdConstants;
-import androidx.car.app.hardware.common.CarZoneUtils;
-import androidx.car.app.hardware.common.GlobalCarZoneAreaIdConverter;
-import androidx.car.app.hardware.common.SeatCarZoneAreaIdConverter;
-import androidx.car.app.hardware.common.CarPropertyProfile;
-import androidx.car.app.hardware.common.CarValueUtils;
-import androidx.car.app.hardware.common.GetPropertyRequest;
-import androidx.car.app.hardware.common.PropertyIdAreaId;
-import androidx.car.app.hardware.common.PropertyUtils;
 import androidx.car.app.hardware.common.OnCarPropertyResponseListener;
-import androidx.car.app.hardware.common.OnCarDataAvailableListener;
-import androidx.car.app.hardware.common.CarSetOperationStatusCallback;
-import androidx.car.app.hardware.common.CarZoneAreaIdConverter;
 import androidx.car.app.hardware.climate.AutomotiveCarClimate;
-import androidx.car.app.hardware.climate.CabinTemperatureProfile;
-import androidx.car.app.hardware.climate.CarClimate;
-import androidx.car.app.hardware.climate.CarClimateFeature;
-import androidx.car.app.hardware.climate.CarClimateProfileCallback;
-import androidx.car.app.hardware.climate.CarClimateStateCallback;
-import androidx.car.app.hardware.climate.CarZoneMappingInfoProfile;
-import androidx.car.app.hardware.climate.ClimateProfileRequest;
-import androidx.car.app.hardware.climate.ClimateStateRequest;
-import androidx.car.app.hardware.climate.DefrosterProfile;
-import androidx.car.app.hardware.climate.ElectricDefrosterProfile;
-import androidx.car.app.hardware.climate.FanDirectionProfile;
-import androidx.car.app.hardware.climate.FanSpeedLevelProfile;
-import androidx.car.app.hardware.climate.HvacAcProfile;
-import androidx.car.app.hardware.climate.HvacAutoModeProfile;
-import androidx.car.app.hardware.climate.HvacAutoRecirculationProfile;
-import androidx.car.app.hardware.climate.HvacDualModeProfile;
-import androidx.car.app.hardware.climate.HvacMaxAcModeProfile;
-import androidx.car.app.hardware.climate.HvacPowerProfile;
-import androidx.car.app.hardware.climate.HvacRecirculationProfile;
-import androidx.car.app.hardware.climate.MaxDefrosterProfile;
-import androidx.car.app.hardware.climate.RegisterClimateStateRequest;
-import androidx.car.app.hardware.climate.SeatTemperatureProfile;
-import androidx.car.app.hardware.climate.SeatVentilationProfile;
-import androidx.car.app.hardware.climate.SteeringWheelHeatProfile;
-import androidx.car.app.hardware.info.Accelerometer;
 import androidx.car.app.hardware.info.AutomotiveCarInfo;
 import androidx.car.app.hardware.info.AutomotiveCarSensors;
-import androidx.car.app.hardware.info.CarHardwareLocation;
-import androidx.car.app.hardware.info.CarInfo;
-import androidx.car.app.hardware.info.CarSensors;
-import androidx.car.app.hardware.info.Compass;
-import androidx.car.app.hardware.info.EnergyLevel;
-import androidx.car.app.hardware.info.EnergyProfile;
-import androidx.car.app.hardware.info.EvStatus;
-import androidx.car.app.hardware.info.Gyroscope;
-import androidx.car.app.hardware.info.Mileage;
-import androidx.car.app.hardware.info.Model;
-import androidx.car.app.hardware.info.Speed;
-import androidx.car.app.hardware.info.TollCard;
-import androidx.car.app.model.Action;
 import androidx.car.app.model.Pane;
 import androidx.car.app.model.PaneTemplate;
 import androidx.car.app.model.Row;
 import androidx.car.app.model.Template;
-import androidx.car.app.validation.HostValidator;
-import androidx.car.app.versioning.CarAppApiLevels;
 
 
-import androidx.collection.ArraySet;
 import androidx.core.app.NotificationChannelCompat;
 import androidx.core.app.NotificationChannelGroupCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
-import androidx.lifecycle.Lifecycle;
 
 //Android.Car Imports
 //import android.car.ApiVersion;
-import android.car.Car;
-import android.car.CarAppFocusManager;
-import android.car.CarInfoManager;
-import android.car.CarNotConnectedException;
-import android.car.CarOccupantZoneManager;
 //import android.car.CarVersion;
-import android.car.EvConnectorType;
-import android.car.FuelType;
 //import android.car.GsrComplianceType;
 //import android.car.PlatformVersion;
 //import android.car.PlatformVersionMismatchException;
-import android.car.PortLocationType;
-import android.car.VehicleAreaSeat;
-import android.car.VehicleAreaType;
-import android.car.VehicleAreaWheel;
-import android.car.VehicleGear;
-import android.car.VehicleIgnitionState;
-import android.car.VehiclePropertyIds;
-import android.car.VehicleUnit;
-import android.car.content.pm.CarPackageManager;
-import android.car.drivingstate.CarUxRestrictions;
-import android.car.drivingstate.CarUxRestrictionsManager;
-import android.car.hardware.CarPropertyConfig;
-import android.car.hardware.CarPropertyValue;
-import android.car.hardware.CarSensorEvent;
-import android.car.hardware.CarSensorManager;
-import android.car.hardware.power.CarPowerManager;
-import android.car.hardware.power.CarPowerPolicy;
-import android.car.hardware.power.CarPowerPolicyFilter;
-import android.car.hardware.power.PowerComponent;
 //import android.car.hardware.property.AreaIdConfig;
-import android.car.hardware.property.CarInternalErrorException;
-import android.car.hardware.property.CarPropertyManager;
 //import android.car.hardware.property.EvChargeState;
-import android.car.hardware.property.EvChargingConnectorType;
 //import android.car.hardware.property.EvRegenerativeBrakingState;
 //import android.car.hardware.property.LocationCharacterization;
-import android.car.hardware.property.PropertyAccessDeniedSecurityException;
-import android.car.hardware.property.PropertyNotAvailableAndRetryException;
 //import android.car.hardware.property.PropertyNotAvailableErrorCode;
-import android.car.hardware.property.PropertyNotAvailableException;
-import android.car.hardware.property.VehicleElectronicTollCollectionCardStatus;
-import android.car.hardware.property.VehicleElectronicTollCollectionCardType;
 //import android.car.input.CarInputManager;
-import android.car.media.CarAudioManager;
-import android.car.media.CarMediaIntents;
 //import android.car.remoteaccess.CarRemoteAccessManager;
 //import android.car.remoteaccess.RemoteTaskClientRegistrationInfo;
-import android.car.watchdog.CarWatchdogManager;
-import android.car.watchdog.IoOveruseStats;
-import android.car.watchdog.PerStateBytes;
-import android.car.watchdog.ResourceOveruseStats;
 
 //Reflection Imports
-import com.google.common.collect.ImmutableBiMap;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -388,7 +110,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -457,8 +178,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseOpenMicrophoneResponse();
-            exerciseRegisterClimateStateRequest();
+            exerciseActionsConstraints();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1147,19 +867,6 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.messaging.model.ConversationItem",
                         "androidx.car.app.messaging.model.IConversationCallback"
                 };
-            case "constraints":
-                return new String[]{
-                        "androidx.car.app.model.constraints.ActionsConstraints",
-                        "androidx.car.app.model.constraints.CarColorConstraints",
-                        "androidx.car.app.model.constraints.CarIconConstraints",
-                        "androidx.car.app.model.constraints.CarTextConstraints",
-                        "androidx.car.app.model.constraints.RowConstraints",
-                        "androidx.car.app.model.constraints.RowListConstraints",
-                        "androidx.car.app.model.constraints.TabContentsConstraints",
-                        "androidx.car.app.model.constraints.TabsConstraints",
-                        "androidx.car.app.constraints.ConstraintManager",
-                        "androidx.car.app.constraints.IConstraintHost"
-                };
              */
             /*
             case "connection":
@@ -1326,15 +1033,14 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.hardware.info.Speed",
                         "androidx.car.app.hardware.info.TollCard"
                 };
-*/
 
             case "hardware.climate":
                 return new String[]{
-                        //"androidx.car.app.hardware.climate.AutomotiveCarClimate",
+                        "androidx.car.app.hardware.climate.AutomotiveCarClimate",
                         "androidx.car.app.hardware.climate.CabinTemperatureProfile",
                         "androidx.car.app.hardware.climate.CarClimate",
                         "androidx.car.app.hardware.climate.CarClimateFeature",
-                        //"androidx.car.app.hardware.climate.CarClimateProfileCallback",
+                        "androidx.car.app.hardware.climate.CarClimateProfileCallback",
                         "androidx.car.app.hardware.climate.CarClimateStateCallback",
                         "androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
                         "androidx.car.app.hardware.climate.ClimateProfileRequest",
@@ -1355,6 +1061,22 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.hardware.climate.SeatTemperatureProfile",
                         "androidx.car.app.hardware.climate.SeatVentilationProfile",
                         "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
+                };
+
+*/
+
+            case "constraints":
+                return new String[]{
+                        "androidx.car.app.model.constraints.ActionsConstraints",
+                        "androidx.car.app.model.constraints.CarColorConstraints",
+                        "androidx.car.app.model.constraints.CarIconConstraints",
+                        "androidx.car.app.model.constraints.CarTextConstraints",
+                        "androidx.car.app.model.constraints.RowConstraints",
+                        "androidx.car.app.model.constraints.RowListConstraints",
+                        "androidx.car.app.model.constraints.TabContentsConstraints",
+                        "androidx.car.app.model.constraints.TabsConstraints",
+                        "androidx.car.app.constraints.ConstraintManager",
+                        "androidx.car.app.constraints.IConstraintHost"
                 };
 
             default:
@@ -3988,6 +3710,192 @@ public class CarDataScreen extends Screen {
         }
     }
 
+    @SuppressLint({"RestrictedApi", "VisibleForTests"})
+    public void exerciseActionsConstraints() {
+        final String TAG = "ExerciseActionsConstraints";
+        StringBuilder summary = new StringBuilder();
+        try {
+            Log.d(TAG, "Starting exerciseActionsConstraints()");
+
+            Class<?> cls = ActionsConstraints.class;
+            Log.d(TAG, "Found class: " + cls.getName());
+
+            String[] staticNames = {
+                    "ACTIONS_CONSTRAINTS_HEADER",
+                    "ACTIONS_CONSTRAINTS_MULTI_HEADER",
+                    "ACTIONS_CONSTRAINTS_BODY",
+                    "ACTIONS_CONSTRAINTS_SIMPLE",
+                    "ACTIONS_CONSTRAINTS_NAVIGATION",
+                    "ACTIONS_CONSTRAINTS_MAP",
+                    "ACTIONS_CONSTRAINTS_ROW",
+                    "ACTIONS_CONSTRAINTS_FAB"
+            };
+
+            for (String name : staticNames) {
+                try {
+                    Field f = cls.getField(name);
+                    Object instance = f.get(null);
+                    Log.d(TAG, "Static field " + name + " -> " + String.valueOf(instance));
+                    Method getMax = cls.getMethod("getMaxActions");
+                    Object max = getMax.invoke(instance);
+                    Log.d(TAG, "  getMaxActions() = " + max);
+                    Method getTitleConstraints = cls.getMethod("getTitleTextConstraints");
+                    Object titleConstraints = getTitleConstraints.invoke(instance);
+                    Log.d(TAG, "  getTitleTextConstraints() = " + titleConstraints);
+                } catch (NoSuchFieldException nsf) {
+                    Log.w(TAG, "No static field " + name + " on ActionsConstraints");
+                }
+            }
+
+            @SuppressLint({"RestrictedApi", "VisibleForTests"}) ActionsConstraints.Builder builder = new ActionsConstraints.Builder();
+            builder.setMaxActions(3)
+                    .setMaxPrimaryActions(1)
+                    .setMaxCustomTitles(1)
+                    .setRequireActionIcons(true)
+                    .setRequireActionBackgroundColor(true)
+                    .setOnClickListenerAllowed(true)
+                    .setRestrictBackgroundColorToPrimaryAction(true)
+                    .setTitleTextConstraints(CarTextConstraints.COLOR_ONLY)
+                    .addAllowedActionType(Action.TYPE_CUSTOM);
+
+            ActionsConstraints constraints = builder.build();
+            Log.d(TAG, "Built ActionsConstraints via Builder: " + constraints);
+
+            // Call public getters
+            int maxActions = constraints.getMaxActions();
+            int maxPrimaryActions = constraints.getMaxPrimaryActions();
+            int maxCustomTitles = constraints.getMaxCustomTitles();
+            CarTextConstraints titleTextConstraints = constraints.getTitleTextConstraints();
+            Set<Integer> required = constraints.getRequiredActionTypes();
+            Set<Integer> disallowed = constraints.getDisallowedActionTypes();
+            Set<Integer> allowed = constraints.getAllowedActionTypes();
+            boolean requireIcons = constraints.areActionIconsRequired();
+            boolean requireBg = constraints.isActionBackgroundColorRequired();
+            boolean clickAllowed = constraints.isOnClickListenerAllowed();
+            boolean restrictBgPrimary = constraints.restrictBackgroundColorToPrimaryAction();
+
+            Log.d(TAG, "getMaxActions() = " + maxActions);
+            Log.d(TAG, "getMaxPrimaryActions() = " + maxPrimaryActions);
+            Log.d(TAG, "getMaxCustomTitles() = " + maxCustomTitles);
+            Log.d(TAG, "getTitleTextConstraints() = " + titleTextConstraints);
+            Log.d(TAG, "getRequiredActionTypes() = " + required);
+            Log.d(TAG, "getDisallowedActionTypes() = " + disallowed);
+            Log.d(TAG, "getAllowedActionTypes() = " + allowed);
+            Log.d(TAG, "areActionIconsRequired() = " + requireIcons);
+            Log.d(TAG, "isActionBackgroundColorRequired() = " + requireBg);
+            Log.d(TAG, "isOnClickListenerAllowed() = " + clickAllowed);
+            Log.d(TAG, "restrictBackgroundColorToPrimaryAction() = " + restrictBgPrimary);
+
+            summary.append("Built constraints: maxActions=").append(maxActions).append(", maxPrimary=")
+                    .append(maxPrimaryActions).append(", maxCustomTitles=").append(maxCustomTitles).append("\n");
+
+            //Validate with an empty list
+            try {
+                constraints.validateOrThrow(Collections.emptyList());
+                Log.d(TAG, "validateOrThrow(emptyList) succeeded (expected)");
+                summary.append("validateOrThrow(empty) succeeded\n");
+            } catch (IllegalArgumentException iae) {
+                Log.e(TAG, "validateOrThrow(emptyList) threw", iae);
+                summary.append("validateOrThrow(empty) threw: ").append(iae.getMessage()).append("\n");
+            }
+
+            // Use the copy-constructor
+            ActionsConstraints.Builder copyBuilder = new ActionsConstraints.Builder(constraints);
+            copyBuilder.setMaxActions(2)
+                    .setRequireActionIcons(false);
+            ActionsConstraints variant = copyBuilder.build();
+            Log.d(TAG, "Variant constraints built via copy-builder: " + variant);
+            summary.append("Variant built with maxActions=").append(variant.getMaxActions()).append("\n");
+
+            // Reflectively access private fields
+            try {
+                Field fMax = cls.getDeclaredField("mMaxActions");
+                fMax.setAccessible(true);
+                Object privateMaxVal = fMax.get(constraints);
+                Log.d(TAG, "private mMaxActions = " + privateMaxVal);
+                summary.append("private mMaxActions=").append(privateMaxVal).append("\n");
+            } catch (NoSuchFieldException nsf) {
+                Log.w(TAG, "No private mMaxActions field found (API difference?)");
+            }
+
+            try {
+                Field fRequired = cls.getDeclaredField("mRequiredActionTypes");
+                fRequired.setAccessible(true);
+                Object privateRequiredSet = fRequired.get(constraints);
+                Log.d(TAG, "private mRequiredActionTypes = " + privateRequiredSet);
+                summary.append("private mRequiredActionTypes=").append(privateRequiredSet).append("\n");
+            } catch (NoSuchFieldException nsf) {
+                Log.w(TAG, "No private mRequiredActionTypes field found (API difference?)");
+            }
+
+            try {
+                Field fRestrictBg = cls.getDeclaredField("mRestrictBackgroundColorToPrimaryAction");
+                fRestrictBg.setAccessible(true);
+                Object privateRestrict = fRestrictBg.get(constraints);
+                Log.d(TAG, "private mRestrictBackgroundColorToPrimaryAction = " + privateRestrict);
+                summary.append("private mRestrictBackgroundColorToPrimaryAction=").append(privateRestrict).append("\n");
+            } catch (NoSuchFieldException nsf) {
+                Log.w(TAG, "No private mRestrictBackgroundColorToPrimaryAction field found (API difference?)");
+            }
+
+            // Exercise validation with a list of actions if the Action class is usable
+            try {
+                Class<?> actionCls = Action.class;
+                Action sampleAction = null;
+                try {
+                    // Try Action.Builder if present
+                    Class<?> actionBuilderCls = Class.forName("androidx.car.app.model.Action$Builder");
+                    Constructor<?> abCtor = actionBuilderCls.getConstructor();
+                    Object abInstance = abCtor.newInstance();
+                    try {
+                        Method setTitle = actionBuilderCls.getMethod("setTitle", CharSequence.class);
+                        setTitle.invoke(abInstance, "Sample");
+                    } catch (NoSuchMethodException e) {
+
+                    }
+                    Method buildMethod = actionBuilderCls.getMethod("build");
+                    Object builtAction = buildMethod.invoke(abInstance);
+                    if (builtAction instanceof Action) {
+                        sampleAction = (Action) builtAction;
+                    }
+                } catch (ClassNotFoundException cnf) {
+                    // Action.Builder not present - attempt a simple public constructor on Action
+                    try {
+                        Constructor<?> actCtor = actionCls.getConstructor(int.class, CharSequence.class);
+                        Object o = actCtor.newInstance(Action.TYPE_CUSTOM, "Sample");
+                        if (o instanceof Action) sampleAction = (Action) o;
+                    } catch (NoSuchMethodException ignored) {
+                    }
+                }
+
+                if (sampleAction != null) {
+                    List<Action> oneList = Collections.singletonList(sampleAction);
+                    try {
+                        constraints.validateOrThrow(oneList);
+                        Log.d(TAG, "validateOrThrow(sampleAction) succeeded");
+                        summary.append("validateOrThrow(sampleAction) succeeded\n");
+                    } catch (IllegalArgumentException iae) {
+                        Log.w(TAG, "validateOrThrow(sampleAction) threw: " + iae.getMessage());
+                        summary.append("validateOrThrow(sampleAction) threw: ").append(iae.getMessage()).append("\n");
+                    }
+                } else {
+                    Log.w(TAG, "Could not create sample Action via reflection - skipping action validation test");
+                    summary.append("sample Action creation skipped (no compatible constructor/builder found)\n");
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "Action creation/validation attempt encountered issue", t);
+                summary.append("Action creation attempt encountered issue: ").append(t.getClass().getSimpleName()).append("\n");
+            }
+
+            Log.d(TAG, "Finished exerciseActionsConstraints()");
+        } catch (Exception e) {
+            Log.e("ExerciseActionsConstraints", "Exception exercising ActionsConstraints", e);
+            summary.append("Unexpected exception: ").append(e.toString()).append("\n");
+        }
+
+        String result = summary.toString();
+        Log.d("ExerciseActionsConstraintsSummary", result);
+    }
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
