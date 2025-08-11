@@ -18,6 +18,7 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.SparseArray;
@@ -369,6 +370,7 @@ import android.car.watchdog.ResourceOveruseStats;
 import com.google.common.collect.ImmutableBiMap;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -378,6 +380,7 @@ import java.lang.reflect.Method;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -454,7 +457,8 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseCarPendingIntent    ();
+            exerciseOpenMicrophoneResponse();
+            exerciseRegisterClimateStateRequest();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1170,69 +1174,10 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.managers.ManagerCache",
                         "androidx.car.app.managers.ResultManager"
                 };
-            case "media":
-                return new String[]{
-                        "androidx.car.app.media.AutomotiveCarAudioRecord",
-                        "androidx.car.app.media.CarAudioCallback",
-                        "androidx.car.app.media.CarAudioCallbackDelegate",
-                        "androidx.car.app.media.CarAudioRecord",
-                        "androidx.car.app.media.ICarAudioCallback",
-                        "androidx.car.app.media.IMediaPlaybackHost",
-                        "androidx.car.app.media.MediaPlaybackManager",
-                        "androidx.car.app.media.OpenMicrophoneRequest",
-                        "androidx.car.app.media.OpenMicrophoneResponse"
-                };
-
             case "hardware":
                 return new String[]{
                         "androidx.car.app.hardware.CarHardwareManager",
                         "androidx.car.app.hardware.AutomotiveCarHardwareManager"
-                };
-            case "hardware.climate":
-                return new String[]{
-                        "androidx.car.app.hardware.climate.AutomotiveCarClimate",
-                        "androidx.car.app.hardware.climate.CabinTemperatureProfile",
-                        "androidx.car.app.hardware.climate.CarClimate",
-                        "androidx.car.app.hardware.climate.CarClimateFeature",
-                        "androidx.car.app.hardware.climate.CarClimateProfileCallback",
-                        "androidx.car.app.hardware.climate.CarClimateStateCallback",
-                        "androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
-                        "androidx.car.app.hardware.climate.ClimateProfileRequest",
-                        "androidx.car.app.hardware.climate.ClimateStateRequest",
-                        "androidx.car.app.hardware.climate.DefrosterProfile",
-                        "androidx.car.app.hardware.climate.ElectricDefrosterProfile",
-                        "androidx.car.app.hardware.climate.FanDirectionProfile",
-                        "androidx.car.app.hardware.climate.FanSpeedLevelProfile",
-                        "androidx.car.app.hardware.climate.HvacAcProfile",
-                        "androidx.car.app.hardware.climate.HvacAutoModeProfile",
-                        "androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
-                        "androidx.car.app.hardware.climate.HvacDualModeProfile",
-                        "androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
-                        "androidx.car.app.hardware.climate.HvacPowerProfile",
-                        "androidx.car.app.hardware.climate.HvacRecirculationProfile",
-                        "androidx.car.app.hardware.climate.MaxDefrosterProfile",
-                        "androidx.car.app.hardware.climate.RegisterClimateStateRequest",
-                        "androidx.car.app.hardware.climate.SeatTemperatureProfile",
-                        "androidx.car.app.hardware.climate.SeatVentilationProfile",
-                        "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
-                };
-            case "hardware.info":
-                return new String[]{
-                        "androidx.car.app.hardware.info.Accelerometer",
-                        "androidx.car.app.hardware.info.AutomotiveCarInfo",
-                        "androidx.car.app.hardware.info.AutomotiveCarSensors",
-                        "androidx.car.app.hardware.info.CarHardwareLocation",
-                        "androidx.car.app.hardware.info.CarInfo",
-                        "androidx.car.app.hardware.info.CarSensors",
-                        "androidx.car.app.hardware.info.Compass",
-                        "androidx.car.app.hardware.info.EnergyLevel",
-                        "androidx.car.app.hardware.info.EnergyProfile",
-                        "androidx.car.app.hardware.info.EvStatus",
-                        "androidx.car.app.hardware.info.Gyroscope",
-                        "androidx.car.app.hardware.info.Mileage",
-                        "androidx.car.app.hardware.info.Model",
-                        "androidx.car.app.hardware.info.Speed",
-                        "androidx.car.app.hardware.info.TollCard"
                 };
 
             case "hardware.common":
@@ -1258,6 +1203,40 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.hardware.common.CarSetOperationStatusCallback",
                         "androidx.car.app.hardware.common.CarZoneAreaIdConverter",
                         "androidx.car.app.hardware.common.PropertyRequestProcessor"
+                };
+            case "navigation":
+                return new String[]{
+                        "androidx.car.app.navigation.NavigationManager",
+                        "androidx.car.app.navigation.NavigationManagerCallback",
+                        "androidx.car.app.navigation.INavigationHost",
+                        "androidx.car.app.navigation.INavigationManager",
+                        // navigation.model
+                        "androidx.car.app.navigation.model.Destination",
+                        "androidx.car.app.navigation.model.IPanModeListener",
+                        "androidx.car.app.navigation.model.Lane",
+                        "androidx.car.app.navigation.model.LaneDirection",
+                        "androidx.car.app.navigation.model.Maneuver",
+                        "androidx.car.app.navigation.model.MapController",
+                        "androidx.car.app.navigation.model.MapTemplate",
+                        "androidx.car.app.navigation.model.MapWithContentTemplate",
+                        "androidx.car.app.navigation.model.MessageInfo",
+                        "androidx.car.app.navigation.model.NavigationTemplate",
+                        "androidx.car.app.navigation.model.PanModeDelegate",
+                        "androidx.car.app.navigation.model.PanModeDelegateImpl",
+                        "androidx.car.app.navigation.model.PanModeListener",
+                        "androidx.car.app.navigation.model.PlaceListNavigationTemplate",
+                        "androidx.car.app.navigation.model.RoutePreviewNavigationTemplate",
+                        "androidx.car.app.navigation.model.RoutingInfo",
+                        "androidx.car.app.navigation.model.Step",
+                        "androidx.car.app.navigation.model.TravelEstimate",
+                        "androidx.car.app.navigation.model.Trip"
+                };
+            case "notification":
+                return new String[]{
+                        "androidx.car.app.notification.CarAppExtender",
+                        "androidx.car.app.notification.CarNotificationManager",
+                        "androidx.car.app.notification.CarPendingIntent",
+                        "androidx.car.app.notification.CarAppNotificationBroadcastReceiver"
                 };
             case "model":
                 return new String[]{
@@ -1316,42 +1295,68 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.model.Template"
                 };
 
-            case "navigation":
+            case "media":
                 return new String[]{
-                        "androidx.car.app.navigation.NavigationManager",
-                        "androidx.car.app.navigation.NavigationManagerCallback",
-                        "androidx.car.app.navigation.INavigationHost",
-                        "androidx.car.app.navigation.INavigationManager",
-                        // navigation.model
-                        "androidx.car.app.navigation.model.Destination",
-                        "androidx.car.app.navigation.model.IPanModeListener",
-                        "androidx.car.app.navigation.model.Lane",
-                        "androidx.car.app.navigation.model.LaneDirection",
-                        "androidx.car.app.navigation.model.Maneuver",
-                        "androidx.car.app.navigation.model.MapController",
-                        "androidx.car.app.navigation.model.MapTemplate",
-                        "androidx.car.app.navigation.model.MapWithContentTemplate",
-                        "androidx.car.app.navigation.model.MessageInfo",
-                        "androidx.car.app.navigation.model.NavigationTemplate",
-                        "androidx.car.app.navigation.model.PanModeDelegate",
-                        "androidx.car.app.navigation.model.PanModeDelegateImpl",
-                        "androidx.car.app.navigation.model.PanModeListener",
-                        "androidx.car.app.navigation.model.PlaceListNavigationTemplate",
-                        "androidx.car.app.navigation.model.RoutePreviewNavigationTemplate",
-                        "androidx.car.app.navigation.model.RoutingInfo",
-                        "androidx.car.app.navigation.model.Step",
-                        "androidx.car.app.navigation.model.TravelEstimate",
-                        "androidx.car.app.navigation.model.Trip"
+                        "androidx.car.app.media.AutomotiveCarAudioRecord",
+                        "androidx.car.app.media.CarAudioCallback",
+                        "androidx.car.app.media.CarAudioCallbackDelegate",
+                        "androidx.car.app.media.CarAudioRecord",
+                        "androidx.car.app.media.ICarAudioCallback",
+                        "androidx.car.app.media.IMediaPlaybackHost",
+                        "androidx.car.app.media.MediaPlaybackManager",
+                        "androidx.car.app.media.OpenMicrophoneRequest",
+                        "androidx.car.app.media.OpenMicrophoneResponse"
                 };
 
-                */
-            case "notification":
+            case "hardware.info":
                 return new String[]{
-                        "androidx.car.app.notification.CarAppExtender",
-                        "androidx.car.app.notification.CarNotificationManager",
-                        "androidx.car.app.notification.CarPendingIntent",
-                        "androidx.car.app.notification.CarAppNotificationBroadcastReceiver"
+                        "androidx.car.app.hardware.info.Accelerometer",
+                        "androidx.car.app.hardware.info.AutomotiveCarInfo",
+                        "androidx.car.app.hardware.info.AutomotiveCarSensors",
+                        "androidx.car.app.hardware.info.CarHardwareLocation",
+                        "androidx.car.app.hardware.info.CarInfo",
+                        "androidx.car.app.hardware.info.CarSensors",
+                        "androidx.car.app.hardware.info.Compass",
+                        "androidx.car.app.hardware.info.EnergyLevel",
+                        "androidx.car.app.hardware.info.EnergyProfile",
+                        "androidx.car.app.hardware.info.EvStatus",
+                        "androidx.car.app.hardware.info.Gyroscope",
+                        "androidx.car.app.hardware.info.Mileage",
+                        "androidx.car.app.hardware.info.Model",
+                        "androidx.car.app.hardware.info.Speed",
+                        "androidx.car.app.hardware.info.TollCard"
                 };
+*/
+
+            case "hardware.climate":
+                return new String[]{
+                        //"androidx.car.app.hardware.climate.AutomotiveCarClimate",
+                        "androidx.car.app.hardware.climate.CabinTemperatureProfile",
+                        "androidx.car.app.hardware.climate.CarClimate",
+                        "androidx.car.app.hardware.climate.CarClimateFeature",
+                        //"androidx.car.app.hardware.climate.CarClimateProfileCallback",
+                        "androidx.car.app.hardware.climate.CarClimateStateCallback",
+                        "androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
+                        "androidx.car.app.hardware.climate.ClimateProfileRequest",
+                        "androidx.car.app.hardware.climate.ClimateStateRequest",
+                        "androidx.car.app.hardware.climate.DefrosterProfile",
+                        "androidx.car.app.hardware.climate.ElectricDefrosterProfile",
+                        "androidx.car.app.hardware.climate.FanDirectionProfile",
+                        "androidx.car.app.hardware.climate.FanSpeedLevelProfile",
+                        "androidx.car.app.hardware.climate.HvacAcProfile",
+                        "androidx.car.app.hardware.climate.HvacAutoModeProfile",
+                        "androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
+                        "androidx.car.app.hardware.climate.HvacDualModeProfile",
+                        "androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
+                        "androidx.car.app.hardware.climate.HvacPowerProfile",
+                        "androidx.car.app.hardware.climate.HvacRecirculationProfile",
+                        "androidx.car.app.hardware.climate.MaxDefrosterProfile",
+                        "androidx.car.app.hardware.climate.RegisterClimateStateRequest",
+                        "androidx.car.app.hardware.climate.SeatTemperatureProfile",
+                        "androidx.car.app.hardware.climate.SeatVentilationProfile",
+                        "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
+                };
+
             default:
                 return new String[0];
         }
@@ -3772,6 +3777,217 @@ public class CarDataScreen extends Screen {
             Log.e("PendingIntentTest", "Error exercising CarPendingIntent", e);
         }
     }
+
+
+    public void exerciseOpenMicrophoneResponse() {
+        final String TAG = "ExerciseOpenMicrophone";
+        try {
+            Class<?> respClass = Class.forName("androidx.car.app.media.OpenMicrophoneResponse");
+            Class<?> builderClass = Class.forName("androidx.car.app.media.OpenMicrophoneResponse$Builder");
+            Class<?> carAudioCallbackClass = Class.forName("androidx.car.app.media.CarAudioCallback");
+
+            // Create a dynamic proxy
+            Object carAudioCallbackProxy = Proxy.newProxyInstance(
+                    carAudioCallbackClass.getClassLoader(),
+                    new Class<?>[]{carAudioCallbackClass},
+                    new InvocationHandler() {
+                        @Override
+                        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                            // simple no-op proxy: log calls (if you want) and return default value
+                            Log.d(TAG, "CarAudioCallback." + method.getName() + " invoked");
+                            // return null or default primitive wrapper
+                            Class<?> r = method.getReturnType();
+                            if (r == boolean.class) return false;
+                            if (r == byte.class) return (byte) 0;
+                            if (r == short.class) return (short) 0;
+                            if (r == int.class) return 0;
+                            if (r == long.class) return 0L;
+                            if (r == float.class) return 0f;
+                            if (r == double.class) return 0d;
+                            return null;
+                        }
+                    }
+            );
+
+            // Find Builder ctor
+            Constructor<?> builderCtor = builderClass.getConstructor(carAudioCallbackClass);
+            Object builder = builderCtor.newInstance(carAudioCallbackProxy);
+
+            // simulate mic data
+            ParcelFileDescriptor[] pfds = ParcelFileDescriptor.createReliablePipe();
+            ParcelFileDescriptor readSide = pfds[0];
+            ParcelFileDescriptor writeSide = pfds[1];
+
+            // payload
+            OutputStream out = new ParcelFileDescriptor.AutoCloseOutputStream(writeSide);
+            byte[] testBytes = "123456".getBytes(StandardCharsets.UTF_8);
+            try {
+                out.write(testBytes);
+                out.flush();
+                out.close();
+            } catch (Exception e) {
+                Log.e(TAG, "Error writing to microphone pipe", e);
+                try { out.close(); } catch (Exception ignored) {}
+            }
+
+            // Call builder.setCarMicrophoneDescriptor(readSide)
+            Method setDescMethod = builderClass.getMethod("setCarMicrophoneDescriptor",
+                    ParcelFileDescriptor.class);
+            setDescMethod.invoke(builder, readSide);
+
+            // Call builder.build()
+            Method buildMethod = builderClass.getMethod("build");
+            Object openMicResponse = buildMethod.invoke(builder);
+
+            // Call getCarAudioCallback()
+            Method getCallbackMethod = respClass.getMethod("getCarAudioCallback");
+            Object callbackDelegate = getCallbackMethod.invoke(openMicResponse);
+            Log.d(TAG, "getCarAudioCallback() returned: " + (callbackDelegate == null ? "null" : callbackDelegate.getClass().getName()));
+
+            // Call getCarMicrophoneInputStream() and read the bytes
+            Method getStreamMethod = respClass.getMethod("getCarMicrophoneInputStream");
+            InputStream in = (InputStream) getStreamMethod.invoke(openMicResponse);
+
+            byte[] buf = new byte[1024];
+            int read = 0;
+            StringBuilder sb = new StringBuilder();
+            try {
+                read = in.read(buf);
+                if (read > 0) {
+                    String s = new String(buf, 0, read, StandardCharsets.UTF_8);
+                    sb.append(s);
+                }
+                while ((read = in.read(buf)) > 0) {
+                    sb.append(new String(buf, 0, read, StandardCharsets.UTF_8));
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Exception while reading microphone stream (may be fine)", e);
+            } finally {
+                try { in.close(); } catch (Exception ignored) {}
+            }
+
+            Log.d(TAG, "Read from getCarMicrophoneInputStream(): \"" + sb.toString() + "\"");
+
+            try { readSide.close(); } catch (Exception ignored) {}
+
+            Log.d(TAG, "OpenMicrophoneResponse reflection exercise completed successfully.");
+
+        } catch (ClassNotFoundException cnfe) {
+            Log.e("ExerciseOpenMicrophone", "OpenMicrophoneResponse or related class not found", cnfe);
+        } catch (NoSuchMethodException nsme) {
+            Log.e("ExerciseOpenMicrophone", "Expected method not found via reflection", nsme);
+        } catch (InvocationTargetException ite) {
+            Log.e("ExerciseOpenMicrophone", "Target method threw an exception", ite.getCause());
+        } catch (Exception e) {
+            Log.e("ExerciseOpenMicrophone", "Unexpected error exercising OpenMicrophoneResponse", e);
+        }
+    }
+
+    @SuppressWarnings({"unchecked"})
+    public void exerciseRegisterClimateStateRequest() {
+        final String TAG = "ExerciseClimateReq";
+        try {
+            Class<?> reqClass = Class.forName("androidx.car.app.hardware.climate.RegisterClimateStateRequest");
+            Class<?> builderClass = Class.forName("androidx.car.app.hardware.climate.RegisterClimateStateRequest$Builder");
+            Class<?> carClimateFeatureClass = Class.forName("androidx.car.app.hardware.climate.CarClimateFeature");
+            Class<?> carClimateFeatureBuilderClass =
+                    Class.forName("androidx.car.app.hardware.climate.CarClimateFeature$Builder");
+
+            // Access static ALL_FEATURES (package-private) to get valid flags
+            java.lang.reflect.Field allFeaturesField = reqClass.getDeclaredField("ALL_FEATURES");
+            allFeaturesField.setAccessible(true);
+            java.util.Set<Integer> allFlags = (java.util.Set<Integer>) allFeaturesField.get(null);
+            Log.i(TAG, "ALL_FEATURES flags count: " + (allFlags == null ? "null" : allFlags.size()));
+
+            java.lang.reflect.Constructor<?> builderCtor = builderClass.getConstructor(boolean.class);
+            Object builderTrue = builderCtor.newInstance(true);
+            java.lang.reflect.Method buildMethod = builderClass.getMethod("build");
+            Object requestAll = buildMethod.invoke(builderTrue);
+
+            // Invoke public getClimateRegisterFeatures()
+            java.lang.reflect.Method getFeaturesMethod = reqClass.getMethod("getClimateRegisterFeatures");
+            java.util.List<?> featuresFromAll = (java.util.List<?>) getFeaturesMethod.invoke(requestAll);
+            Log.i(TAG, "Request (registerAll=true) features count: " + (featuresFromAll == null ? "null" : featuresFromAll.size()));
+            Log.i(TAG, "RequestAll.toString(): " + requestAll.toString());
+
+            Object builderFalse = builderCtor.newInstance(false);
+            // find addClimateRegisterFeatures
+            Class<?> featureArrayClass = java.lang.reflect.Array.newInstance(carClimateFeatureClass, 0).getClass();
+            java.lang.reflect.Method addMethod = builderClass.getMethod("addClimateRegisterFeatures", featureArrayClass);
+
+            // get CarClimateFeature.Builder(int) constructor and build() method
+            java.lang.reflect.Constructor<?> featureBuilderCtor = carClimateFeatureBuilderClass.getConstructor(int.class);
+            java.lang.reflect.Method featureBuildMethod = carClimateFeatureBuilderClass.getMethod("build");
+
+            // For each flag in ALL_FEATURES create a CarClimateFeature and add it to the builder
+            java.util.List<Object> builtFeatures = new java.util.ArrayList<>();
+            for (Integer flag : allFlags) {
+                try {
+                    Object featureBuilder = featureBuilderCtor.newInstance(flag.intValue());
+                    Object feature = featureBuildMethod.invoke(featureBuilder);
+                    builtFeatures.add(feature);
+                } catch (InvocationTargetException ite) {
+                    // If builder throws for some flags, log & continue
+                    Log.w(TAG, "Failed building CarClimateFeature for flag " + flag, ite.getTargetException());
+                }
+            }
+
+            // Convert list array of CarClimateFeature to call the varargs method
+            Object featureArray = java.lang.reflect.Array.newInstance(carClimateFeatureClass, builtFeatures.size());
+            for (int i = 0; i < builtFeatures.size(); i++) {
+                java.lang.reflect.Array.set(featureArray, i, builtFeatures.get(i));
+            }
+
+            // invoke addClimateRegisterFeatures(array)
+            addMethod.invoke(builderFalse, new Object[]{featureArray});
+
+            Object requestByAdd = buildMethod.invoke(builderFalse);
+            java.util.List<?> featuresFromAdd = (java.util.List<?>) getFeaturesMethod.invoke(requestByAdd);
+            Log.i(TAG, "Request (explicit add) features count: " + (featuresFromAdd == null ? "null" : featuresFromAdd.size()));
+            Log.i(TAG, "RequestByAdd.toString(): " + requestByAdd.toString());
+
+            // Compare equals/hashCode
+            boolean equals = requestAll.equals(requestByAdd);
+            int hashAll = requestAll.hashCode();
+            int hashAdd = requestByAdd.hashCode();
+            Log.i(TAG, "requestAll.equals(requestByAdd) = " + equals);
+            Log.i(TAG, "hash codes: all=" + hashAll + " add=" + hashAdd);
+
+            // Call the private constructAllFeatures() method reflectively
+            java.lang.reflect.Method constructAllFeaturesMethod = reqClass.getDeclaredMethod("constructAllFeatures");
+            constructAllFeaturesMethod.setAccessible(true);
+            java.util.List<?> constructedList = (java.util.List<?>) constructAllFeaturesMethod.invoke(requestAll);
+            Log.i(TAG, "constructAllFeatures() returned " + (constructedList == null ? "null" : constructedList.size()) + " elements");
+
+            int limit = 5;
+            for (int i = 0; i < Math.min(limit, constructedList.size()); i++) {
+                Object elem = constructedList.get(i);
+                Log.i(TAG, "constructedList[" + i + "] = " + String.valueOf(elem));
+            }
+
+            Log.i(TAG, "featuresFromAll.toString() (first items): " +
+                    (featuresFromAll.size() > 0 ? featuresFromAll.get(0).toString() : "<empty>"));
+            Log.i(TAG, "featuresFromAdd.toString() (first items): " +
+                    (featuresFromAdd.size() > 0 ? featuresFromAdd.get(0).toString() : "<empty>"));
+
+            Log.i(TAG, "Finished exercising RegisterClimateStateRequest. " +
+                    "allFeatures=" + allFlags.size() +
+                    ", requestAllFeatures=" + featuresFromAll.size() +
+                    ", requestByAdd=" + featuresFromAdd.size());
+
+        } catch (ClassNotFoundException e) {
+            Log.e("ExerciseClimateReq", "Required class not found", e);
+        } catch (NoSuchMethodException e) {
+            Log.e("ExerciseClimateReq", "Expected method not found", e);
+        } catch (NoSuchFieldException e) {
+            Log.e("ExerciseClimateReq", "Expected field not found", e);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+            Log.e("ExerciseClimateReq", "Reflection creation/invocation failed", e);
+        } catch (Exception e) {
+            Log.e("ExerciseClimateReq", "Unexpected failure while exercising RegisterClimateStateRequest", e);
+        }
+    }
+
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
