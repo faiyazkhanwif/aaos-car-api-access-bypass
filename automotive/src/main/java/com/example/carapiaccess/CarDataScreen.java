@@ -73,6 +73,7 @@ import androidx.core.app.NotificationChannelGroupCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.drawable.IconCompat;
 
 //Android.Car Imports
 //import android.car.ApiVersion;
@@ -178,7 +179,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseActionsConstraints();
+            exerciseCarIconConstraints();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -3896,6 +3897,196 @@ public class CarDataScreen extends Screen {
         String result = summary.toString();
         Log.d("ExerciseActionsConstraintsSummary", result);
     }
+
+
+
+    public void exerciseCarIconConstraints() {
+
+        final String TAG = "CarIconConstraintsTest";
+
+        try {
+            Context context = getCarContext();
+            Class<?> constraintsClass = Class.forName(
+                    "androidx.car.app.model.constraints.CarIconConstraints");
+
+            try {
+                Field unconField = constraintsClass.getField("UNCONSTRAINED");
+                Object uncon = unconField.get(null);
+                Log.i(TAG, "UNCONSTRAINED field value: " + uncon);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                Log.w(TAG, "Could not read UNCONSTRAINED field: " + e);
+            }
+
+            try {
+                Field defaultField = constraintsClass.getField("DEFAULT");
+                Object def = defaultField.get(null);
+                Log.i(TAG, "DEFAULT field value: " + def);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                Log.w(TAG, "Could not read DEFAULT field: " + e);
+            }
+
+            Constructor<?> privateCtor = null;
+            try {
+                privateCtor = constraintsClass.getDeclaredConstructor(int[].class);
+                privateCtor.setAccessible(true);
+            } catch (NoSuchMethodException e) {
+                for (Constructor<?> c : constraintsClass.getDeclaredConstructors()) {
+                    Class<?>[] params = c.getParameterTypes();
+                    if (params.length == 1 && params[0].isArray()
+                            && params[0].getComponentType() == int.class) {
+                        privateCtor = c;
+                        privateCtor.setAccessible(true);
+                        break;
+                    }
+                }
+            }
+
+            Object customConstraints = null;
+            if (privateCtor != null) {
+                int[] allowed = new int[]{
+                        IconCompat.TYPE_BITMAP,
+                        IconCompat.TYPE_RESOURCE
+                };
+                // Reflection newInstance expecting Object[] wrapper
+                customConstraints = privateCtor.newInstance((Object) allowed);
+                Log.i(TAG, "Created custom CarIconConstraints instance via private ctor: "
+                        + customConstraints);
+            } else {
+                Log.w(TAG, "Private constructor not found; proceeding using static fields only.");
+                // fall back to using DEFAULT if available
+                try {
+                    customConstraints = constraintsClass.getField("DEFAULT").get(null);
+                } catch (Exception ex) {
+                    customConstraints = null;
+                }
+            }
+
+            // Find methods: validateOrThrow() and checkSupportedIcon()
+            Method validateMethod = null;
+            Method checkSupportedMethod = null;
+            for (Method m : constraintsClass.getMethods()) { // public methods
+                if ("validateOrThrow".equals(m.getName()) && m.getParameterTypes().length == 1) {
+                    validateMethod = m;
+                } else if ("checkSupportedIcon".equals(m.getName())
+                        && m.getParameterTypes().length == 1) {
+                    checkSupportedMethod = m;
+                }
+            }
+
+            if (validateMethod == null) {
+                for (Method m : constraintsClass.getDeclaredMethods()) {
+                    if ("validateOrThrow".equals(m.getName()) && m.getParameterTypes().length == 1) {
+                        validateMethod = m;
+                        validateMethod.setAccessible(true);
+                    }
+                }
+            }
+
+            if (checkSupportedMethod == null) {
+                for (Method m : constraintsClass.getDeclaredMethods()) {
+                    if ("checkSupportedIcon".equals(m.getName())
+                            && m.getParameterTypes().length == 1) {
+                        checkSupportedMethod = m;
+                        checkSupportedMethod.setAccessible(true);
+                    }
+                }
+            }
+
+            if (validateMethod != null && customConstraints != null) {
+                try {
+                    validateMethod.invoke(customConstraints, new Object[]{null});
+                    Log.i(TAG, "validateOrThrow(null) invoked successfully (expected early return).");
+                } catch (InvocationTargetException ite) {
+                    Log.e(TAG, "validateOrThrow(null) threw: " + ite.getCause(), ite);
+                }
+            } else {
+                Log.w(TAG, "validateOrThrow method or constraints instance is missing; skipping.");
+            }
+
+            if (checkSupportedMethod == null) {
+                Log.w(TAG, "checkSupportedIcon method not found; aborting icon tests.");
+                return;
+            }
+            if (customConstraints == null) {
+                Log.w(TAG, "No constraints instance available; skipping icon checks.");
+                return;
+            }
+
+            // TYPE_BITMAP
+            try {
+                Bitmap bmp = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+                IconCompat iconBitmap = IconCompat.createWithBitmap(bmp);
+                Object result = checkSupportedMethod.invoke(customConstraints, iconBitmap);
+                Log.i(TAG, "checkSupportedIcon(TYPE_BITMAP) ok -> returned: " + result);
+            } catch (InvocationTargetException ite) {
+                Log.e(TAG, "Unexpected failure for TYPE_BITMAP: " + ite.getCause(), ite);
+            }
+
+            // TYPE_RESOURCE
+            try {
+                IconCompat iconRes = IconCompat.createWithResource(context, android.R.drawable.ic_dialog_info);
+                Object result = checkSupportedMethod.invoke(customConstraints, iconRes);
+                Log.i(TAG, "checkSupportedIcon(TYPE_RESOURCE) ok -> returned: " + result);
+            } catch (InvocationTargetException ite) {
+                Log.e(TAG, "Unexpected failure for TYPE_RESOURCE: " + ite.getCause(), ite);
+            }
+
+            // TYPE_URI
+            try {
+                IconCompat iconContentUri = IconCompat.createWithContentUri("content://com.example/some");
+                Object result = checkSupportedMethod.invoke(customConstraints, iconContentUri);
+                Log.i(TAG, "checkSupportedIcon(content://...) ok -> returned: " + result);
+            } catch (InvocationTargetException ite) {
+                Log.e(TAG, "Unexpected failure for content:// URI: " + ite.getCause(), ite);
+            }
+
+            // TYPE_URI
+            try {
+                IconCompat iconHttpUri = IconCompat.createWithContentUri("http://example.com/some");
+                try {
+                    checkSupportedMethod.invoke(customConstraints, iconHttpUri);
+                    Log.e(TAG, "checkSupportedIcon(http://...) unexpectedly succeeded (expected failure).");
+                } catch (InvocationTargetException ite) {
+                    Throwable cause = ite.getCause();
+                    Log.i(TAG, "checkSupportedIcon(http://...) threw (expected): " + cause);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Could not construct or check http:// IconCompat: " + e, e);
+            }
+
+
+            try {
+                // build a normal bitmap icon then change its type
+                IconCompat iconForTamper = IconCompat.createWithBitmap(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888));
+                try {
+                    // reflectively locate mType field and set to a dummy value
+                    java.lang.reflect.Field mTypeField = IconCompat.class.getDeclaredField("mType");
+                    mTypeField.setAccessible(true);
+                    mTypeField.setInt(iconForTamper, -999); // unsupported type
+                    try {
+                        checkSupportedMethod.invoke(customConstraints, iconForTamper);
+                        Log.e(TAG, "checkSupportedIcon(dummy-type) unexpectedly passed (expected failure).");
+                    } catch (InvocationTargetException ite) {
+                        Log.i(TAG, "checkSupportedIcon(dummy-type) threw (expected): " + ite.getCause());
+                    }
+                } catch (NoSuchFieldException nsf) {
+                    Log.w(TAG, "IconCompat has no accessible mType field to tamper with (skipping dummy-type test).");
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Could not create or mutate IconCompat for dummy-type test: " + e);
+            }
+
+            Log.i(TAG, "CarIconConstraints reflection exercise completed.");
+
+        } catch (ClassNotFoundException e) {
+            Log.e(TAG, "CarIconConstraints class not found in runtime: " + e);
+        } catch (InvocationTargetException e) {
+            Log.e(TAG, "InvocationTargetException while invoking reflected code: " + e.getCause(), e);
+        } catch (Exception e) {
+            Log.e(TAG, "Unexpected exception during CarIconConstraints reflection test: " + e, e);
+        }
+    }
+
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
