@@ -1,5 +1,7 @@
 package com.example.carapiaccess;
 
+import static com.google.common.reflect.Reflection.getPackageName;
+
 import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -41,6 +43,7 @@ import androidx.annotation.OptIn;
 
 //import androidx.car.app.CarAppBinder;
 import androidx.car.app.CarContext;
+import androidx.car.app.HostInfo;
 import androidx.car.app.Screen;
 //import androidx.car.app.hardware.common.PropertyRequestProcessor;
 import androidx.car.app.model.Action;
@@ -68,6 +71,7 @@ import androidx.car.app.model.Row;
 import androidx.car.app.model.Template;
 
 
+import androidx.car.app.validation.HostValidator;
 import androidx.core.app.NotificationChannelCompat;
 import androidx.core.app.NotificationChannelGroupCompat;
 import androidx.core.app.NotificationCompat;
@@ -179,7 +183,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseCarAppBinder();
+            exerciseCarAppServiceReflection();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -4595,6 +4599,195 @@ public class CarDataScreen extends Screen {
         }
     }
 
+
+    @SuppressWarnings({"BanUncheckedReflection", "TryFinallyCanBeTryWithResources"})
+    public void exerciseCarAppServiceReflection() {
+        final String TAG = "ExerciseCarAppService";
+        try {
+            // App context and package info used as "real" parameters
+            android.content.Context appContext = getCarContext().getBaseContext();
+            final String packageName = appContext.getPackageName();
+            final int myUid = android.os.Process.myUid();
+
+            Log.i(TAG, "Starting exerciseCarAppServiceReflection for package: " + packageName);
+
+            // Create a minimal anonymous CarAppService subclass overriding only createHostValidator()
+            androidx.car.app.CarAppService testService = new androidx.car.app.CarAppService() {
+                @NonNull
+                @Override
+                public androidx.car.app.validation.HostValidator createHostValidator() {
+                    // Use the permissive validator for test runs.
+                    return androidx.car.app.validation.HostValidator.ALLOW_ALL_HOSTS_VALIDATOR;
+                }
+
+                // Do not call onCreateSession / lifecycle methods here; we won't exercise those.
+            };
+
+            // Attach the application Context to the Service instance (Service is a ContextWrapper).
+            // attachBaseContext is protected in ContextWrapper; call via reflection.
+            try {
+                java.lang.reflect.Method attachBase = android.content.ContextWrapper.class
+                        .getDeclaredMethod("attachBaseContext", android.content.Context.class);
+                attachBase.setAccessible(true);
+                attachBase.invoke(testService, appContext);
+                Log.i(TAG, "Attached base context to testService");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to attach base context to testService", e);
+            }
+
+            // 1) setHostInfo (package-private) -> set a HostInfo using the current package name and uid
+            try {
+                Class<?> hostInfoClass = Class.forName("androidx.car.app.HostInfo");
+                java.lang.reflect.Constructor<?> hostInfoCtor =
+                        hostInfoClass.getConstructor(String.class, int.class);
+                Object hostInfo = hostInfoCtor.newInstance(packageName, myUid);
+
+                java.lang.reflect.Method setHostInfo =
+                        androidx.car.app.CarAppService.class.getDeclaredMethod("setHostInfo", hostInfoClass);
+                setHostInfo.setAccessible(true);
+                setHostInfo.invoke(testService, hostInfo);
+                Log.i(TAG, "Invoked setHostInfo -> " + hostInfo);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to call setHostInfo", e);
+            }
+
+            // 2) getHostInfo (public)
+            try {
+                java.lang.reflect.Method getHostInfo = androidx.car.app.CarAppService.class
+                        .getMethod("getHostInfo");
+                Object hostInfoResult = getHostInfo.invoke(testService);
+                Log.i(TAG, "getHostInfo returned: " + hostInfoResult);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to call getHostInfo", e);
+            }
+
+            // 3) onBind(Intent) - craft a real Intent with SERVICE_INTERFACE, use our package
+            android.content.Intent bindIntent = new android.content.Intent(
+                    androidx.car.app.CarAppService.SERVICE_INTERFACE);
+            bindIntent.setPackage(packageName); // real package
+            try {
+                java.lang.reflect.Method onBindMethod =
+                        androidx.car.app.CarAppService.class.getMethod("onBind", android.content.Intent.class);
+                Object binder = onBindMethod.invoke(testService, bindIntent);
+                Log.i(TAG, "onBind returned IBinder: " + binder);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to call onBind(Intent)", e);
+            }
+
+            // 4) getCurrentSession() (deprecated helper) - may be null
+            try {
+                java.lang.reflect.Method getCurrentSessionMethod =
+                        androidx.car.app.CarAppService.class.getMethod("getCurrentSession");
+                Object currentSession = getCurrentSessionMethod.invoke(testService);
+                Log.i(TAG, "getCurrentSession returned: " + currentSession);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to call getCurrentSession()", e);
+            }
+
+            // 5) getSession(SessionInfo) - craft a SessionInfo instance via SessionInfo.DEFAULT_SESSION_INFO
+            try {
+                Class<?> sessionInfoClass = Class.forName("androidx.car.app.SessionInfo");
+                java.lang.reflect.Field defaultField = sessionInfoClass.getField("DEFAULT_SESSION_INFO");
+                Object defaultSessionInfo = defaultField.get(null);
+                java.lang.reflect.Method getSessionMethod =
+                        androidx.car.app.CarAppService.class.getMethod("getSession", sessionInfoClass);
+                Object session = getSessionMethod.invoke(testService, defaultSessionInfo);
+                Log.i(TAG, "getSession(DEFAULT_SESSION_INFO) -> " + session);
+            } catch (NoSuchFieldException nsf) {
+                // Older/modified versions might not expose DEFAULT_SESSION_INFO; that's ok.
+                Log.w(TAG, "SessionInfo.DEFAULT_SESSION_INFO not available; skipping getSession", nsf);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to call getSession(SessionInfo)", e);
+            }
+
+            // 6) getAppInfo() - should return AppInfo built from the attached context's package manager
+            try {
+                java.lang.reflect.Method getAppInfoMethod =
+                        androidx.car.app.CarAppService.class.getDeclaredMethod("getAppInfo");
+                Object appInfo = getAppInfoMethod.invoke(testService);
+                Log.i(TAG, "getAppInfo returned: " + appInfo);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to call getAppInfo()", e);
+            }
+
+            // 7) dump(FileDescriptor, PrintWriter, String[]) - create a reliable pipe and writer
+            java.io.PrintWriter dumpWriter = null;
+            android.os.ParcelFileDescriptor[] pipe = null;
+            try {
+                pipe = android.os.ParcelFileDescriptor.createReliablePipe();
+                // pipe[0] = read side, pipe[1] = write side
+                java.io.OutputStream os = new android.os.ParcelFileDescriptor.AutoCloseOutputStream(pipe[1]);
+                dumpWriter = new java.io.PrintWriter(new java.io.OutputStreamWriter(os));
+                String[] dumpArgs = new String[] { "AUTO_DRIVE" }; // the service reacts to AUTO_DRIVE
+                java.lang.reflect.Method dumpMethod = androidx.car.app.CarAppService.class.getMethod(
+                        "dump", java.io.FileDescriptor.class, java.io.PrintWriter.class, String[].class);
+                // pass the read-side FileDescriptor
+                dumpMethod.invoke(testService, pipe[0].getFileDescriptor(), dumpWriter, dumpArgs);
+                // flush writer so any text written is pushed into the pipe
+                dumpWriter.flush();
+
+                // read any bytes written to the pipe (non-blocking read loop)
+                java.io.InputStream is = new android.os.ParcelFileDescriptor.AutoCloseInputStream(pipe[0]);
+                StringBuilder sb = new StringBuilder();
+                byte[] buffer = new byte[1024];
+                // try to read available data with a small timeout loop
+                long start = System.currentTimeMillis();
+                while (System.currentTimeMillis() - start < 200) { // read for up to 200ms
+                    int avail = is.available();
+                    if (avail <= 0) {
+                        Thread.sleep(20);
+                        continue;
+                    }
+                    int read = is.read(buffer, 0, Math.min(buffer.length, avail));
+                    if (read > 0) {
+                        sb.append(new String(buffer, 0, read));
+                    } else {
+                        break;
+                    }
+                }
+                Log.i(TAG, "dump() output (first chunk): " + sb.toString().trim());
+                // close streams (AutoClose will close underlying fds)
+                is.close();
+                os.close();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to run dump(...)", e);
+            } finally {
+                if (dumpWriter != null) {
+                    try {
+                        dumpWriter.close();
+                    } catch (Exception ignore) { }
+                }
+                if (pipe != null) {
+                    // ensure both descriptors closed
+                    try { pipe[0].close(); } catch (Exception ignore) {}
+                    try { pipe[1].close(); } catch (Exception ignore) {}
+                }
+            }
+
+            // 8) onUnbind(Intent) - call with same intent
+            try {
+                java.lang.reflect.Method onUnbindMethod =
+                        androidx.car.app.CarAppService.class.getMethod("onUnbind", android.content.Intent.class);
+                Object onUnbindResult = onUnbindMethod.invoke(testService, bindIntent);
+                Log.i(TAG, "onUnbind returned: " + onUnbindResult);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to call onUnbind(Intent)", e);
+            }
+
+            // 9) onDestroy - call the lifecycle destroy (safe to call)
+            try {
+                java.lang.reflect.Method onDestroy = androidx.car.app.CarAppService.class.getMethod("onDestroy");
+                onDestroy.invoke(testService);
+                Log.i(TAG, "onDestroy invoked on testService");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to call onDestroy()", e);
+            }
+
+            Log.i(TAG, "Finished exerciseCarAppServiceReflection (no crash).");
+        } catch (Exception outer) {
+            Log.e("ExerciseCarAppService", "Unexpected failure in exerciseCarAppServiceReflection", outer);
+        }
+    }
 
 
 
