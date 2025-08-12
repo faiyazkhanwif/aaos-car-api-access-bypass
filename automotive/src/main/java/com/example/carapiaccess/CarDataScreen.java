@@ -179,7 +179,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseAppManagerReflection();
+            exerciseCarAppBinder();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -4371,6 +4371,230 @@ public class CarDataScreen extends Screen {
             Log.e("ExerciseAppManager", "Unexpected error while exercising AppManager", t);
         }
     }
+
+    @SuppressWarnings({"rawtypes"})
+    public void exerciseCarAppBinder() {
+        final String TAG = "Reflection.CarAppBinder";
+        try {
+            Class<?> targetClass = Class.forName("androidx.car.app.CarAppBinder");
+            // Try to get the constructor (CarAppService, SessionInfo) if available,
+            // otherwise fall back to any declared constructor.
+            Constructor ctor = null;
+            try {
+                Class<?> carAppServiceCls = Class.forName("androidx.car.app.CarAppService");
+                Class<?> sessionInfoCls = Class.forName("androidx.car.app.SessionInfo");
+                ctor = targetClass.getDeclaredConstructor(carAppServiceCls, sessionInfoCls);
+            } catch (Throwable e) {
+                // fallback: pick the first declared constructor
+                Constructor[] ctors = targetClass.getDeclaredConstructors();
+                if (ctors.length > 0) {
+                    ctor = ctors[0];
+                }
+            }
+
+            if (ctor == null) {
+                Log.e(TAG, "No constructor found for CarAppBinder");
+                return;
+            }
+            ctor.setAccessible(true);
+
+            // Attempt to construct a CarAppBinder instance.
+            // Many apps create it with concrete CarAppService and SessionInfo; supply nulls when we can't produce them.
+            Object binderInstance;
+            try {
+                Class<?>[] paramTypes = ctor.getParameterTypes();
+                Object[] ctorArgs = new Object[paramTypes.length];
+                for (int i = 0; i < paramTypes.length; i++) {
+                    // Prefer nulls (safe start). If a parameter is primitive, fallback to zero-value.
+                    Class<?> p = paramTypes[i];
+                    if (p.isPrimitive()) {
+                        if (p == boolean.class) ctorArgs[i] = false;
+                        else if (p == byte.class) ctorArgs[i] = (byte) 0;
+                        else if (p == short.class) ctorArgs[i] = (short) 0;
+                        else if (p == int.class) ctorArgs[i] = 0;
+                        else if (p == long.class) ctorArgs[i] = 0L;
+                        else if (p == float.class) ctorArgs[i] = 0f;
+                        else if (p == double.class) ctorArgs[i] = 0d;
+                        else ctorArgs[i] = 0;
+                    } else {
+                        ctorArgs[i] = null;
+                    }
+                }
+                binderInstance = ctor.newInstance(ctorArgs);
+                Log.i(TAG, "Constructed CarAppBinder instance with nulls/defaults");
+            } catch (Throwable e) {
+                Log.w(TAG, "Constructor call with nulls failed, trying no-arg/newInstance fallback", e);
+                // Try no-arg default instantiation as last resort (very unlikely to succeed)
+                Constructor noArg = null;
+                for (Constructor c : targetClass.getDeclaredConstructors()) {
+                    if (c.getParameterCount() == 0) {
+                        noArg = c;
+                        break;
+                    }
+                }
+                if (noArg != null) {
+                    noArg.setAccessible(true);
+                    binderInstance = noArg.newInstance();
+                    Log.i(TAG, "Constructed CarAppBinder via no-arg constructor");
+                } else {
+                    Log.e(TAG, "Unable to instantiate CarAppBinder - aborting exercise");
+                    return;
+                }
+            }
+
+            // Prepare a reusable IOnDoneCallback stub used for callback parameters.
+            @SuppressLint("RestrictedApi") final androidx.car.app.IOnDoneCallback onDoneStub = new androidx.car.app.IOnDoneCallback.Stub() {
+                @Override
+                public void onSuccess(androidx.car.app.serialization.Bundleable response) {
+                    Log.i(TAG, "IOnDoneCallback.onSuccess response: " + (response == null ? "null" : response));
+                }
+
+                @Override
+                public void onFailure(androidx.car.app.serialization.Bundleable failureResponse) {
+                    Log.w(TAG, "IOnDoneCallback.onFailure response: " + (failureResponse == null ? "null" : failureResponse));
+                }
+            };
+
+            // Helper that builds a Bundleable wrapping a HandshakeInfo (used by onHandshakeCompleted)
+            java.lang.reflect.Method bundleableCreateMethod = null;
+            try {
+                Class<?> bundleableClass = Class.forName("androidx.car.app.serialization.Bundleable");
+                bundleableCreateMethod = bundleableClass.getMethod("create", Object.class);
+            } catch (Throwable ignored) { /* optional; we'll handle when needed */ }
+
+            // Craft a handshake Bundleable when needed.
+            Object handshakeBundleable = null;
+            try {
+                Class<?> handshakeCls = Class.forName("androidx.car.app.HandshakeInfo");
+                Constructor<?> hCtor = handshakeCls.getConstructor(String.class, int.class);
+                String pkg = (getCarContext() != null ? getCarContext().getPackageName() : "com.example");
+                Object handshake = hCtor.newInstance(pkg, /*hostCarAppApiLevel*/ 1);
+                if (bundleableCreateMethod != null) {
+                    try {
+                        handshakeBundleable = bundleableCreateMethod.invoke(null, handshake);
+                    } catch (Throwable e) {
+                        Log.w(TAG, "Bundleable.create failed for HandshakeInfo", e);
+                        handshakeBundleable = null;
+                    }
+                }
+            } catch (Throwable e) {
+                Log.w(TAG, "Could not create HandshakeInfo Bundleable - will skip handshake invocation", e);
+                handshakeBundleable = null;
+            }
+
+            // Pre-created simple objects for common parameter types.
+            Intent simpleIntent = new Intent();
+            android.content.res.Configuration simpleConfig = new android.content.res.Configuration();
+            Intent navIntent = new Intent(android.content.Intent.ACTION_VIEW);
+            // navigation URI example (geo:0,0?q=somewhere)
+            navIntent.setData(android.net.Uri.parse("geo:0,0?q=1+Infinite+Loop"));
+            // small helper for "type name" resolution to choose parameters
+            for (Method m : targetClass.getDeclaredMethods()) {
+                m.setAccessible(true);
+                String mName = m.getName();
+                Class<?>[] ptypes = m.getParameterTypes();
+                Object[] args = new Object[ptypes.length];
+                for (int i = 0; i < ptypes.length; i++) {
+                    Class<?> p = ptypes[i];
+                    if (p == androidx.car.app.IOnDoneCallback.class) {
+                        args[i] = onDoneStub;
+                    } else if (p == android.content.Intent.class) {
+                        // for onNewIntent use a simple Intent; other calls accept empty Intent too
+                        args[i] = simpleIntent;
+                    } else if (p == android.content.res.Configuration.class) {
+                        args[i] = simpleConfig;
+                    } else if (p == java.lang.String.class) {
+                        // Many API calls use CarContext service names (app/navigation). Use app service by default.
+                        try {
+                            args[i] = Class.forName("androidx.car.app.CarContext")
+                                    .getField("APP_SERVICE").get(null);
+                        } catch (Throwable e) {
+                            args[i] = "app";
+                        }
+                    } else if (p == int.class || p == Integer.class) {
+                        args[i] = 0;
+                    } else if (p == androidx.car.app.serialization.Bundleable.class) {
+                        // supply handshakeBundleable when asked
+                        args[i] = handshakeBundleable;
+                    } else {
+                        // unknown param: try to satisfy common binder types:
+                        if (p.isInterface()) {
+                            // try dynamic proxy for simple interface requirements returning benign values
+                            Object proxy = java.lang.reflect.Proxy.newProxyInstance(
+                                    p.getClassLoader(),
+                                    new Class[]{p},
+                                    (proxyObj, method, methodArgs) -> {
+                                        // return reasonable defaults for common return types
+                                        Class<?> rt = method.getReturnType();
+                                        if (rt == void.class) return null;
+                                        if (rt.isPrimitive()) {
+                                            if (rt == boolean.class) return false;
+                                            if (rt == int.class) return 0;
+                                            if (rt == long.class) return 0L;
+                                            if (rt == double.class) return 0d;
+                                        }
+                                        return null;
+                                    });
+                            args[i] = proxy;
+                        } else {
+                            // otherwise null (many methods will gracefully throw or return)
+                            args[i] = null;
+                        }
+                    }
+                }
+
+                // Try invoking the method and capture result / exception
+                try {
+                    Object result = m.invoke(binderInstance, args);
+                    Log.i(TAG, String.format("Invoked %s(%d args) -> %s", mName, args.length,
+                            result == null ? "null" : result.toString()));
+                } catch (Throwable invokeError) {
+                    // unwrap InvocationTargetException to get underlying cause
+                    Throwable cause = (invokeError instanceof java.lang.reflect.InvocationTargetException)
+                            ? invokeError.getCause() : invokeError;
+                    Log.w(TAG, String.format("Invocation of %s failed: %s", mName,
+                            cause == null ? invokeError.toString() : cause.toString()), cause);
+                }
+            }
+
+            // Finally, exercise a couple of internal/private convenience methods by name if present.
+            // onNewIntentInternal(Session, Intent) and onConfigurationChangedInternal(Session, Configuration)
+            try {
+                // try to call private onNewIntentInternal with (Session, Intent) by passing null session
+                try {
+                    Method onNewIntentInternal = targetClass.getDeclaredMethod("onNewIntentInternal",
+                            Class.forName("androidx.car.app.Session"), Intent.class);
+                    onNewIntentInternal.setAccessible(true);
+                    onNewIntentInternal.invoke(binderInstance, /*session*/ null, simpleIntent);
+                    Log.i(TAG, "Called onNewIntentInternal(null, simpleIntent)");
+                } catch (NoSuchMethodException ignore) {
+                    // maybe signature differs; skip.
+                } catch (Throwable e) {
+                    Log.w(TAG, "onNewIntentInternal call failed", e);
+                }
+
+                try {
+                    Method onConfigInternal = targetClass.getDeclaredMethod("onConfigurationChangedInternal",
+                            Class.forName("androidx.car.app.Session"),
+                            android.content.res.Configuration.class);
+                    onConfigInternal.setAccessible(true);
+                    onConfigInternal.invoke(binderInstance, /*session*/ null, simpleConfig);
+                    Log.i(TAG, "Called onConfigurationChangedInternal(null, simpleConfig)");
+                } catch (NoSuchMethodException ignore) {
+                    // skip if not present
+                } catch (Throwable e) {
+                    Log.w(TAG, "onConfigurationChangedInternal call failed", e);
+                }
+            } catch (Throwable e) {
+                Log.w(TAG, "Attempt to call private internals failed", e);
+            }
+
+            Log.i(TAG, "exerciseCarAppBinder completed (see logs for per-method results)");
+        } catch (Throwable e) {
+            Log.e("Reflection.CarAppBinder", "Failed to exercise CarAppBinder", e);
+        }
+    }
+
 
 
 
