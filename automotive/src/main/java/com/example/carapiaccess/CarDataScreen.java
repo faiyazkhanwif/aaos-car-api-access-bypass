@@ -179,7 +179,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseCarIconConstraints();
+            exerciseAppManagerReflection();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -719,42 +719,6 @@ public class CarDataScreen extends Screen {
     private String[] getClassListForAndroidX(String sub) {
         switch (sub) {
             /*
-            case "app":
-                return new String[]{
-                        "androidx.car.app.AppInfo",
-                        "androidx.car.app.AppManager",
-                        "androidx.car.app.CarAppBinder",
-                        "androidx.car.app.CarAppMetadataHolderService",
-                        "androidx.car.app.CarAppPermission",
-                        "androidx.car.app.CarAppPermissionActivity",
-                        "androidx.car.app.CarAppService",
-                        "androidx.car.app.CarContext",
-                        "androidx.car.app.CarToast",
-                        "androidx.car.app.FailureResponse",
-                        "androidx.car.app.HandshakeInfo",
-                        "androidx.car.app.HostCall",
-                        "androidx.car.app.HostDispatcher",
-                        "androidx.car.app.HostException",
-                        "androidx.car.app.HostInfo",
-                        "androidx.car.app.IAppHost",
-                        "androidx.car.app.IAppManager",
-                        "androidx.car.app.ICarApp",
-                        "androidx.car.app.ICarHost",
-                        "androidx.car.app.IOnDoneCallback",
-                        "androidx.car.app.IOnRequestPermissionsListener",
-                        "androidx.car.app.IStartCarApp",
-                        "androidx.car.app.ISurfaceCallback",
-                        "androidx.car.app.OnDoneCallback",
-                        "androidx.car.app.OnRequestPermissionsListener",
-                        "androidx.car.app.OnScreenResultListener",
-                        "androidx.car.app.Screen",
-                        "androidx.car.app.ScreenManager",
-                        "androidx.car.app.Session",
-                        "androidx.car.app.SessionInfo",
-                        "androidx.car.app.SessionInfoIntentEncoder",
-                        "androidx.car.app.SurfaceCallback",
-                        "androidx.car.app.SurfaceContainer"
-                };
             case "mediaextensions":
                 return new String[]{
                         "androidx.car.app.mediaextensions.MetadataExtras"
@@ -1064,8 +1028,6 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
                 };
 
-*/
-
             case "constraints":
                 return new String[]{
                         "androidx.car.app.model.constraints.ActionsConstraints",
@@ -1080,6 +1042,44 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.constraints.IConstraintHost"
                 };
 
+*/
+
+            case "app":
+                return new String[]{
+                        "androidx.car.app.AppInfo",
+                        "androidx.car.app.AppManager",
+                        "androidx.car.app.CarAppBinder",
+                        "androidx.car.app.CarAppMetadataHolderService",
+                        "androidx.car.app.CarAppPermission",
+                        "androidx.car.app.CarAppPermissionActivity",
+                        "androidx.car.app.CarAppService",
+                        "androidx.car.app.CarContext",
+                        "androidx.car.app.CarToast",
+                        "androidx.car.app.FailureResponse",
+                        "androidx.car.app.HandshakeInfo",
+                        "androidx.car.app.HostCall",
+                        "androidx.car.app.HostDispatcher",
+                        "androidx.car.app.HostException",
+                        "androidx.car.app.HostInfo",
+                        "androidx.car.app.IAppHost",
+                        "androidx.car.app.IAppManager",
+                        "androidx.car.app.ICarApp",
+                        "androidx.car.app.ICarHost",
+                        "androidx.car.app.IOnDoneCallback",
+                        "androidx.car.app.IOnRequestPermissionsListener",
+                        "androidx.car.app.IStartCarApp",
+                        "androidx.car.app.ISurfaceCallback",
+                        "androidx.car.app.OnDoneCallback",
+                        "androidx.car.app.OnRequestPermissionsListener",
+                        "androidx.car.app.OnScreenResultListener",
+                        "androidx.car.app.Screen",
+                        "androidx.car.app.ScreenManager",
+                        "androidx.car.app.Session",
+                        "androidx.car.app.SessionInfo",
+                        "androidx.car.app.SessionInfoIntentEncoder",
+                        "androidx.car.app.SurfaceCallback",
+                        "androidx.car.app.SurfaceContainer"
+                };
             default:
                 return new String[0];
         }
@@ -3898,8 +3898,6 @@ public class CarDataScreen extends Screen {
         Log.d("ExerciseActionsConstraintsSummary", result);
     }
 
-
-
     public void exerciseCarIconConstraints() {
 
         final String TAG = "CarIconConstraintsTest";
@@ -4086,6 +4084,294 @@ public class CarDataScreen extends Screen {
             Log.e(TAG, "Unexpected exception during CarIconConstraints reflection test: " + e, e);
         }
     }
+
+
+    public void exerciseAppManagerReflection() {
+        final String TAG = "ExerciseAppManager";
+        try {
+            Object appManager = getCarContext().getCarService(androidx.car.app.AppManager.class);
+            Class<?> amClass = appManager.getClass();
+            Log.i(TAG, "Found AppManager instance: " + amClass.getName());
+
+            //  setSurfaceCallback(SurfaceCallback)
+            try {
+                // minimal SurfaceCallback implementation
+                androidx.car.app.SurfaceCallback surfaceCallback = new androidx.car.app.SurfaceCallback() {
+                    @SuppressLint("RestrictedApi")
+                    public void onSurfaceAvailable(androidx.car.app.serialization.Bundleable surfaceContainer,
+                                                   @SuppressLint("RestrictedApi") androidx.car.app.IOnDoneCallback callback) {
+                        Log.i(TAG, "SurfaceCallback.onSurfaceAvailable called");
+                        try {
+                            if (callback != null) {
+                                callback.onSuccess(null);
+                            }
+                        } catch (android.os.RemoteException e) {
+                            Log.e(TAG, "SurfaceCallback onSuccess remote exception", e);
+                        }
+                    }
+
+                    public void onVisibleAreaChanged(android.graphics.Rect visibleArea,
+                                                     @SuppressLint("RestrictedApi") androidx.car.app.IOnDoneCallback callback) {
+                        Log.i(TAG, "SurfaceCallback.onVisibleAreaChanged");
+                    }
+
+                    public void onStableAreaChanged(android.graphics.Rect stableArea,
+                                                    @SuppressLint("RestrictedApi") androidx.car.app.IOnDoneCallback callback) {
+                        Log.i(TAG, "SurfaceCallback.onStableAreaChanged");
+                    }
+
+                    public void onSurfaceDestroyed(androidx.car.app.serialization.Bundleable surfaceContainer,
+                                                   @SuppressLint("RestrictedApi") androidx.car.app.IOnDoneCallback callback) {
+                        Log.i(TAG, "SurfaceCallback.onSurfaceDestroyed");
+                    }
+
+                    @Override public void onScroll(float distanceX, float distanceY) {}
+                    @Override public void onFling(float velocityX, float velocityY) {}
+                    @Override public void onScale(float focusX, float focusY, float scaleFactor) {}
+                    @Override public void onClick(float x, float y) {}
+                };
+
+                java.lang.reflect.Method setSurfaceCallback =
+                        amClass.getMethod("setSurfaceCallback", androidx.car.app.SurfaceCallback.class);
+                setSurfaceCallback.invoke(appManager, surfaceCallback);
+                Log.i(TAG, "Called setSurfaceCallback(surfaceCallback)");
+            } catch (NoSuchMethodException e) {
+                Log.w(TAG, "setSurfaceCallback not found on AppManager (maybe API mismatch)", e);
+            } catch (Throwable t) {
+                Log.e(TAG, "Error calling setSurfaceCallback", t);
+            }
+
+            // invalidate()
+            try {
+                java.lang.reflect.Method invalidate = amClass.getMethod("invalidate");
+                invalidate.invoke(appManager);
+                Log.i(TAG, "Called invalidate()");
+            } catch (NoSuchMethodException e) {
+                Log.w(TAG, "invalidate() not found on AppManager", e);
+            } catch (Throwable t) {
+                Log.e(TAG, "Error calling invalidate()", t);
+            }
+
+            // showToast(CharSequence, int)
+            try {
+                java.lang.reflect.Method showToast =
+                        amClass.getMethod("showToast", CharSequence.class, int.class);
+                CharSequence toastText = "Reflection toast test";
+                int duration = 0; // safe default; host library defines CarToast.Duration - 0 is acceptable as test
+                showToast.invoke(appManager, toastText, duration);
+                Log.i(TAG, "Called showToast(\"" + toastText + "\", " + duration + ")");
+            } catch (NoSuchMethodException e) {
+                Log.w(TAG, "showToast(CharSequence,int) not found", e);
+            } catch (Throwable t) {
+                Log.e(TAG, "Error calling showToast", t);
+            }
+
+            // showAlert(Alert)
+            try {
+                Class<?> alertClass = Class.forName("androidx.car.app.model.Alert");
+                Object alertInstance = null;
+
+                try {
+                    Class<?> builderClass = Class.forName("androidx.car.app.model.Alert$Builder");
+                    Object builder = null;
+                    try {
+                        java.lang.reflect.Constructor<?> c = builderClass.getConstructor(CharSequence.class);
+                        builder = c.newInstance("Reflected alert");
+                    } catch (NoSuchMethodException ignored) {
+                        try {
+                            builder = builderClass.getConstructor().newInstance();
+                            // try to set a title/body if setters exist
+                            try {
+                                java.lang.reflect.Method setTitle = builderClass.getMethod("setTitle", CharSequence.class);
+                                setTitle.invoke(builder, "Reflected alert");
+                            } catch (NoSuchMethodException ignored2) {}
+                            try {
+                                java.lang.reflect.Method setBody = builderClass.getMethod("setBody", CharSequence.class);
+                                setBody.invoke(builder, "Body from reflection");
+                            } catch (NoSuchMethodException ignored2) {}
+                        } catch (NoSuchMethodException ignored3) {
+                            builder = null;
+                        }
+                    }
+                    if (builder != null) {
+                        try {
+                            java.lang.reflect.Method build = builderClass.getMethod("build");
+                            alertInstance = build.invoke(builder);
+                        } catch (NoSuchMethodException ignored) {
+                            alertInstance = null;
+                        }
+                    }
+                } catch (ClassNotFoundException cnfe) {
+                }
+
+                if (alertInstance == null) {
+                    try {
+                        java.lang.reflect.Constructor<?> alertCtor = alertClass.getDeclaredConstructor();
+                        alertCtor.setAccessible(true);
+                        alertInstance = alertCtor.newInstance();
+                    } catch (NoSuchMethodException ignored) {
+                        alertInstance = null;
+                    }
+                }
+
+                if (alertInstance != null) {
+                    java.lang.reflect.Method showAlert = amClass.getMethod("showAlert", alertClass);
+                    showAlert.invoke(appManager, alertInstance);
+                    Log.i(TAG, "Called showAlert(alertInstance)");
+                } else {
+                    Log.w(TAG, "Could not construct Alert instance reflectively; skipping showAlert");
+                }
+            } catch (ClassNotFoundException e) {
+                Log.w(TAG, "Alert class not found in this runtime; skipping showAlert", e);
+            } catch (NoSuchMethodException e) {
+                Log.w(TAG, "showAlert(Alert) not present on AppManager; skipping", e);
+            } catch (Throwable t) {
+                Log.e(TAG, "Error trying to call showAlert", t);
+            }
+
+            // dismissAlert(int)
+            try {
+                java.lang.reflect.Method dismissAlert = amClass.getMethod("dismissAlert", int.class);
+                dismissAlert.invoke(appManager, 42);
+                Log.i(TAG, "Called dismissAlert(42)");
+            } catch (NoSuchMethodException e) {
+                Log.w(TAG, "dismissAlert(int) not present", e);
+            } catch (Throwable t) {
+                Log.e(TAG, "Error calling dismissAlert", t);
+            }
+
+            // openMicrophone(OpenMicrophoneRequest) -> OpenMicrophoneResponse
+            try {
+                Class<?> reqClass = Class.forName("androidx.car.app.media.OpenMicrophoneRequest");
+                Object reqInstance = null;
+
+                try {
+                    Class<?> builderClass = Class.forName("androidx.car.app.media.OpenMicrophoneRequest$Builder");
+                    try {
+                        Class<?> carAudioCallbackClass = Class.forName("androidx.car.app.media.CarAudioCallback");
+                        java.lang.reflect.Constructor<?> ctor = builderClass.getConstructor(carAudioCallbackClass);
+                        Object carAudioCallback = java.lang.reflect.Proxy.newProxyInstance(
+                                carAudioCallbackClass.getClassLoader(),
+                                new Class<?>[] { carAudioCallbackClass },
+                                (proxy, method, args) -> {
+                                    return null;
+                                });
+                        Object builder = ctor.newInstance(carAudioCallback);
+                        try {
+                            java.lang.reflect.Method build = builderClass.getMethod("build");
+                            reqInstance = build.invoke(builder);
+                        } catch (NoSuchMethodException ignored) {
+                        }
+                    } catch (NoSuchMethodException ignoredCtor) {
+                        try {
+                            java.lang.reflect.Constructor<?> c2 = builderClass.getDeclaredConstructor();
+                            c2.setAccessible(true);
+                            Object builder = c2.newInstance();
+                            try {
+                                java.lang.reflect.Method build = builderClass.getMethod("build");
+                                reqInstance = build.invoke(builder);
+                            } catch (NoSuchMethodException ignored) {}
+                        } catch (NoSuchMethodException ignored2) {}
+                    }
+                } catch (ClassNotFoundException cnfe) {
+                }
+
+                if (reqInstance == null) {
+                    try {
+                        java.lang.reflect.Constructor<?> rctor = reqClass.getDeclaredConstructor();
+                        rctor.setAccessible(true);
+                        reqInstance = rctor.newInstance();
+                    } catch (NoSuchMethodException ignored) {
+                        reqInstance = null;
+                    }
+                }
+
+                if (reqInstance != null) {
+                    try {
+                        java.lang.reflect.Method openMicrophone = amClass.getDeclaredMethod("openMicrophone",
+                                Class.forName("androidx.car.app.media.OpenMicrophoneRequest"));
+                        openMicrophone.setAccessible(true);
+                        Object response = openMicrophone.invoke(appManager, reqInstance);
+                        Log.i(TAG, "openMicrophone returned: " + String.valueOf(response));
+                    } catch (NoSuchMethodException e) {
+                        try {
+                            java.lang.reflect.Method openMicrophonePublic = amClass.getMethod("openMicrophone",
+                                    Class.forName("androidx.car.app.media.OpenMicrophoneRequest"));
+                            Object response = openMicrophonePublic.invoke(appManager, reqInstance);
+                            Log.i(TAG, "openMicrophone returned: " + String.valueOf(response));
+                        } catch (NoSuchMethodException ex) {
+                            Log.w(TAG, "openMicrophone(OpenMicrophoneRequest) not found on AppManager", ex);
+                        }
+                    }
+                } else {
+                    Log.w(TAG, "Could not construct OpenMicrophoneRequest reflectively; skipping openMicrophone");
+                }
+            } catch (ClassNotFoundException e) {
+                Log.w(TAG, "OpenMicrophoneRequest not present in runtime; skipping openMicrophone");
+            } catch (Throwable t) {
+                Log.e(TAG, "Error calling openMicrophone", t);
+            }
+
+            // getIInterface()
+            try {
+                java.lang.reflect.Method getIInterface = amClass.getDeclaredMethod("getIInterface");
+                getIInterface.setAccessible(true);
+                Object iInterface = getIInterface.invoke(appManager);
+                Log.i(TAG, "getIInterface() -> " + (iInterface == null ? "null" : iInterface.getClass().getName()));
+            } catch (NoSuchMethodException e) {
+                Log.w(TAG, "getIInterface not found (may be hidden API)", e);
+            } catch (Throwable t) {
+                Log.e(TAG, "Error calling getIInterface", t);
+            }
+
+            // getLifecycle()
+            try {
+                java.lang.reflect.Method getLifecycle = amClass.getDeclaredMethod("getLifecycle");
+                getLifecycle.setAccessible(true);
+                Object lifecycle = getLifecycle.invoke(appManager);
+                Log.i(TAG, "getLifecycle() -> " + (lifecycle == null ? "null" : lifecycle.getClass().getName()));
+            } catch (NoSuchMethodException e) {
+                Log.w(TAG, "getLifecycle not found (may be hidden API)", e);
+            } catch (Throwable t) {
+                Log.e(TAG, "Error calling getLifecycle", t);
+            }
+
+            // startLocationUpdates() & stopLocationUpdates()
+            try {
+                // startLocationUpdates (throws SecurityException -> gives path)
+                java.lang.reflect.Method startLocationUpdates =
+                        amClass.getDeclaredMethod("startLocationUpdates");
+                startLocationUpdates.setAccessible(true);
+                try {
+                    startLocationUpdates.invoke(appManager);
+                    Log.i(TAG, "Invoked startLocationUpdates()");
+                } catch (java.lang.reflect.InvocationTargetException ite) {
+                    Throwable cause = ite.getCause();
+                    if (cause instanceof SecurityException) {
+                        Log.w(TAG, "startLocationUpdates() security exception (permissions missing)", cause);
+                    } else {
+                        Log.e(TAG, "startLocationUpdates threw", cause);
+                    }
+                }
+
+                // stopLocationUpdates
+                java.lang.reflect.Method stopLocationUpdates =
+                        amClass.getDeclaredMethod("stopLocationUpdates");
+                stopLocationUpdates.setAccessible(true);
+                stopLocationUpdates.invoke(appManager);
+                Log.i(TAG, "Invoked stopLocationUpdates()");
+            } catch (NoSuchMethodException e) {
+                Log.w(TAG, "startLocationUpdates/stopLocationUpdates not found", e);
+            } catch (Throwable t) {
+                Log.e(TAG, "Error calling start/stopLocationUpdates", t);
+            }
+
+            Log.i(TAG, "Finished exercising AppManager");
+        } catch (Throwable t) {
+            Log.e("ExerciseAppManager", "Unexpected error while exercising AppManager", t);
+        }
+    }
+
 
 
 
