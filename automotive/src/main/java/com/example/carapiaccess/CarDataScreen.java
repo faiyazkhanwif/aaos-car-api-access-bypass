@@ -184,7 +184,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseCarContextReflection();
+            exerciseCarAppPermissionReflection();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -5025,6 +5025,155 @@ public class CarDataScreen extends Screen {
         }
     }
 
+
+    public void exerciseCarAppPermissionReflection() {
+        final String TAG = "ExerciseCarAppPermission";
+        android.content.Context context = null;
+
+        // 1) Try to obtain a Context via ActivityThread.currentApplication()
+        try {
+            Class<?> activityThread = Class.forName("android.app.ActivityThread");
+            java.lang.reflect.Method currentApp = activityThread.getMethod("currentApplication");
+            Object app = currentApp.invoke(null);
+            if (app instanceof android.content.Context) {
+                context = (android.content.Context) app;
+                android.util.Log.d(TAG, "Obtained Context from ActivityThread.currentApplication()");
+            } else {
+                android.util.Log.w(TAG, "ActivityThread.currentApplication() returned null or not a Context");
+            }
+        } catch (Throwable t) {
+            android.util.Log.w(TAG, "Could not get Context via ActivityThread.currentApplication(): " + t);
+        }
+
+        // 2) If we still don't have a context, attempt some additional fallbacks (best-effort).
+        if (context == null) {
+            try {
+                // Try to use android.app.ApplicationContext by reflective lookup of a running process.
+                // This is best-effort; in many cases the ActivityThread approach already worked.
+                Class<?> appClass = Class.forName("android.app.Application");
+                // no reliable static getter here - so we just log and move on.
+                android.util.Log.w(TAG,
+                        "No Context available via reflection. If this runs inside an Activity/Service, "
+                                + "consider calling the method from a place that has a Context.");
+            } catch (Throwable ignored) {
+                // ignore
+            }
+        }
+
+        // If still null, we will still proceed and calls will fail with NPE; we catch and log those.
+        // 3) Reflectively get CarAppPermission and its public methods & fields.
+        try {
+            Class<?> capClass = Class.forName("androidx.car.app.CarAppPermission");
+
+            // Read the static permission fields (ACCESS_SURFACE, NAVIGATION_TEMPLATES, MAP_TEMPLATES)
+            java.util.Map<String, String> constants = new java.util.LinkedHashMap<>();
+            try {
+                java.lang.reflect.Field f = capClass.getField("ACCESS_SURFACE");
+                constants.put("ACCESS_SURFACE", (String) f.get(null));
+            } catch (NoSuchFieldException ignore) { android.util.Log.w(TAG, "ACCESS_SURFACE not found"); }
+            try {
+                java.lang.reflect.Field f = capClass.getField("NAVIGATION_TEMPLATES");
+                constants.put("NAVIGATION_TEMPLATES", (String) f.get(null));
+            } catch (NoSuchFieldException ignore) { android.util.Log.w(TAG, "NAVIGATION_TEMPLATES not found"); }
+            try {
+                java.lang.reflect.Field f = capClass.getField("MAP_TEMPLATES");
+                constants.put("MAP_TEMPLATES", (String) f.get(null));
+            } catch (NoSuchFieldException ignore) { android.util.Log.w(TAG, "MAP_TEMPLATES not found"); }
+
+            // Add an obviously invalid permission to test rejection path:
+            constants.put("INVALID_PERMISSION", "com.example.this_permission_does_not_exist");
+
+            // Locate methods
+            java.lang.reflect.Method checkHasPermission =
+                    capClass.getMethod("checkHasPermission", android.content.Context.class, String.class);
+
+            java.lang.reflect.Method checkHasLibraryPermission =
+                    capClass.getMethod("checkHasLibraryPermission", android.content.Context.class, String.class);
+
+            // Iterate and invoke checkHasPermission
+            for (java.util.Map.Entry<String, String> e : constants.entrySet()) {
+                String name = e.getKey();
+                String perm = e.getValue();
+                String tag = "checkHasPermission - " + name;
+                try {
+                    android.util.Log.d(TAG, "Invoking " + tag + " with permission: " + perm);
+                    // invoke static method: null target
+                    checkHasPermission.invoke(null, context, perm);
+                    String msg = tag + " -> SUCCESS (permission present)";
+                    android.util.Log.i(TAG, msg);
+                    System.out.println(msg);
+                } catch (java.lang.reflect.InvocationTargetException ite) {
+                    Throwable cause = ite.getCause();
+                    String err = tag + " -> InvocationTargetException cause: " + cause;
+                    android.util.Log.w(TAG, err, cause);
+                    System.out.println(err + " :: " + cause);
+                } catch (Throwable t) {
+                    String err = tag + " -> Reflection error: " + t;
+                    android.util.Log.e(TAG, err, t);
+                    System.out.println(err);
+                }
+            }
+
+            // Iterate and invoke checkHasLibraryPermission for library perms only (use the real constants)
+            for (String fieldName : new String[]{"ACCESS_SURFACE", "NAVIGATION_TEMPLATES", "MAP_TEMPLATES"}) {
+                try {
+                    java.lang.reflect.Field ff = capClass.getField(fieldName);
+                    String perm = (String) ff.get(null);
+                    String tag = "checkHasLibraryPermission - " + fieldName;
+                    try {
+                        android.util.Log.d(TAG, "Invoking " + tag + " with permission: " + perm);
+                        checkHasLibraryPermission.invoke(null, context, perm);
+                        String msg = tag + " -> SUCCESS (declared or granted)";
+                        android.util.Log.i(TAG, msg);
+                        System.out.println(msg);
+                    } catch (java.lang.reflect.InvocationTargetException ite) {
+                        Throwable cause = ite.getCause();
+                        String err = tag + " -> InvocationTargetException cause: " + cause;
+                        android.util.Log.w(TAG, err, cause);
+                        System.out.println(err + " :: " + cause);
+                    } catch (Throwable t) {
+                        String err = tag + " -> Reflection error: " + t;
+                        android.util.Log.e(TAG, err, t);
+                        System.out.println(err);
+                    }
+                } catch (NoSuchFieldException nsf) {
+                    android.util.Log.w(TAG, "Field " + fieldName + " not present on CarAppPermission");
+                }
+            }
+
+            // 4) Try to access and call the private constructor (utility classes often have private ctor).
+            try {
+                java.lang.reflect.Constructor<?> ctor = capClass.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                Object instance = ctor.newInstance();
+                String msg = "Successfully invoked private constructor of CarAppPermission, instance: " + instance;
+                android.util.Log.i(TAG, msg);
+                System.out.println(msg);
+            } catch (java.lang.reflect.InvocationTargetException ite) {
+                Throwable cause = ite.getCause();
+                String err = "Invoking CarAppPermission private constructor failed: " + cause;
+                android.util.Log.w(TAG, err, cause);
+                System.out.println(err);
+            } catch (NoSuchMethodException nsme) {
+                android.util.Log.w(TAG, "No private constructor found on CarAppPermission");
+                System.out.println("No private constructor found on CarAppPermission");
+            } catch (Throwable t) {
+                String err = "Error instantiating private constructor of CarAppPermission: " + t;
+                android.util.Log.e(TAG, err, t);
+                System.out.println(err);
+            }
+
+            android.util.Log.d(TAG, "Completed CarAppPermission reflection exercise.");
+        } catch (ClassNotFoundException cnfe) {
+            String err = "Class androidx.car.app.CarAppPermission not found: " + cnfe;
+            android.util.Log.e(TAG, err, cnfe);
+            System.out.println(err);
+        } catch (Throwable t) {
+            String err = "Unexpected error while exercising CarAppPermission reflectively: " + t;
+            android.util.Log.e(TAG, err, t);
+            System.out.println(err);
+        }
+    }
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
