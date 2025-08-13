@@ -44,6 +44,7 @@ import androidx.annotation.OptIn;
 //import androidx.car.app.CarAppBinder;
 import androidx.car.app.CarContext;
 import androidx.car.app.HostInfo;
+import androidx.car.app.IStartCarApp;
 import androidx.car.app.Screen;
 //import androidx.car.app.hardware.common.PropertyRequestProcessor;
 import androidx.car.app.model.Action;
@@ -183,7 +184,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseCarAppServiceReflection();
+            exerciseCarContextReflection();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -4789,6 +4790,240 @@ public class CarDataScreen extends Screen {
         }
     }
 
+    public void exerciseCarContextReflection() {
+        final String TAG = "CarContextReflect";
+        android.util.Log.d(TAG, "Starting CarContext reflection exercise...");
+
+        try {
+            // Find CarContext class and current instance
+            Class<?> carCtxCls = Class.forName("androidx.car.app.CarContext");
+            Object carCtxInstance = getCarContext();
+            if (carCtxInstance == null) {
+                android.util.Log.e(TAG, "getCarContext() returned null. Aborting.");
+                return;
+            }
+
+            // Attempt to read the private mLifecycle field (useful for static create(Lifecycle))
+            Object lifecycleObj = null;
+            try {
+                java.lang.reflect.Field lifecycleField = carCtxCls.getDeclaredField("mLifecycle");
+                lifecycleField.setAccessible(true);
+                lifecycleObj = lifecycleField.get(carCtxInstance);
+                android.util.Log.d(TAG, "Obtained lifecycle via reflection: " + String.valueOf(lifecycleObj));
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Could not read mLifecycle: " + t.getMessage());
+            }
+
+            // Helper: get common constant values (APP_SERVICE etc.)
+            java.util.Map<String, Object> consts = new java.util.HashMap<>();
+            String[] constNames = new String[] {
+                    "APP_SERVICE", "NAVIGATION_SERVICE", "SCREEN_SERVICE", "CAR_SERVICE",
+                    "CONSTRAINT_SERVICE", "HARDWARE_SERVICE", "SUGGESTION_SERVICE",
+                    "MEDIA_PLAYBACK_SERVICE", "ACTION_NAVIGATE", "EXTRA_START_CAR_APP_BINDER_KEY"
+            };
+            for (String c : constNames) {
+                try {
+                    java.lang.reflect.Field f = carCtxCls.getField(c);
+                    f.setAccessible(true);
+                    consts.put(c, f.get(null));
+                } catch (Throwable ignored) { /* not all exist on all versions */ }
+            }
+
+            // Reflection: iterate declared methods and attempt invocation with crafted args
+            java.lang.reflect.Method[] methods = carCtxCls.getDeclaredMethods();
+            for (java.lang.reflect.Method method : methods) {
+                // skip synthetic/bridge helper methods
+                method.setAccessible(true);
+                Class<?>[] paramTypes = method.getParameterTypes();
+                Object[] args = new Object[paramTypes.length];
+
+                // Craft args
+                for (int i = 0; i < paramTypes.length; i++) {
+                    Class<?> p = paramTypes[i];
+                    try {
+                        // Strings -> try service constants or ACTION_NAVIGATE
+                        if (p.equals(String.class)) {
+                            if (consts.containsKey("APP_SERVICE")) {
+                                args[i] = consts.get("APP_SERVICE");
+                            } else if (consts.containsKey("NAVIGATION_SERVICE")) {
+                                args[i] = consts.get("NAVIGATION_SERVICE");
+                            } else {
+                                args[i] = "app";
+                            }
+                            continue;
+                        }
+
+                        // Class parameter (e.g., getCarService(Class<T>))
+                        if (p.equals(Class.class)) {
+                            // default to AppManager.class if available
+                            try {
+                                args[i] = Class.forName("androidx.car.app.AppManager");
+                            } catch (Throwable t) {
+                                args[i] = Class.class; // fallback (unlikely to be useful)
+                            }
+                            continue;
+                        }
+
+                        // Intent
+                        if (android.content.Intent.class.isAssignableFrom(p)) {
+                            // create a navigation Intent (geo query)
+                            android.content.Intent nav = new android.content.Intent();
+                            if (consts.containsKey("ACTION_NAVIGATE")) {
+                                nav.setAction((String) consts.get("ACTION_NAVIGATE"));
+                            } else {
+                                nav.setAction("androidx.car.app.action.NAVIGATE");
+                            }
+                            android.net.Uri uri = android.net.Uri.parse("geo:0,0?q=1600+Amphitheatre+Parkway");
+                            nav.setData(uri);
+                            // for two-Intent static startCarApp(notificationIntent, appIntent) we will
+                            // put binder extra in the first Intent below when invoked
+                            args[i] = nav;
+                            continue;
+                        }
+
+                        // Context parameter -> application context
+                        if (android.content.Context.class.isAssignableFrom(p)) {
+                            args[i] = getCarContext().getApplicationContext();
+                            continue;
+                        }
+
+
+                        // Executor
+                        if (p.equals(java.util.concurrent.Executor.class)) {
+                            args[i] = androidx.core.content.ContextCompat.getMainExecutor((android.content.Context) carCtxInstance);
+                            continue;
+                        }
+
+                        // List / Collection -> permissions for requestPermissions call
+                        if (java.util.List.class.isAssignableFrom(p) || java.util.Collection.class.isAssignableFrom(p)) {
+                            args[i] = java.util.Arrays.asList(android.Manifest.permission.ACCESS_FINE_LOCATION);
+                            continue;
+                        }
+
+                        // Primitive types
+                        if (p.equals(int.class) || p.equals(Integer.class)) {
+                            args[i] = 0;
+                            continue;
+                        }
+                        if (p.equals(boolean.class) || p.equals(Boolean.class)) {
+                            args[i] = false;
+                            continue;
+                        }
+                        if (p.equals(long.class) || p.equals(Long.class)) {
+                            args[i] = 0L;
+                            continue;
+                        }
+                        if (p.equals(float.class) || p.equals(Float.class) || p.equals(double.class) || p.equals(Double.class)) {
+                            args[i] = 0;
+                            continue;
+                        }
+
+                        // Lifecycle - use lifecycleObj if available
+                        if (p.getName().equals("androidx.lifecycle.Lifecycle")) {
+                            args[i] = lifecycleObj;
+                            continue;
+                        }
+
+                        // ComponentName
+                        if (p.equals(android.content.ComponentName.class)) {
+                            args[i] = new android.content.ComponentName((android.content.Context) carCtxInstance,
+                                    Class.forName(getClass().getName())); // point to current class
+                            continue;
+                        }
+
+                        // For interface types, create a Proxy that logs calls and returns null/0/false
+                        if (p.isInterface()) {
+                            Object proxy = java.lang.reflect.Proxy.newProxyInstance(
+                                    p.getClassLoader(),
+                                    new Class<?>[] { p },
+                                    (proxyObj, invokedMethod, invokedArgs) -> {
+                                        android.util.Log.d(TAG, "Proxy for " + p.getName()
+                                                + " called method " + invokedMethod.getName()
+                                                + " args=" + java.util.Arrays.toString(invokedArgs));
+                                        // return default for primitives, null for objects
+                                        Class<?> ret = invokedMethod.getReturnType();
+                                        if (ret.equals(boolean.class)) return false;
+                                        if (ret.equals(int.class)) return 0;
+                                        if (ret.equals(long.class)) return 0L;
+                                        if (ret.equals(float.class)) return 0f;
+                                        if (ret.equals(double.class)) return 0d;
+                                        return null;
+                                    });
+                            args[i] = proxy;
+                            continue;
+                        }
+
+                        // Default attempt: try no-arg constructor
+                        try {
+                            java.lang.reflect.Constructor<?> ctor = p.getDeclaredConstructor();
+                            ctor.setAccessible(true);
+                            args[i] = ctor.newInstance();
+                            continue;
+                        } catch (NoSuchMethodException ignored) {
+                            // can't instantiate, fallback to null
+                        }
+
+                        args[i] = null;
+                    } catch (Throwable craftErr) {
+                        android.util.Log.w(TAG, "Could not craft arg for parameter " + p + ": " + craftErr);
+                        args[i] = null;
+                    }
+                } // end param loop
+
+                // Special-case: the static deprecated startCarApp(notificationIntent, appIntent)
+                // expects the notificationIntent to contain the EXTRA_START_CAR_APP_BINDER_KEY binder
+                if (method.getName().equals("startCarApp") && method.getParameterTypes().length == 2
+                        && method.getParameterTypes()[0].equals(android.content.Intent.class)
+                        && method.getParameterTypes()[1].equals(android.content.Intent.class)) {
+                    try {
+                        // build notificationIntent with binder extra
+                        android.content.Intent notif = new android.content.Intent();
+                        android.os.IBinder binder = new IStartCarApp.Stub() {
+                            @SuppressLint("RestrictedApi")
+                            @Override
+                            public void startCarApp(android.content.Intent appIntent) {
+                                android.util.Log.d(TAG, "IStartCarApp.Stub.startCarApp invoked with: " + appIntent);
+                            }
+                        }.asBinder();
+                        java.lang.reflect.Field extraKeyField = null;
+                        try {
+                            extraKeyField = carCtxCls.getField("EXTRA_START_CAR_APP_BINDER_KEY");
+                        } catch (Throwable ignored) {}
+                        String extraKey = extraKeyField != null ? (String) extraKeyField.get(null)
+                                : "androidx.car.app.extra.START_CAR_APP_BINDER_KEY";
+                        android.os.Bundle b = new android.os.Bundle();
+                        b.putBinder(extraKey, binder);
+                        notif.putExtras(b);
+                        // build a real appIntent (component pointing to this package)
+                        android.content.Intent appIntent = new android.content.Intent();
+                        appIntent.setComponent(new android.content.ComponentName((android.content.Context) carCtxInstance,
+                                Class.forName(getClass().getName())));
+                        args = new Object[] { notif, appIntent };
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "Could not craft binder-backed notification Intent: " + t);
+                    }
+                }
+
+                // Invoke: static vs instance
+                Object target = java.lang.reflect.Modifier.isStatic(method.getModifiers()) ? null : carCtxInstance;
+                try {
+                    Object result = method.invoke(target, args);
+                    android.util.Log.d(TAG, "Invoked " + method.getName() + " successfully. Return: "
+                            + (result == null ? "null" : result.toString()));
+                } catch (java.lang.reflect.InvocationTargetException ite) {
+                    Throwable cause = ite.getCause();
+                    android.util.Log.w(TAG, "InvocationTargetException invoking " + method.getName()
+                            + ": " + (cause == null ? ite.toString() : cause.toString()), ite);
+                } catch (Throwable invokeErr) {
+                    android.util.Log.w(TAG, "Error invoking " + method.getName() + ": " + invokeErr, invokeErr);
+                }
+            } // end methods loop
+
+            android.util.Log.d(TAG, "CarContext reflection exercise completed.");
+        } catch (Throwable e) {
+            android.util.Log.e("CarContextReflect", "Fatal error during reflection exercise", e);
+        }
+    }
 
 
 
