@@ -47,6 +47,7 @@ import androidx.car.app.HostInfo;
 import androidx.car.app.IStartCarApp;
 import androidx.car.app.Screen;
 //import androidx.car.app.hardware.common.PropertyRequestProcessor;
+import androidx.car.app.activity.LogTags;
 import androidx.car.app.model.Action;
 import androidx.car.app.model.CarColor;
 import androidx.car.app.model.constraints.ActionsConstraints;
@@ -184,7 +185,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseCarAppPermissionReflection();
+            exerciseCarAppPermissionActivityReflection();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -5174,6 +5175,193 @@ public class CarDataScreen extends Screen {
             System.out.println(err);
         }
     }
+
+
+    public void exerciseCarAppPermissionActivityReflection() {
+        final String LOG_TAG = "CarAppPermActivityRef";
+        try {
+            Class<?> activityCls = Class.forName("androidx.car.app.CarAppPermissionActivity");
+
+            // 1) instantiate (no-arg ctor)
+            java.lang.reflect.Constructor<?> ctor = activityCls.getDeclaredConstructor();
+            ctor.setAccessible(true);
+            Object activityInstance = ctor.newInstance();
+            Log.d(LOG_TAG, "Instantiated CarAppPermissionActivity via reflection.");
+
+            // 2) attach base context -> use current CarContext if available
+            try {
+                java.lang.reflect.Method attachBase =
+                        android.content.ContextWrapper.class.getDeclaredMethod("attachBaseContext",
+                                android.content.Context.class);
+                attachBase.setAccessible(true);
+
+                // Attempt to use getCarContext() if present on the host class; otherwise fall back
+                // to the application context.
+                android.content.Context ctx = null;
+                try {
+                    // This code assumes this method is inside a Screen/Service/Activity that has
+                    // getCarContext(). Try it first (common in this repo's harness).
+                    java.lang.reflect.Method getCarContextMethod =
+                            this.getClass().getMethod("getCarContext");
+                    Object got = getCarContextMethod.invoke(this);
+                    if (got instanceof android.content.Context) {
+                        ctx = (android.content.Context) got;
+                    }
+                } catch (NoSuchMethodException ignored) {
+                    // Not present; try to use getContext() or fallback to app context
+                    try {
+                        java.lang.reflect.Method getContextMethod =
+                                this.getClass().getMethod("getContext");
+                        Object got2 = getContextMethod.invoke(this);
+                        if (got2 instanceof android.content.Context) {
+                            ctx = (android.content.Context) got2;
+                        }
+                    } catch (NoSuchMethodException ignored2) {
+                        // fallback
+                        ctx = androidx.core.content.ContextCompat.getMainExecutor(null) == null
+                                ? null : null; // noop; keep below fallback
+                    } catch (Throwable ignored3) {
+                    }
+                } catch (Throwable ignored) {
+                }
+
+                if (ctx == null) {
+                    // final fallback: application context from any available context (this)
+                    try {
+                        java.lang.reflect.Method getApplicationContext =
+                                this.getClass().getMethod("getContext");
+                        Object got = getApplicationContext.invoke(this);
+                        if (got instanceof android.content.Context) {
+                            ctx = ((android.content.Context) got).getApplicationContext();
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }
+
+                if (ctx == null) {
+                    // If still null, use the current thread's default context via reflection to ActivityThread
+                    try {
+                        @SuppressLint("PrivateApi") Class<?> at = Class.forName("android.app.ActivityThread");
+                        @SuppressLint("DiscouragedPrivateApi") java.lang.reflect.Method currentApplication =
+                                at.getDeclaredMethod("currentApplication");
+                        Object app = currentApplication.invoke(null);
+                        if (app instanceof android.app.Application) {
+                            ctx = ((android.app.Application) app).getApplicationContext();
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }
+
+                if (ctx == null) {
+                    Log.w(LOG_TAG, "No usable Context found to attach; some methods will fail.");
+                } else {
+                    attachBase.invoke(activityInstance, ctx);
+                    Log.d(LOG_TAG, "Attached base context to CarAppPermissionActivity instance.");
+                }
+            } catch (Throwable t) {
+                Log.w(LOG_TAG, "Failed to attach base context reflectively: " + t);
+            }
+
+            // 3) craft an Intent that matches CarContext.REQUEST_PERMISSIONS_ACTION and extras
+            android.content.Intent intent = new android.content.Intent(
+                    "androidx.car.app.action.REQUEST_PERMISSIONS"); // CarContext.REQUEST_PERMISSIONS_ACTION
+            android.os.Bundle extras = new android.os.Bundle();
+
+            // Create a stub listener binder for IOnRequestPermissionsListener
+            try {
+                final androidx.car.app.IOnRequestPermissionsListener.Stub listener =
+                        new androidx.car.app.IOnRequestPermissionsListener.Stub() {
+                            @SuppressLint("RestrictedApi")
+                            @Override
+                            public void onRequestPermissionsResult(String[] approvedPermissions,
+                                                                   String[] rejectedPermissions) {
+                                Log.d(LOG_TAG, "Stub listener invoked. approved="
+                                        + java.util.Arrays.toString(approvedPermissions)
+                                        + " rejected=" + java.util.Arrays.toString(rejectedPermissions));
+                            }
+                        };
+
+                extras.putBinder("androidx.car.app.action.EXTRA_ON_REQUEST_PERMISSIONS_RESULT_LISTENER_KEY",
+                        listener.asBinder());
+            } catch (Throwable t) {
+                Log.w(LOG_TAG, "Failed to create IOnRequestPermissionsListener stub: " + t);
+            }
+
+            // Put a sample permission list
+            extras.putStringArray("androidx.car.app.action.EXTRA_PERMISSIONS_KEY",
+                    new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION});
+
+            intent.putExtras(extras);
+
+            // 4) setIntent(activityInstance, intent)
+            try {
+                java.lang.reflect.Method setIntent =
+                        android.app.Activity.class.getMethod("setIntent", android.content.Intent.class);
+                setIntent.invoke(activityInstance, intent);
+                Log.d(LOG_TAG, "Set Intent on activity instance.");
+            } catch (Throwable t) {
+                Log.w(LOG_TAG, "Failed to set Intent on activity instance: " + t);
+            }
+
+            // 5) invoke lifecycle onCreate(null)
+            try {
+                java.lang.reflect.Method onCreate = android.app.Activity.class
+                        .getDeclaredMethod("onCreate", android.os.Bundle.class);
+                onCreate.setAccessible(true);
+                onCreate.invoke(activityInstance, (Object) null);
+                Log.d(LOG_TAG, "Called onCreate(null) on activity instance.");
+            } catch (Throwable t) {
+                Log.w(LOG_TAG, "Failed to invoke onCreate: " + t);
+            }
+
+            // 6) attempt to call private maybeSetCustomBackground()
+            try {
+                java.lang.reflect.Method maybeSet =
+                        activityCls.getDeclaredMethod("maybeSetCustomBackground");
+                maybeSet.setAccessible(true);
+                maybeSet.invoke(activityInstance);
+                Log.d(LOG_TAG, "Invoked maybeSetCustomBackground()");
+            } catch (Throwable t) {
+                Log.w(LOG_TAG, "Failed to invoke maybeSetCustomBackground(): " + t);
+            }
+
+            // 7) attempt to call private processInternal(Intent)
+            try {
+                java.lang.reflect.Method processInternal =
+                        activityCls.getDeclaredMethod("processInternal", android.content.Intent.class);
+                processInternal.setAccessible(true);
+                processInternal.invoke(activityInstance, intent);
+                Log.d(LOG_TAG, "Invoked processInternal(intent)");
+            } catch (Throwable t) {
+                Log.w(LOG_TAG, "Failed to invoke processInternal(Intent): " + t);
+            }
+
+            // 8) attempt to call private requestPermissions(Intent)
+            try {
+                java.lang.reflect.Method requestPerm =
+                        activityCls.getDeclaredMethod("requestPermissions", android.content.Intent.class);
+                requestPerm.setAccessible(true);
+                requestPerm.invoke(activityInstance, intent);
+                Log.d(LOG_TAG, "Invoked requestPermissions(intent)");
+            } catch (Throwable t) {
+                Log.w(LOG_TAG, "Failed to invoke requestPermissions(Intent): " + t);
+            }
+
+            // 9) try to call finish()
+            try {
+                java.lang.reflect.Method finish = android.app.Activity.class.getMethod("finish");
+                finish.invoke(activityInstance);
+                Log.d(LOG_TAG, "Called finish() on activity instance.");
+            } catch (Throwable t) {
+                Log.w(LOG_TAG, "Failed to call finish(): " + t);
+            }
+
+            Log.d(LOG_TAG, "Reflection exercise completed (attempted all methods).");
+        } catch (Throwable e) {
+            Log.e("CarAppPermActivityRef", "Unexpected failure exercising CarAppPermissionActivity", e);
+        }
+    }
+
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
