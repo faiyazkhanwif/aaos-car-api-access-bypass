@@ -25,6 +25,8 @@ import android.util.Log;
 import android.util.SparseArray;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 
 //AndroidX imports
 import androidx.annotation.NonNull;
@@ -185,7 +187,8 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseCarAppPermissionActivityReflection();
+            //exerciseCarAppPermissionActivityReflection();
+            exerciseTemplateSurfaceViewReflection();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1048,8 +1051,6 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.constraints.IConstraintHost"
                 };
 
-*/
-
             case "app":
                 return new String[]{
                         "androidx.car.app.AppInfo",
@@ -1085,6 +1086,45 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.SessionInfoIntentEncoder",
                         "androidx.car.app.SurfaceCallback",
                         "androidx.car.app.SurfaceContainer"
+                };
+*/
+            case "activity":
+                return new String[]{
+                        /*
+                        "androidx.car.app.activity.ActivityLifecycleDelegate",
+                        "androidx.car.app.activity.BaseCarAppActivity",
+                        "androidx.car.app.activity.CarAppActivity",
+                        "androidx.car.app.activity.CarAppViewModel",
+                        "androidx.car.app.activity.CarAppViewModelFactory",
+                        "androidx.car.app.activity.ErrorHandler",
+                        "androidx.car.app.activity.HostUpdateReceiver",
+                        "androidx.car.app.activity.LauncherActivity",
+                        "androidx.car.app.activity.LogTags",
+                        "androidx.car.app.activity.ResultManagerAutomotive",
+                        "androidx.car.app.activity.ServiceConnectionManager",
+                        "androidx.car.app.activity.ServiceDispatcher",
+                        // renderer
+                        "androidx.car.app.activity.renderer.ICarAppActivity",
+                        "androidx.car.app.activity.renderer.IInsetsListener",
+                        "androidx.car.app.activity.renderer.IProxyInputConnection",
+                        "androidx.car.app.activity.renderer.IRendererCallback",
+                        "androidx.car.app.activity.renderer.IRendererService",
+                        // renderer.surface
+                        "androidx.car.app.activity.renderer.surface.ISurfaceControl",
+                        "androidx.car.app.activity.renderer.surface.ISurfaceListener",
+                        "androidx.car.app.activity.renderer.surface.LegacySurfacePackage",
+                        "androidx.car.app.activity.renderer.surface.OnBackPressedListener",
+                        "androidx.car.app.activity.renderer.surface.OnCreateInputConnectionListener",
+                        "androidx.car.app.activity.renderer.surface.RemoteProxyInputConnection",
+                        "androidx.car.app.activity.renderer.surface.SurfaceControlCallback",
+                        "androidx.car.app.activity.renderer.surface.SurfaceHolderListener",
+                        "androidx.car.app.activity.renderer.surface.SurfaceWrapper",
+                        "androidx.car.app.activity.renderer.surface.SurfaceWrapperProvider",
+                        */
+                        "androidx.car.app.activity.renderer.surface.TemplateSurfaceView",
+                        // ui
+                        "androidx.car.app.activity.ui.ErrorMessageView",
+                        "androidx.car.app.activity.ui.LoadingView"
                 };
             default:
                 return new String[0];
@@ -5362,7 +5402,423 @@ public class CarDataScreen extends Screen {
         }
     }
 
+    @SuppressWarnings({"rawtypes"})
+    public void exerciseTemplateSurfaceViewReflection() {
+        android.util.Log.i("ReflectionTest", "=== exerciseTemplateSurfaceViewReflection START ===");
+        final java.util.ArrayList<String> log = new java.util.ArrayList<>();
 
+        // Utility to add to log safely
+        java.util.function.Consumer<String> L = s -> {
+            android.util.Log.i("ReflectionTest", s);
+            log.add(s);
+        };
+
+        android.content.Context ctx = null;
+        try {
+            try {
+                java.lang.reflect.Method m = this.getClass().getMethod("getCarContext");
+                Object carCtx = m.invoke(this);
+                if (carCtx instanceof android.content.Context) {
+                    ctx = (android.content.Context) carCtx;
+                    L.accept("Using getCarContext()");
+                }
+            } catch (NoSuchMethodException ignored) { /* not a Screen */ }
+            if (ctx == null) {
+                try {
+                    java.lang.reflect.Method m2 = this.getClass().getMethod("getContext");
+                    Object c = m2.invoke(this);
+                    if (c instanceof android.content.Context) {
+                        ctx = (android.content.Context) c;
+                        L.accept("Using getContext()");
+                    }
+                } catch (NoSuchMethodException ignored) { }
+            }
+        } catch (Exception e) {
+            L.accept("Failed to obtain context reflectively: " + e);
+        }
+        if (ctx == null) {
+            ctx = androidx.core.content.ContextCompat.getMainExecutor(null) == null ? null : null;
+        }
+        if (ctx == null) {
+            try {
+                android.content.Context appCtx =
+                        (android.content.Context) Class.forName("android.app.AppGlobals")
+                                .getMethod("getInitialApplication")
+                                .invoke(null);
+                ctx = appCtx;
+                L.accept("Falling back to AppGlobals.getInitialApplication()");
+            } catch (Exception e) {
+                L.accept("Could not resolve any context: " + e);
+            }
+        }
+
+        // Reflectively load TemplateSurfaceView
+        Class<?> tvClass;
+        try {
+            tvClass = Class.forName("androidx.car.app.activity.renderer.surface.TemplateSurfaceView");
+        } catch (Throwable t) {
+            L.accept("TemplateSurfaceView class not found: " + t);
+            return;
+        }
+
+        Object tvInstance = null;
+        try {
+            java.lang.reflect.Constructor<?> ctor = tvClass.getConstructor(android.content.Context.class, android.util.AttributeSet.class);
+            // pass null for AttributeSet
+            tvInstance = ctor.newInstance(ctx, null);
+            L.accept("Constructed TemplateSurfaceView via (Context, AttributeSet) ctor");
+        } catch (Throwable t1) {
+            try {
+                java.lang.reflect.Constructor<?> ctor2 = tvClass.getConstructor(android.content.Context.class);
+                tvInstance = ctor2.newInstance(ctx);
+                L.accept("Constructed TemplateSurfaceView via (Context) ctor");
+            } catch (Throwable t2) {
+                L.accept("Failed to construct TemplateSurfaceView: " + t2);
+            }
+        }
+
+        if (tvInstance == null) {
+            L.accept("No TemplateSurfaceView instance; aborting further calls.");
+            return;
+        }
+
+        // Helper to call methods safely
+        Object finalTvInstance = tvInstance;
+        java.util.function.BiConsumer<java.lang.reflect.Method, Object[]> callSafe =
+                (mth, args) -> {
+                    try {
+                        mth.setAccessible(true);
+                        Object res = mth.invoke(finalTvInstance, args);
+                        L.accept("Invoked " + mth + " -> " + (res == null ? "null" : res.toString()));
+                    } catch (Throwable e) {
+                        L.accept("Invocation failed " + mth + " : " + e);
+                    }
+                };
+
+        try {
+            Class<?> vmClass = Class.forName("androidx.car.app.activity.CarAppViewModel");
+            Object vmProxy = null;
+            try {
+                // if it's an interface, create a Proxy
+                if (vmClass.isInterface()) {
+                    vmProxy = java.lang.reflect.Proxy.newProxyInstance(
+                            vmClass.getClassLoader(),
+                            new Class<?>[]{vmClass},
+                            (proxy, method, args) -> {
+                                L.accept("CarAppViewModel proxy called: " + method.getName());
+                                return null;
+                            });
+                } else {
+                    try {
+                        java.lang.reflect.Constructor<?> vmCtor = vmClass.getDeclaredConstructor();
+                        vmCtor.setAccessible(true);
+                        vmProxy = vmCtor.newInstance();
+                        L.accept("Instantiated CarAppViewModel by no-arg ctor");
+                    } catch (Throwable t) {
+                        vmProxy = null;
+                    }
+                }
+            } catch (Throwable e) {
+                L.accept("CarAppViewModel proxy/instantiation failed: " + e);
+                vmProxy = null;
+            }
+
+            if (vmProxy != null) {
+                try {
+                    java.lang.reflect.Method setVm = tvClass.getMethod("setViewModel", vmClass);
+                    setVm.invoke(tvInstance, vmProxy);
+                    L.accept("Called setViewModel(...)");
+                } catch (Throwable e) {
+                    L.accept("setViewModel invocation failed: " + e);
+                }
+            } else {
+                L.accept("No CarAppViewModel available; skipping setViewModel");
+            }
+        } catch (Throwable e) {
+            L.accept("CarAppViewModel not found or failed: " + e);
+        }
+
+        Object serviceDispatcher = null;
+        try {
+            Class<?> sdClass = Class.forName("androidx.car.app.activity.ServiceDispatcher");
+            if (sdClass.isInterface()) {
+                serviceDispatcher = java.lang.reflect.Proxy.newProxyInstance(
+                        sdClass.getClassLoader(),
+                        new Class<?>[]{sdClass},
+                        (proxy, method, args) -> {
+                            String name = method.getName();
+                            L.accept("ServiceDispatcher proxy invoked: " + name);
+                            try {
+                                if (args != null && args.length > 0) {
+                                    for (Object a : args) {
+                                        if (a instanceof Runnable) {
+                                            ((Runnable) a).run();
+                                        } else if (a instanceof java.util.concurrent.Callable) {
+                                            try {
+                                                return ((java.util.concurrent.Callable) a).call();
+                                            } catch (Exception ce) {
+                                                return null;
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (Throwable ignored) {}
+                            if (name != null && name.toLowerCase().contains("fetch")) {
+                                return new android.view.inputmethod.EditorInfo();
+                            }
+                            return null;
+                        });
+                try {
+                    java.lang.reflect.Method setSD = tvClass.getMethod("setServiceDispatcher", sdClass);
+                    setSD.invoke(tvInstance, serviceDispatcher);
+                    L.accept("Called setServiceDispatcher(proxy)");
+                } catch (Throwable e) {
+                    L.accept("setServiceDispatcher failed: " + e);
+                }
+            } else {
+                try {
+                    java.lang.reflect.Constructor<?> sdCtor = sdClass.getDeclaredConstructor();
+                    sdCtor.setAccessible(true);
+                    serviceDispatcher = sdCtor.newInstance();
+                    try {
+                        java.lang.reflect.Method setSD = tvClass.getMethod("setServiceDispatcher", sdClass);
+                        setSD.invoke(tvInstance, serviceDispatcher);
+                        L.accept("Instantiated and set concrete ServiceDispatcher");
+                    } catch (Throwable e) {
+                        L.accept("Could not set concrete ServiceDispatcher: " + e);
+                    }
+                } catch (Throwable e) {
+                    L.accept("Could not instantiate ServiceDispatcher: " + e);
+                }
+            }
+        } catch (Throwable e) {
+            L.accept("ServiceDispatcher class not found or failed to prepare: " + e);
+        }
+
+        try {
+            Class<?> listenerClass = Class.forName("androidx.car.app.activity.renderer.surface.TemplateSurfaceView$OnCreateInputConnectionListener");
+            // IProxyInputConnection class
+            Class<?> proxyInputConnClass = Class.forName("androidx.car.app.activity.renderer.IProxyInputConnection");
+
+            Object proxyInputConn = null;
+            if (proxyInputConnClass.isInterface()) {
+                proxyInputConn = java.lang.reflect.Proxy.newProxyInstance(
+                        proxyInputConnClass.getClassLoader(),
+                        new Class<?>[]{proxyInputConnClass},
+                        (proxy, method, args) -> {
+                            String name = method.getName();
+                            L.accept("IProxyInputConnection proxy called: " + name);
+                            // implement getEditorInfo() -> return EditorInfo
+                            if (name.equals("getEditorInfo")) {
+                                return new android.view.inputmethod.EditorInfo();
+                            }
+                            // For other methods, return sensible defaults (null/0/false)
+                            Class<?> rt = method.getReturnType();
+                            if (rt == boolean.class) return false;
+                            if (rt == int.class) return 0;
+                            return null;
+                        });
+            } else {
+                try {
+                    java.lang.reflect.Constructor<?> c = proxyInputConnClass.getDeclaredConstructor();
+                    c.setAccessible(true);
+                    proxyInputConn = c.newInstance();
+                } catch (Throwable t) {
+                    proxyInputConn = null;
+                }
+            }
+
+            Object finalProxyInputConn = proxyInputConn;
+            Object listenerProxy = java.lang.reflect.Proxy.newProxyInstance(
+                    listenerClass.getClassLoader(),
+                    new Class<?>[]{listenerClass},
+                    (proxy, method, args) -> {
+                        L.accept("OnCreateInputConnectionListener invoked: " + method.getName());
+                        // method should be onCreateInputConnection(EditorInfo)
+                        return finalProxyInputConn;
+                    });
+
+            try {
+                java.lang.reflect.Method setListener = tvClass.getMethod("setOnCreateInputConnectionListener", listenerClass);
+                setListener.invoke(tvInstance, listenerProxy);
+                L.accept("setOnCreateInputConnectionListener(proxy) invoked");
+            } catch (NoSuchMethodException nsme) {
+                for (java.lang.reflect.Method m : tvClass.getMethods()) {
+                    if (m.getName().equals("setOnCreateInputConnectionListener") && m.getParameterTypes().length == 1) {
+                        m.invoke(tvInstance, listenerProxy);
+                        L.accept("setOnCreateInputConnectionListener (fallback) invoked: " + m);
+                        break;
+                    }
+                }
+            } catch (Throwable e) {
+                L.accept("Failed to set OnCreateInputConnectionListener: " + e);
+            }
+        } catch (Throwable e) {
+            L.accept("OnCreateInputConnectionListener/IProxyInputConnection not found: " + e);
+        }
+
+        try {
+            java.lang.reflect.Method onStart = tvClass.getMethod("onStartInput");
+            onStart.setAccessible(true);
+            onStart.invoke(tvInstance);
+            L.accept("Called onStartInput()");
+        } catch (Throwable e) {
+            L.accept("onStartInput failed: " + e);
+        }
+        try {
+            java.lang.reflect.Method createIC = tvClass.getMethod("onCreateInputConnection", android.view.inputmethod.EditorInfo.class);
+            createIC.setAccessible(true);
+            Object editorInfo = new android.view.inputmethod.EditorInfo();
+            Object ic = null;
+            try {
+                ic = createIC.invoke(tvInstance, editorInfo);
+                L.accept("onCreateInputConnection returned: " + (ic == null ? "null" : ic.getClass().getName()));
+            } catch (Throwable e) {
+                L.accept("onCreateInputConnection invocation failed: " + e);
+            }
+        } catch (NoSuchMethodException nsme) {
+            L.accept("onCreateInputConnection(EditorInfo) not found: " + nsme);
+        } catch (Throwable t) {
+            L.accept("onCreateInputConnection reflection failure: " + t);
+        }
+
+        try {
+            java.lang.reflect.Method onUpdate = tvClass.getMethod("onUpdateSelection", int.class, int.class, int.class, int.class);
+            onUpdate.invoke(tvInstance, 0, 0, 1, 1);
+            L.accept("Called onUpdateSelection(0,0,1,1)");
+        } catch (Throwable e) {
+            L.accept("onUpdateSelection failed: " + e);
+        }
+
+        try {
+            java.lang.reflect.Method onStop = tvClass.getMethod("onStopInput");
+            onStop.invoke(tvInstance);
+            L.accept("Called onStopInput()");
+        } catch (Throwable e) {
+            L.accept("onStopInput failed: " + e);
+        }
+
+        try {
+            java.lang.reflect.Method checkEditor = tvClass.getMethod("onCheckIsTextEditor");
+            Object isEditor = checkEditor.invoke(tvInstance);
+            L.accept("onCheckIsTextEditor() -> " + isEditor);
+        } catch (Throwable e) {
+            L.accept("onCheckIsTextEditor failed: " + e);
+        }
+
+        try {
+            java.lang.reflect.Method acc = tvClass.getMethod("getAccessibilityClassName");
+            Object accName = acc.invoke(tvInstance);
+            L.accept("getAccessibilityClassName() -> " + accName);
+        } catch (Throwable e) {
+            L.accept("getAccessibilityClassName failed: " + e);
+        }
+        try {
+            java.lang.reflect.Method checkProxy = tvClass.getMethod("checkInputConnectionProxy", android.view.View.class);
+            Object proxyRes = checkProxy.invoke(tvInstance, (Object) null);
+            L.accept("checkInputConnectionProxy(null) -> " + proxyRes);
+        } catch (Throwable e) {
+            L.accept("checkInputConnectionProxy failed: " + e);
+        }
+
+        try {
+            java.lang.reflect.Method attached = tvClass.getDeclaredMethod("onAttachedToWindow");
+            attached.setAccessible(true);
+            attached.invoke(tvInstance);
+            L.accept("onAttachedToWindow invoked");
+        } catch (Throwable e) {
+            L.accept("onAttachedToWindow failed: " + e);
+        }
+        try {
+            java.lang.reflect.Method detached = tvClass.getDeclaredMethod("onDetachedFromWindow");
+            detached.setAccessible(true);
+            detached.invoke(tvInstance);
+            L.accept("onDetachedFromWindow invoked");
+        } catch (Throwable e) {
+            L.accept("onDetachedFromWindow failed: " + e);
+        }
+
+        try {
+            long now = android.os.SystemClock.uptimeMillis();
+            MotionEvent me = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 10f, 10f, 0);
+            java.lang.reflect.Method handleTouch = tvClass.getDeclaredMethod("handleTouchEvent", MotionEvent.class);
+            handleTouch.setAccessible(true);
+            Object touchRes = handleTouch.invoke(tvInstance, me);
+            L.accept("handleTouchEvent(ACTION_DOWN) -> " + touchRes);
+            me.recycle();
+        } catch (Throwable e) {
+            L.accept("handleTouchEvent failed: " + e);
+        }
+
+        try {
+            KeyEvent ke = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A);
+            java.lang.reflect.Method dispatchKey = tvClass.getMethod("dispatchKeyEvent", KeyEvent.class);
+            Object dispatchRes = dispatchKey.invoke(tvInstance, ke);
+            L.accept("dispatchKeyEvent(KEYCODE_A) -> " + dispatchRes);
+        } catch (Throwable e) {
+            L.accept("dispatchKeyEvent failed: " + e);
+        }
+
+        try {
+            java.lang.reflect.Method setSurfacePackageObject = tvClass.getMethod("setSurfacePackage", Object.class);
+            setSurfacePackageObject.invoke(tvInstance, new Object());
+            L.accept("setSurfacePackage(Object) invoked with plain Object (should log error path)");
+        } catch (NoSuchMethodException nsme) {
+            for (java.lang.reflect.Method m : tvClass.getMethods()) {
+                if (m.getName().equals("setSurfacePackage") && m.getParameterTypes().length == 1) {
+                    try {
+                        m.invoke(tvInstance, new Object());
+                        L.accept("setSurfacePackage(fallback) invoked");
+                    } catch (Throwable ex) {
+                        L.accept("setSurfacePackage(fallback) failed: " + ex);
+                    }
+                    break;
+                }
+            }
+        } catch (Throwable e) {
+            L.accept("setSurfacePackage invocation failed: " + e);
+        }
+
+        try {
+            Class<?> surfacePackageClass = Class.forName("android.view.SurfaceControlViewHost$SurfacePackage");
+            try {
+                java.lang.reflect.Method msp = tvClass.getDeclaredMethod("setSurfacePackage", surfacePackageClass);
+                msp.setAccessible(true);
+                msp.invoke(tvInstance, new Object[]{null});
+                L.accept("Called setSurfacePackage(SurfacePackage) with null (best-effort)");
+            } catch (NoSuchMethodException nsme) {
+                L.accept("No setSurfacePackage(SurfacePackage) method: " + nsme);
+            }
+        } catch (ClassNotFoundException cnfe) {
+            L.accept("SurfacePackage type not present on this SDK: " + cnfe);
+        } catch (Throwable e) {
+            L.accept("Error while attempting SurfacePackage path: " + e);
+        }
+
+        try {
+            java.lang.reflect.Method copyEditorInfo = tvClass.getDeclaredMethod("copyEditorInfo", android.view.inputmethod.EditorInfo.class, android.view.inputmethod.EditorInfo.class);
+            copyEditorInfo.setAccessible(true);
+            android.view.inputmethod.EditorInfo from = new android.view.inputmethod.EditorInfo();
+            from.inputType = android.text.InputType.TYPE_CLASS_TEXT;
+            android.view.inputmethod.EditorInfo to = new android.view.inputmethod.EditorInfo();
+            copyEditorInfo.invoke(tvInstance, from, to);
+            L.accept("copyEditorInfo invoked; to.inputType=" + to.inputType);
+        } catch (NoSuchMethodException nsme) {
+            L.accept("copyEditorInfo private method not found: " + nsme);
+        } catch (Throwable e) {
+            L.accept("copyEditorInfo invocation failed: " + e);
+        }
+
+        try {
+            java.lang.reflect.Method getToken = tvClass.getMethod("getSurfaceToken");
+            Object token = getToken.invoke(tvInstance);
+            L.accept("getSurfaceToken() -> " + token);
+        } catch (Throwable e) {
+            L.accept("getSurfaceToken failed or not available: " + e);
+        }
+
+        L.accept("=== exerciseTemplateSurfaceViewReflection COMPLETE, " + log.size() + " log entries ===");
+    }
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
 
