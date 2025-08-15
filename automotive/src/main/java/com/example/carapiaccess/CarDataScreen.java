@@ -176,7 +176,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseAutomotiveCarClimate();
 
-            dumpCarAppHierarchyAndroidX();
+            //dumpCarAppHierarchyAndroidX();
 
             //exerciseAutomotiveCarSensors();
 
@@ -195,7 +195,7 @@ public class CarDataScreen extends Screen {
             //exerciseNavigationManager();
 
             //exerciseCarAppPermissionActivityReflection();
-            exerciseServiceConnectionManager();
+            exerciseBaseCarAppActivityReflection();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -6364,6 +6364,180 @@ public class CarDataScreen extends Screen {
         }
     }
 
+    public void exerciseBaseCarAppActivityReflection() {
+        final String TAG = "ExerciseBaseCarAppActivity";
+        StringBuilder out = new StringBuilder();
+        try {
+            Class<?> clazz = Class.forName("androidx.car.app.activity.BaseCarAppActivity");
+            out.append("Class loaded: ").append(clazz.getName()).append("\n");
+
+            //instantiate using no-arg ctor
+            Object instance = null;
+            try {
+                instance = clazz.getDeclaredConstructor().newInstance();
+                out.append("Instance created via no-arg ctor: ").append(instance).append("\n");
+            } catch (Throwable t) {
+                out.append("Failed to instantiate via no-arg ctor: ").append(t).append("\n");
+            }
+
+            // Helper: create default arg for a parameter type
+            java.util.function.Function<Class<?>, Object> makeArg = (paramType) -> {
+                try {
+                    if (paramType.isPrimitive()) {
+                        if (paramType == boolean.class) return false;
+                        if (paramType == byte.class) return (byte) 0;
+                        if (paramType == short.class) return (short) 0;
+                        if (paramType == int.class) return 0;
+                        if (paramType == long.class) return 0L;
+                        if (paramType == float.class) return 0f;
+                        if (paramType == double.class) return 0d;
+                        if (paramType == char.class) return '\0';
+                    }
+                    if (paramType == java.lang.String.class) {
+                        return "reflection-string";
+                    }
+                    if (android.os.Bundle.class.isAssignableFrom(paramType)) {
+                        return new android.os.Bundle();
+                    }
+                    if (android.content.Intent.class.isAssignableFrom(paramType)) {
+                        return new android.content.Intent();
+                    }
+                    if (android.content.ComponentName.class.isAssignableFrom(paramType)) {
+                        return new android.content.ComponentName("com.example.carapiaccess",
+                                "com.example.carapiaccess.DummyService");
+                    }
+                    if (paramType == Integer.class) return Integer.valueOf(0);
+                    if (paramType == Boolean.class) return Boolean.FALSE;
+
+                    // Special handling: SessionInfo.DEFAULT_SESSION_INFO if present
+                    try {
+                        if (paramType.getName().equals("androidx.car.app.SessionInfo")) {
+                            try {
+                                Class<?> sessionInfoClass = Class.forName("androidx.car.app.SessionInfo");
+                                java.lang.reflect.Field f = null;
+                                try {
+                                    f = sessionInfoClass.getField("DEFAULT_SESSION_INFO");
+                                } catch (NoSuchFieldException nsf) {
+                                    try {
+                                        f = sessionInfoClass.getDeclaredField("DEFAULT_SESSION_INFO");
+                                        f.setAccessible(true);
+                                    } catch (NoSuchFieldException ignore) {
+                                        f = null;
+                                    }
+                                }
+                                if (f != null) {
+                                    Object val = f.get(null);
+                                    if (val != null) return val;
+                                }
+                            } catch (Throwable ignore) {
+                            }
+                        }
+                    } catch (Throwable ignore) { }
+
+                    // If it's an interface, create a dynamic proxy returning sensible defaults.
+                    if (paramType.isInterface()) {
+                        java.lang.reflect.InvocationHandler handler = (proxy, method, args) -> {
+                            Class<?> ret = method.getReturnType();
+                            if (ret == void.class) return null;
+                            if (ret.isPrimitive()) {
+                                if (ret == boolean.class) return false;
+                                if (ret == byte.class) return (byte) 0;
+                                if (ret == short.class) return (short) 0;
+                                if (ret == int.class) return 0;
+                                if (ret == long.class) return 0L;
+                                if (ret == float.class) return 0f;
+                                if (ret == double.class) return 0d;
+                                if (ret == char.class) return '\0';
+                            }
+                            if (ret == java.lang.String.class) return "";
+                            return null;
+                        };
+                        return java.lang.reflect.Proxy.newProxyInstance(
+                                paramType.getClassLoader(),
+                                new Class<?>[]{paramType},
+                                handler);
+                    }
+
+                    // Try to instantiate with no-arg constructor if available
+                    try {
+                        java.lang.reflect.Constructor<?> ctor = paramType.getDeclaredConstructor();
+                        ctor.setAccessible(true);
+                        return ctor.newInstance();
+                    } catch (Throwable ignored) {
+                    }
+
+                    // Fallbacks for common Android types
+                    if (android.view.Window.class.isAssignableFrom(paramType)) return null;
+                    if (android.view.View.class.isAssignableFrom(paramType)) return null;
+                    if (android.graphics.Bitmap.class.isAssignableFrom(paramType)) return null;
+
+                    return null;
+                } catch (Throwable t) {
+                    return null;
+                }
+            };
+
+            // Gather methods
+            java.util.Set<java.lang.reflect.Method> methodsToTry = new java.util.HashSet<>();
+            for (java.lang.reflect.Method m : clazz.getDeclaredMethods()) methodsToTry.add(m);
+            for (java.lang.reflect.Method m : clazz.getMethods()) methodsToTry.add(m);
+
+            out.append("Found methods to try: ").append(methodsToTry.size()).append("\n\n");
+
+            for (java.lang.reflect.Method method : methodsToTry) {
+                // Skip synthetic / bridge methods
+                if (method.isSynthetic() || method.isBridge()) continue;
+
+                String mName = method.getName();
+                out.append("=== Invoking ").append(mName).append(" (")
+                        .append(java.util.Arrays.toString(method.getParameterTypes())).append(") ===\n");
+                method.setAccessible(true);
+
+                Class<?>[] ptypes = method.getParameterTypes();
+                Object[] args = new Object[ptypes.length];
+                for (int i = 0; i < ptypes.length; i++) {
+                    args[i] = makeArg.apply(ptypes[i]);
+                    out.append("  arg[").append(i).append("] type=").append(ptypes[i].getName())
+                            .append(" value=").append(args[i]).append("\n");
+                }
+
+                // If instance is null and method is not static, try to create an instance anyway
+                Object target = instance;
+                if (target == null && !java.lang.reflect.Modifier.isStatic(method.getModifiers())) {
+                    try {
+                        target = clazz.getDeclaredConstructor().newInstance();
+                        out.append("  created fallback instance: ").append(target).append("\n");
+                    } catch (Throwable t) {
+                        out.append("  could not create fallback instance: ").append(t).append("\n");
+                    }
+                }
+
+                try {
+                    Object result = method.invoke(target, args);
+                    out.append("  -> returned: ").append(result).append("\n");
+                } catch (Throwable t) {
+                    // unwrap target invocation exception if present
+                    Throwable cause = t;
+                    if (t instanceof java.lang.reflect.InvocationTargetException
+                            && t.getCause() != null) {
+                        cause = t.getCause();
+                    }
+                    out.append("  -> threw: ").append(cause.getClass().getName())
+                            .append(" : ").append(cause.getMessage()).append("\n");
+                }
+                out.append("\n");
+            }
+
+        } catch (Throwable e) {
+            out.append("Fatal reflection failure: ").append(e.getClass().getName())
+                    .append(" - ").append(e.getMessage()).append("\n");
+        }
+
+        try {
+            android.util.Log.i(TAG, out.toString());
+        } catch (Throwable ignored) { }
+
+    }
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
