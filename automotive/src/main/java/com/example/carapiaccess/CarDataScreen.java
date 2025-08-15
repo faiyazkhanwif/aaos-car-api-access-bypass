@@ -3,6 +3,8 @@ package com.example.carapiaccess;
 import static com.google.common.reflect.Reflection.getPackageName;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.Application;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -49,7 +51,10 @@ import androidx.car.app.HostInfo;
 import androidx.car.app.IStartCarApp;
 import androidx.car.app.Screen;
 //import androidx.car.app.hardware.common.PropertyRequestProcessor;
+import androidx.car.app.SessionInfo;
+import androidx.car.app.activity.CarAppViewModel;
 import androidx.car.app.activity.LogTags;
+import androidx.car.app.activity.ServiceConnectionManager;
 import androidx.car.app.model.Action;
 import androidx.car.app.model.CarColor;
 import androidx.car.app.model.constraints.ActionsConstraints;
@@ -124,6 +129,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 public class CarDataScreen extends Screen {
     private static final String TAG = "CarDataScreen";
@@ -188,7 +194,7 @@ public class CarDataScreen extends Screen {
             //exerciseNavigationManager();
 
             //exerciseCarAppPermissionActivityReflection();
-            exerciseTemplateSurfaceViewReflection();
+            exerciseCarAppViewModel();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1090,6 +1096,7 @@ public class CarDataScreen extends Screen {
 */
             case "activity":
                 return new String[]{
+                        "androidx.car.app.activity.ServiceConnectionManager",
                         /*
                         "androidx.car.app.activity.ActivityLifecycleDelegate",
                         "androidx.car.app.activity.BaseCarAppActivity",
@@ -1120,11 +1127,11 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.activity.renderer.surface.SurfaceHolderListener",
                         "androidx.car.app.activity.renderer.surface.SurfaceWrapper",
                         "androidx.car.app.activity.renderer.surface.SurfaceWrapperProvider",
-                        */
                         "androidx.car.app.activity.renderer.surface.TemplateSurfaceView",
                         // ui
                         "androidx.car.app.activity.ui.ErrorMessageView",
                         "androidx.car.app.activity.ui.LoadingView"
+                        */
                 };
             default:
                 return new String[0];
@@ -4642,7 +4649,7 @@ public class CarDataScreen extends Screen {
     }
 
 
-    @SuppressWarnings({"BanUncheckedReflection", "TryFinallyCanBeTryWithResources"})
+    @SuppressWarnings({"BanUncheckedReflection"})
     public void exerciseCarAppServiceReflection() {
         final String TAG = "ExerciseCarAppService";
         try {
@@ -5819,6 +5826,358 @@ public class CarDataScreen extends Screen {
 
         L.accept("=== exerciseTemplateSurfaceViewReflection COMPLETE, " + log.size() + " log entries ===");
     }
+
+    public void exerciseCarAppViewModel() {
+        final String TAG = "exerciseCarAppViewModel";
+        try {
+            // Acquire real application / package info
+            Application application = (Application) getCarContext().getApplicationContext();
+            ComponentName componentName = new ComponentName(application.getPackageName(),
+                    application.getClass().getName());
+
+            // Use the library-provided DEFAULT_SESSION_INFO if available (safe fallback)
+            SessionInfo sessionInfo = null;
+            try {
+                Field f = SessionInfo.class.getDeclaredField("DEFAULT_SESSION_INFO");
+                f.setAccessible(true);
+                sessionInfo = (SessionInfo) f.get(null);
+            } catch (Throwable e) {
+                // fallback: try to call a default constructor if present (rare)
+                try {
+                    sessionInfo = SessionInfo.DEFAULT_SESSION_INFO;
+                } catch (Throwable ignored) {
+                }
+            }
+            if (sessionInfo == null) {
+                Log.w(TAG, "Couldn't obtain SessionInfo.DEFAULT_SESSION_INFO; attempting newInstance via no-arg");
+                try {
+                    sessionInfo = SessionInfo.class.newInstance();
+                } catch (Throwable ex) {
+                    Log.w(TAG, "Failed to create SessionInfo instance reflectively: " + ex);
+                }
+            }
+
+            // Construct CarAppViewModel using real Application/ComponentName/SessionInfo
+            @SuppressLint("RestrictedApi") CarAppViewModel vm = null;
+            try {
+                @SuppressLint("RestrictedApi") Constructor<CarAppViewModel> ctor =
+                        CarAppViewModel.class.getConstructor(Application.class, ComponentName.class,
+                                SessionInfo.class);
+                vm = ctor.newInstance(application, componentName, sessionInfo);
+                Log.i(TAG, "Constructed CarAppViewModel instance: " + vm);
+            } catch (NoSuchMethodException nsme) {
+                // try alternative (if signature differs)
+                try {
+                    @SuppressLint("RestrictedApi") Constructor<CarAppViewModel> alt =
+                            CarAppViewModel.class.getDeclaredConstructor(Application.class,
+                                    ComponentName.class, SessionInfo.class);
+                    alt.setAccessible(true);
+                    vm = alt.newInstance(application, componentName, sessionInfo);
+                    Log.i(TAG, "Constructed CarAppViewModel (declared ctor): " + vm);
+                } catch (Throwable t) {
+                    Log.e(TAG, "Failed to construct CarAppViewModel: " + t);
+                    return;
+                }
+            }
+
+            // 1) getServiceConnectionManager()
+            try {
+                Method mGetScm = CarAppViewModel.class.getDeclaredMethod("getServiceConnectionManager");
+                mGetScm.setAccessible(true);
+                Object scm = mGetScm.invoke(vm);
+                Log.i(TAG, "getServiceConnectionManager -> " + scm);
+            } catch (Throwable t) {
+                Log.w(TAG, "getServiceConnectionManager failed: " + t);
+            }
+
+            // 2) setServiceConnectionManager(...) - call with same object if available (safe), or null.
+            try {
+                Method mGetScm = CarAppViewModel.class.getDeclaredMethod("getServiceConnectionManager");
+                mGetScm.setAccessible(true);
+                Object scm = mGetScm.invoke(vm);
+                Method mSetScm = CarAppViewModel.class.getDeclaredMethod("setServiceConnectionManager",
+                        Class.forName("androidx.car.app.activity.ServiceConnectionManager"));
+                mSetScm.setAccessible(true);
+                // If we have scm, pass it, else pass null by reflection (allowed)
+                mSetScm.invoke(vm, scm);
+                Log.i(TAG, "setServiceConnectionManager invoked with " + scm);
+            } catch (ClassNotFoundException cnfe) {
+                // If ServiceConnectionManager class is hidden, try generic reflection fallback:
+                try {
+                    Method mSetScm = CarAppViewModel.class.getDeclaredMethod("setServiceConnectionManager",
+                            Object.class);
+                    mSetScm.setAccessible(true);
+                    mSetScm.invoke(vm, (Object) null);
+                    Log.i(TAG, "setServiceConnectionManager(Object) fallback invoked with null");
+                } catch (Throwable t) {
+                    Log.w(TAG, "setServiceConnectionManager fallback failed: " + t);
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "setServiceConnectionManager failed: " + t);
+            }
+
+            // 3) getServiceDispatcher()
+            try {
+                Method mGetDispatcher = CarAppViewModel.class.getDeclaredMethod("getServiceDispatcher");
+                mGetDispatcher.setAccessible(true);
+                Object dispatcher = mGetDispatcher.invoke(vm);
+                Log.i(TAG, "getServiceDispatcher -> " + dispatcher);
+            } catch (Throwable t) {
+                Log.w(TAG, "getServiceDispatcher failed: " + t);
+            }
+
+            // 4) setRendererCallback(IRendererCallback) — provide a dynamic proxy for the interface
+            try {
+                Class<?> ircCls = Class.forName("androidx.car.app.activity.renderer.IRendererCallback");
+                Object proxy = Proxy.newProxyInstance(ircCls.getClassLoader(), new Class<?>[]{ircCls},
+                        (p, method, args) -> {
+                            Log.i(TAG, "IRendererCallback proxy invoked: " + method.getName());
+                            // Methods frequently return void; return null by default (binder methods expect null)
+                            if (method.getReturnType() == boolean.class) {
+                                return false;
+                            }
+                            if (method.getReturnType() == int.class) {
+                                return 0;
+                            }
+                            return null;
+                        });
+                Method mSetRenderer = CarAppViewModel.class.getDeclaredMethod("setRendererCallback", ircCls);
+                mSetRenderer.setAccessible(true);
+                mSetRenderer.invoke(vm, proxy);
+                Log.i(TAG, "setRendererCallback invoked with dynamic proxy");
+            } catch (ClassNotFoundException cnf) {
+                Log.w(TAG, "IRendererCallback not found (skipping setRendererCallback): " + cnf);
+            } catch (NoSuchMethodException nsme) {
+                // fallback: try to find any method named setRendererCallback
+                try {
+                    for (Method mm : CarAppViewModel.class.getDeclaredMethods()) {
+                        if (mm.getName().equals("setRendererCallback") && mm.getParameterTypes().length == 1) {
+                            mm.setAccessible(true);
+                            mm.invoke(vm, (Object) null);
+                            Log.i(TAG, "Fallback invoked setRendererCallback with null");
+                            break;
+                        }
+                    }
+                } catch (Throwable t) {
+                    Log.w(TAG, "Fallback setRendererCallback failed: " + t);
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "setRendererCallback failed: " + t);
+            }
+
+            // 5) setActivity(Activity) - pass current activity if available, else null
+            try {
+                Activity maybeActivity = null;
+                try {
+                    // If running inside a Screen, try to obtain an Activity via CarContext (best-effort)
+                    Object baseCtx = getCarContext().getBaseContext();
+                    if (baseCtx instanceof Activity) {
+                        maybeActivity = (Activity) baseCtx;
+                    }
+                } catch (Throwable ignored) { }
+
+                Method setAct = CarAppViewModel.class.getDeclaredMethod("setActivity", Activity.class);
+                setAct.setAccessible(true);
+                setAct.invoke(vm, maybeActivity);
+                Log.i(TAG, "setActivity invoked with " + maybeActivity);
+            } catch (Throwable t) {
+                Log.w(TAG, "setActivity failed: " + t);
+            }
+
+            // 6) resetState()
+            try {
+                Method reset = CarAppViewModel.class.getDeclaredMethod("resetState");
+                reset.setAccessible(true);
+                reset.invoke(vm);
+                Log.i(TAG, "resetState invoked");
+            } catch (Throwable t) {
+                Log.w(TAG, "resetState failed: " + t);
+            }
+
+            // 7) onCleared() - triggers cleanup
+            try {
+                Method onCleared = CarAppViewModel.class.getDeclaredMethod("onCleared");
+                onCleared.setAccessible(true);
+                onCleared.invoke(vm);
+                Log.i(TAG, "onCleared invoked");
+            } catch (Throwable t) {
+                Log.w(TAG, "onCleared failed: " + t);
+            }
+
+            // 8) getError(), getState() (LiveData getters)
+            try {
+                Method getError = CarAppViewModel.class.getDeclaredMethod("getError");
+                getError.setAccessible(true);
+                Object liveError = getError.invoke(vm);
+                Log.i(TAG, "getError -> " + liveError);
+            } catch (Throwable t) {
+                Log.w(TAG, "getError failed: " + t);
+            }
+            try {
+                Method getState = CarAppViewModel.class.getDeclaredMethod("getState");
+                getState.setAccessible(true);
+                Object liveState = getState.invoke(vm);
+                Log.i(TAG, "getState -> " + liveState);
+            } catch (Throwable t) {
+                Log.w(TAG, "getState failed: " + t);
+            }
+
+            // 9) onError(ErrorHandler.ErrorType) - pick a safe enum value if possible
+            try {
+                Class<?> errCls = Class.forName("androidx.car.app.activity.ErrorHandler$ErrorType");
+                Object[] enumConstants = errCls.getEnumConstants();
+                Object chosen = enumConstants.length > 0 ? enumConstants[0] : null;
+                Method onError = CarAppViewModel.class.getDeclaredMethod("onError", errCls);
+                onError.setAccessible(true);
+                onError.invoke(vm, chosen);
+                Log.i(TAG, "onError invoked with " + chosen);
+            } catch (ClassNotFoundException cnf) {
+                // fallback to calling the public method signature directly via a runtime object
+                Log.w(TAG, "ErrorType enum not found - skipping onError(enum)");
+            } catch (Throwable t) {
+                Log.w(TAG, "onError failed: " + t);
+            }
+
+            // 10) onConnect()
+            try {
+                Method onConnect = CarAppViewModel.class.getDeclaredMethod("onConnect");
+                onConnect.setAccessible(true);
+                onConnect.invoke(vm);
+                Log.i(TAG, "onConnect invoked");
+            } catch (Throwable t) {
+                Log.w(TAG, "onConnect failed: " + t);
+            }
+
+            // 11) retryBinding() — this tries to recreate the Activity; risky but we'll call guardedly:
+            try {
+                Method retry = CarAppViewModel.class.getDeclaredMethod("retryBinding");
+                retry.setAccessible(true);
+                retry.invoke(vm);
+                Log.i(TAG, "retryBinding invoked (Activity.recreate may have been called)");
+            } catch (Throwable t) {
+                Log.w(TAG, "retryBinding failed (likely no Activity available or recreate blocked): " + t);
+            }
+
+            // 12) onHostUpdated()
+            try {
+                Method onHostUpdated = CarAppViewModel.class.getDeclaredMethod("onHostUpdated");
+                onHostUpdated.setAccessible(true);
+                onHostUpdated.invoke(vm);
+                Log.i(TAG, "onHostUpdated invoked");
+            } catch (Throwable t) {
+                Log.w(TAG, "onHostUpdated failed: " + t);
+            }
+
+            // 13) static helpers: setActivityResult(int, Intent) and getCallingActivity()
+            try {
+                Method setActRes = CarAppViewModel.class.getDeclaredMethod("setActivityResult", int.class, android.content.Intent.class);
+                setActRes.setAccessible(true);
+                setActRes.invoke(null, Activity.RESULT_CANCELED, null);
+                Log.i(TAG, "static setActivityResult invoked with RESULT_CANCELED");
+            } catch (Throwable t) {
+                Log.w(TAG, "setActivityResult failed: " + t);
+            }
+            try {
+                Method getCalling = CarAppViewModel.class.getDeclaredMethod("getCallingActivity");
+                getCalling.setAccessible(true);
+                Object calling = getCalling.invoke(null);
+                Log.i(TAG, "static getCallingActivity -> " + calling);
+            } catch (Throwable t) {
+                Log.w(TAG, "getCallingActivity failed: " + t);
+            }
+
+            // 14) updateWindowInsets(Insets, DisplayCutoutCompat) — supply simple Insets and null cutout
+            try {
+                // Create Insets via reflection (android.graphics.Insets).
+                Class<?> insetsCls = Class.forName("android.graphics.Insets");
+                Method of = insetsCls.getMethod("of", int.class, int.class, int.class, int.class);
+                Object zeroInsets = of.invoke(null, 0, 0, 0, 0);
+
+                // DisplayCutoutCompat may be absent; pass null
+                Method updateWindowInsets = CarAppViewModel.class.getDeclaredMethod("updateWindowInsets", insetsCls, Class.forName("androidx.core.view.DisplayCutoutCompat"));
+                updateWindowInsets.setAccessible(true);
+                updateWindowInsets.invoke(vm, zeroInsets, null);
+                Log.i(TAG, "updateWindowInsets invoked with zero insets");
+            } catch (ClassNotFoundException cnf) {
+                // library types missing — attempt a fallback that calls the method signature with Object
+                try {
+                    for (Method mm : CarAppViewModel.class.getDeclaredMethods()) {
+                        if (mm.getName().equals("updateWindowInsets")) {
+                            mm.setAccessible(true);
+                            mm.invoke(vm, (Object) null, (Object) null);
+                            Log.i(TAG, "updateWindowInsets fallback invoked with nulls");
+                            break;
+                        }
+                    }
+                } catch (Throwable t) {
+                    Log.w(TAG, "updateWindowInsets fallback failed: " + t);
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "updateWindowInsets failed: " + t);
+            }
+
+            // 15) setInsetsListener(IInsetsListener) — try a dynamic proxy if interface exists
+            try {
+                Class<?> iInsetsCls = Class.forName("androidx.car.app.activity.renderer.IInsetsListener");
+                Object proxyInsets = Proxy.newProxyInstance(iInsetsCls.getClassLoader(), new Class<?>[]{iInsetsCls},
+                        (p, method, args) -> {
+                            Log.i(TAG, "IInsetsListener proxy method: " + method.getName());
+                            return null;
+                        });
+                Method setInsets = CarAppViewModel.class.getDeclaredMethod("setInsetsListener", iInsetsCls);
+                setInsets.setAccessible(true);
+                setInsets.invoke(vm, proxyInsets);
+                Log.i(TAG, "setInsetsListener invoked with dynamic proxy");
+            } catch (ClassNotFoundException cnf) {
+                Log.w(TAG, "IInsetsListener not available - skipping setInsetsListener: " + cnf);
+            } catch (Throwable t) {
+                Log.w(TAG, "setInsetsListener failed: " + t);
+            }
+
+            // 16) invoke private dispatchInsetsUpdates() via reflection
+            try {
+                Method dispatchInsets = CarAppViewModel.class.getDeclaredMethod("dispatchInsetsUpdates");
+                dispatchInsets.setAccessible(true);
+                dispatchInsets.invoke(vm);
+                Log.i(TAG, "dispatchInsetsUpdates invoked (private)");
+            } catch (NoSuchMethodException nsme) {
+                Log.w(TAG, "dispatchInsetsUpdates not present: " + nsme);
+            } catch (Throwable t) {
+                Log.w(TAG, "dispatchInsetsUpdates invocation failed: " + t);
+            }
+
+            // 17) getSafeInsets(DisplayCutoutCompat) private method — call with null
+            try {
+                Method getSafe = CarAppViewModel.class.getDeclaredMethod("getSafeInsets", Class.forName("androidx.core.view.DisplayCutoutCompat"));
+                getSafe.setAccessible(true);
+                Object safeInsets = getSafe.invoke(vm, (Object) null);
+                Log.i(TAG, "getSafeInsets(null) -> " + safeInsets);
+            } catch (ClassNotFoundException cnf) {
+                // fallback: try any method named getSafeInsets
+                try {
+                    for (Method mm : CarAppViewModel.class.getDeclaredMethods()) {
+                        if (mm.getName().equals("getSafeInsets")) {
+                            mm.setAccessible(true);
+                            Object safe = mm.invoke(vm, (Object) null);
+                            Log.i(TAG, "getSafeInsets fallback -> " + safe);
+                            break;
+                        }
+                    }
+                } catch (Throwable t) {
+                    Log.w(TAG, "getSafeInsets fallback failed: " + t);
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "getSafeInsets invocation failed: " + t);
+            }
+
+            Log.i(TAG, "exerciseCarAppViewModel completed (check logs for successes and failures).");
+        } catch (Throwable outer) {
+            Log.e(TAG, "Top-level failure exercising CarAppViewModel: " + outer);
+        }
+    }
+
+
+
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
 
