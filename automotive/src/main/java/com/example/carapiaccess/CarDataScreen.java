@@ -1,5 +1,6 @@
 package com.example.carapiaccess;
 
+import static android.content.Intent.getIntent;
 import static com.google.common.reflect.Reflection.getPackageName;
 
 import android.annotation.SuppressLint;
@@ -194,7 +195,7 @@ public class CarDataScreen extends Screen {
             //exerciseNavigationManager();
 
             //exerciseCarAppPermissionActivityReflection();
-            exerciseCarAppViewModel();
+            exerciseServiceConnectionManager();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1096,7 +1097,7 @@ public class CarDataScreen extends Screen {
 */
             case "activity":
                 return new String[]{
-                        "androidx.car.app.activity.ServiceConnectionManager",
+                        "androidx.car.app.activity.BaseCarAppActivity"
                         /*
                         "androidx.car.app.activity.ActivityLifecycleDelegate",
                         "androidx.car.app.activity.BaseCarAppActivity",
@@ -6176,6 +6177,192 @@ public class CarDataScreen extends Screen {
         }
     }
 
+    public void exerciseServiceConnectionManager() {
+        final String TAG = "ExerciseServiceConnMgr";
+        try {
+            android.content.Context context;
+            try {
+                context = (android.content.Context) this.getClass()
+                        .getMethod("getCarContext")
+                        .invoke(this);
+            } catch (Exception e) {
+                    context = (android.content.Context) this.getClass()
+                            .getMethod("getContext")
+                            .invoke(this);
+            }
+
+            Class<?> scmClass = Class.forName("androidx.car.app.activity.ServiceConnectionManager");
+            Class<?> sessionInfoClass = Class.forName("androidx.car.app.SessionInfo");
+
+            Object sessionInfo = null;
+            try {
+                java.lang.reflect.Field defField =
+                        sessionInfoClass.getField("DEFAULT_SESSION_INFO");
+                sessionInfo = defField.get(null);
+            } catch (NoSuchFieldException nsfe) {
+                try {
+                    sessionInfo = sessionInfoClass.getDeclaredConstructor().newInstance();
+                } catch (Exception ignore) {
+                    sessionInfo = null;
+                }
+            }
+
+            android.content.ComponentName serviceComponentName = new android.content.ComponentName(
+                    context, this.getClass());
+
+            Class<?> listenerInterface = Class.forName(
+                    "androidx.car.app.activity.ServiceConnectionManager$ServiceConnectionListener");
+            Object listener = java.lang.reflect.Proxy.newProxyInstance(
+                    listenerInterface.getClassLoader(),
+                    new Class[]{listenerInterface},
+                    (proxy, method, args) -> {
+                        String mname = method.getName();
+                        if ("onConnect".equals(mname)) {
+                            android.util.Log.i(TAG, "ServiceConnectionListener.onConnect()");
+                            return null;
+                        }
+                        if ("onError".equals(mname) && args != null && args.length == 1) {
+                            android.util.Log.w(TAG, "ServiceConnectionListener.onError: " + args[0]);
+                            return null;
+                        }
+                        // methods from ErrorHandler or other interface: log then return defaults
+                        android.util.Log.d(TAG, "ServiceConnectionListener." + mname + " invoked");
+                        return null;
+                    });
+
+            java.lang.reflect.Constructor<?> ctor = null;
+            for (java.lang.reflect.Constructor<?> c : scmClass.getDeclaredConstructors()) {
+                Class<?>[] params = c.getParameterTypes();
+                if (params.length == 4) {
+                    ctor = c;
+                    break;
+                }
+            }
+            if (ctor == null) {
+                android.util.Log.e(TAG, "Unable to find SCM constructor");
+                return;
+            }
+            ctor.setAccessible(true);
+            Object scm = ctor.newInstance(context, serviceComponentName, sessionInfo, listener);
+            android.util.Log.i(TAG, "Created ServiceConnectionManager instance: " + scm);
+
+            java.util.function.BiFunction<String, Object[], Object> invokeMethod = (name, args) -> {
+                try {
+                    Method found = null;
+                    Method[] methods = scmClass.getDeclaredMethods();
+                    for (Method m : methods) {
+                        if (m.getName().equals(name)
+                                && (args == null ? m.getParameterTypes().length == 0
+                                : m.getParameterTypes().length == args.length)) {
+                            found = m;
+                            break;
+                        }
+                    }
+                    if (found == null) {
+                        found = scmClass.getMethod(name, (Class<?>[]) null);
+                    }
+                    found.setAccessible(true);
+                    Object res;
+                    if (args == null || args.length == 0) {
+                        res = found.invoke(scm);
+                    } else {
+                        res = found.invoke(scm, args);
+                    }
+                    android.util.Log.i(TAG, "Invoked " + name + " -> " + res);
+                    return res;
+                } catch (Exception e) {
+                    android.util.Log.w(TAG, "Invocation of " + name + " failed: " + e);
+                    return null;
+                }
+            };
+
+            invokeMethod.apply("getServiceComponentName", null);
+            invokeMethod.apply("getServiceDispatcher", null);
+            invokeMethod.apply("getServiceConnection", null);
+            invokeMethod.apply("getHandshakeInfo", null);
+            Object bound = invokeMethod.apply("isBound", null);
+
+            try {
+                Method setSC = scmClass.getDeclaredMethod("setServiceConnection",
+                        android.content.ServiceConnection.class);
+                setSC.setAccessible(true);
+                setSC.invoke(scm, new Object[]{null});
+                android.util.Log.i(TAG, "setServiceConnection(null) invoked");
+            } catch (NoSuchMethodException nsme) {
+                android.util.Log.d(TAG, "setServiceConnection(ServiceConnection) not present or not accessible");
+            } catch (Exception e) {
+                android.util.Log.w(TAG, "setServiceConnection(null) failed: " + e);
+            }
+
+            try {
+                for (Method m : scmClass.getDeclaredMethods()) {
+                    if (m.getName().equals("setRendererService") && m.getParameterTypes().length == 1) {
+                        m.setAccessible(true);
+                        m.invoke(scm, new Object[]{null});
+                        android.util.Log.i(TAG, "setRendererService(null) invoked");
+                        break;
+                    }
+                }
+            } catch (Exception e) {
+                android.util.Log.w(TAG, "setRendererService(null) failed: " + e);
+            }
+
+            try {
+                android.content.Intent dummy = new android.content.Intent("com.example.NON_EXISTENT_RENDERER_ACTION");
+
+                Class<?> iCarAppActivityClass = Class.forName("androidx.car.app.activity.renderer.ICarAppActivity");
+                Object iCarAppActivityProxy = java.lang.reflect.Proxy.newProxyInstance(
+                        iCarAppActivityClass.getClassLoader(),
+                        new Class[]{iCarAppActivityClass},
+                        (proxy, method, args) -> {
+                            // log calls and return appropriate defaults
+                            android.util.Log.d(TAG, "ICarAppActivity proxy method: " + method.getName());
+                            Class<?> ret = method.getReturnType();
+                            if (ret == boolean.class) return false;
+                            if (ret == int.class) return 0;
+                            return null;
+                        });
+
+                Method bindMethod = null;
+                for (Method m : scmClass.getDeclaredMethods()) {
+                    if (m.getName().equals("bind") && m.getParameterTypes().length == 3) {
+                        bindMethod = m;
+                        break;
+                    }
+                }
+                if (bindMethod != null) {
+                    bindMethod.setAccessible(true);
+                    Object bindRes = bindMethod.invoke(scm, dummy, iCarAppActivityProxy, Integer.valueOf(-1));
+                    android.util.Log.i(TAG, "bind(...) invoked, result: " + bindRes);
+                } else {
+                    android.util.Log.d(TAG, "bind(...) method not found");
+                }
+            } catch (ClassNotFoundException cnfe) {
+                android.util.Log.d(TAG, "ICarAppActivity class not available: " + cnfe);
+            } catch (Exception e) {
+                android.util.Log.w(TAG, "bind(...) attempt failed: " + e);
+            }
+
+            invokeMethod.apply("unbind", null);
+
+            invokeMethod.apply("initializeService", null);
+
+            try {
+                Method updateIntent = scmClass.getDeclaredMethod("updateIntent");
+                updateIntent.setAccessible(true);
+                Object updateRes = updateIntent.invoke(scm);
+                android.util.Log.i(TAG, "updateIntent() -> " + updateRes);
+            } catch (NoSuchMethodException nsme) {
+                android.util.Log.d(TAG, "updateIntent() not present");
+            } catch (Exception e) {
+                android.util.Log.w(TAG, "updateIntent() invocation failed: " + e);
+            }
+
+            android.util.Log.i(TAG, "ServiceConnectionManager reflection exercise completed.");
+        } catch (Throwable t) {
+            android.util.Log.e("ExerciseServiceConnMgr", "Unexpected failure: ", t);
+        }
+    }
 
 
 
