@@ -1,6 +1,5 @@
 package com.example.carapiaccess;
 
-import static android.content.Intent.getIntent;
 import static com.google.common.reflect.Reflection.getPackageName;
 
 import android.annotation.SuppressLint;
@@ -23,6 +22,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
+import android.os.RemoteException;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.SparseArray;
@@ -48,14 +48,14 @@ import androidx.annotation.OptIn;
 
 //import androidx.car.app.CarAppBinder;
 import androidx.car.app.CarContext;
-import androidx.car.app.HostInfo;
 import androidx.car.app.IStartCarApp;
 import androidx.car.app.Screen;
 //import androidx.car.app.hardware.common.PropertyRequestProcessor;
 import androidx.car.app.SessionInfo;
 import androidx.car.app.activity.CarAppViewModel;
+import androidx.car.app.activity.ErrorHandler;
 import androidx.car.app.activity.LogTags;
-import androidx.car.app.activity.ServiceConnectionManager;
+import androidx.car.app.activity.ServiceDispatcher;
 import androidx.car.app.model.Action;
 import androidx.car.app.model.CarColor;
 import androidx.car.app.model.constraints.ActionsConstraints;
@@ -81,7 +81,7 @@ import androidx.car.app.model.Row;
 import androidx.car.app.model.Template;
 
 
-import androidx.car.app.validation.HostValidator;
+import androidx.car.app.serialization.BundlerException;
 import androidx.core.app.NotificationChannelCompat;
 import androidx.core.app.NotificationChannelGroupCompat;
 import androidx.core.app.NotificationCompat;
@@ -130,7 +130,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 
 public class CarDataScreen extends Screen {
     private static final String TAG = "CarDataScreen";
@@ -176,7 +175,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseAutomotiveCarClimate();
 
-            //dumpCarAppHierarchyAndroidX();
+            dumpCarAppHierarchyAndroidX();
 
             //exerciseAutomotiveCarSensors();
 
@@ -194,8 +193,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            //exerciseCarAppPermissionActivityReflection();
-            exerciseBaseCarAppActivityReflection();
+            exerciseServiceDispatcher();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1097,8 +1095,10 @@ public class CarDataScreen extends Screen {
 */
             case "activity":
                 return new String[]{
-                        "androidx.car.app.activity.BaseCarAppActivity"
-                        /*
+                        "androidx.car.app.activity.HostUpdateReceiver",
+                        "androidx.car.app.activity.LauncherActivity",
+                        "androidx.car.app.activity.ResultManagerAutomotive",
+                    /*
                         "androidx.car.app.activity.ActivityLifecycleDelegate",
                         "androidx.car.app.activity.BaseCarAppActivity",
                         "androidx.car.app.activity.CarAppActivity",
@@ -6538,6 +6538,168 @@ public class CarDataScreen extends Screen {
         } catch (Throwable ignored) { }
 
     }
+
+
+    public void exerciseServiceDispatcher() {
+        try {
+            Class<?> sdClass = Class.forName("androidx.car.app.activity.ServiceDispatcher");
+
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ErrorHandler errorHandler = new androidx.car.app.activity.ErrorHandler() {
+                @Override
+                public void onError(@NonNull ErrorHandler.ErrorType errorType) {
+                    android.util.Log.i("exerciseServiceDispatcher", "ErrorHandler.onError -> " + errorType);
+                }
+            };
+
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ServiceDispatcher.OnBindingListener onBindTrue =
+                    new androidx.car.app.activity.ServiceDispatcher.OnBindingListener() {
+                        @Override
+                        public boolean isBound() {
+                            return true;
+                        }
+                    };
+
+            @SuppressLint("RestrictedApi") java.lang.reflect.Constructor<?> ctor = sdClass.getConstructor(
+                    androidx.car.app.activity.ErrorHandler.class,
+                    androidx.car.app.activity.ServiceDispatcher.OnBindingListener.class);
+            Object dispatcher = ctor.newInstance(errorHandler, onBindTrue);
+
+            // Use reflection to fetch methods
+            @SuppressLint("RestrictedApi") java.lang.reflect.Method setOnBindingListenerM =
+                    sdClass.getMethod("setOnBindingListener",
+                            androidx.car.app.activity.ServiceDispatcher.OnBindingListener.class);
+            @SuppressLint("RestrictedApi") java.lang.reflect.Method dispatchM =
+                    sdClass.getMethod("dispatch", String.class,
+                            androidx.car.app.activity.ServiceDispatcher.OneWayCall.class);
+            @SuppressLint("RestrictedApi") java.lang.reflect.Method dispatchNoFailM =
+                    sdClass.getMethod("dispatchNoFail", String.class,
+                            androidx.car.app.activity.ServiceDispatcher.OneWayCall.class);
+            @SuppressLint("RestrictedApi") java.lang.reflect.Method fetchM =
+                    sdClass.getMethod("fetch", String.class, Object.class,
+                            androidx.car.app.activity.ServiceDispatcher.ReturnCall.class);
+            @SuppressLint("RestrictedApi") java.lang.reflect.Method fetchNoFailM =
+                    sdClass.getMethod("fetchNoFail", String.class, Object.class,
+                            androidx.car.app.activity.ServiceDispatcher.ReturnCall.class);
+
+            setOnBindingListenerM.invoke(dispatcher, onBindTrue);
+
+            // OneWayCall - normal path
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ServiceDispatcher.OneWayCall normalOneWay =
+                    new androidx.car.app.activity.ServiceDispatcher.OneWayCall() {
+                        @Override
+                        public void invoke() {
+                            android.util.Log.i("exerciseServiceDispatcher", "normalOneWay invoked");
+                        }
+                    };
+            dispatchM.invoke(dispatcher, "oneway-normal", normalOneWay);
+
+            // OneWayCall - throw RemoteException
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ServiceDispatcher.OneWayCall remoteThrowingOneWay =
+                    new androidx.car.app.activity.ServiceDispatcher.OneWayCall() {
+                        @SuppressLint("RestrictedApi")
+                        @Override
+                        public void invoke() throws android.os.RemoteException {
+                            throw new android.os.RemoteException("simulated RemoteException");
+                        }
+                    };
+            try {
+                dispatchM.invoke(dispatcher, "oneway-remote-ex", remoteThrowingOneWay);
+            } catch (java.lang.reflect.InvocationTargetException ite) {
+                // dispatch wraps into fetch and catches exceptions internally and will call onError.
+                // InvocationTargetException may appear if reflection wrapper itself throws; log and continue.
+                android.util.Log.i("exerciseServiceDispatcher", "invoked dispatch(remoteThrow) - outer exception: " + ite.getCause());
+            }
+
+            // OneWayCall - throw DeadObjectException
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ServiceDispatcher.OneWayCall deadObjectOneWay =
+                    new androidx.car.app.activity.ServiceDispatcher.OneWayCall() {
+                        @SuppressLint("RestrictedApi")
+                        @Override
+                        public void invoke() throws android.os.DeadObjectException {
+                            throw new android.os.DeadObjectException();
+                        }
+                    };
+            try {
+                dispatchM.invoke(dispatcher, "oneway-dead", deadObjectOneWay);
+            } catch (java.lang.reflect.InvocationTargetException ite) {
+                android.util.Log.i("exerciseServiceDispatcher", "invoked dispatch(deadThrow) - outer exception: " + ite.getCause());
+            }
+
+            // dispatchNoFail
+            dispatchNoFailM.invoke(dispatcher, "oneway-no-fail", remoteThrowingOneWay);
+
+            // fetch() success path
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ServiceDispatcher.ReturnCall<String> successReturn =
+                    new androidx.car.app.activity.ServiceDispatcher.ReturnCall<String>() {
+                        @Override
+                        public String invoke() {
+                            return "OK";
+                        }
+                    };
+            Object fetchSuccessRes = fetchM.invoke(dispatcher, "fetch-success", "fallback", successReturn);
+            android.util.Log.i("exerciseServiceDispatcher", "fetch-success -> " + fetchSuccessRes);
+
+            // fetch() throwing DeadObjectException
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ServiceDispatcher.ReturnCall<String> deadReturn =
+                    new androidx.car.app.activity.ServiceDispatcher.ReturnCall<String>() {
+                        @SuppressLint("RestrictedApi")
+                        @Override
+                        public String invoke() throws android.os.DeadObjectException {
+                            throw new android.os.DeadObjectException();
+                        }
+                    };
+            Object fetchDeadRes = fetchM.invoke(dispatcher, "fetch-dead", "fallback-dead", deadReturn);
+            android.util.Log.i("exerciseServiceDispatcher", "fetch-dead -> " + fetchDeadRes);
+
+            // fetch() throwing BundlerException
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ServiceDispatcher.ReturnCall<String> bundlerThrowReturn =
+                    new androidx.car.app.activity.ServiceDispatcher.ReturnCall<String>() {
+                        @SuppressLint("RestrictedApi")
+                        @Override
+                        public String invoke() throws androidx.car.app.serialization.BundlerException {
+                            throw new androidx.car.app.serialization.BundlerException("simulated bundler failure");
+                        }
+                    };
+            Object fetchBundlerRes = fetchM.invoke(dispatcher, "fetch-bundler", "fallback-bundler", bundlerThrowReturn);
+            android.util.Log.i("exerciseServiceDispatcher", "fetch-bundler -> " + fetchBundlerRes);
+
+            // fetch() throwing RuntimeException
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ServiceDispatcher.ReturnCall<String> runtimeThrowReturn =
+                    new androidx.car.app.activity.ServiceDispatcher.ReturnCall<String>() {
+                        @SuppressLint("RestrictedApi")
+                        @Override
+                        public String invoke() {
+                            throw new RuntimeException("simulated runtime");
+                        }
+                    };
+            Object fetchRuntimeRes = fetchM.invoke(dispatcher, "fetch-runtime", "fallback-runtime", runtimeThrowReturn);
+            android.util.Log.i("exerciseServiceDispatcher", "fetch-runtime -> " + fetchRuntimeRes);
+
+            // fetchNoFail()
+            Object fetchNoFailRes = fetchNoFailM.invoke(dispatcher, "fetchNoFail-bundler", "fallback-no-fail", bundlerThrowReturn);
+            android.util.Log.i("exerciseServiceDispatcher", "fetchNoFail-bundler -> " + fetchNoFailRes);
+
+            // Switch to isBound() == false
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ServiceDispatcher.OnBindingListener onBindFalse =
+                    new androidx.car.app.activity.ServiceDispatcher.OnBindingListener() {
+                        @SuppressLint("RestrictedApi")
+                        @Override
+                        public boolean isBound() {
+                            return false;
+                        }
+                    };
+            setOnBindingListenerM.invoke(dispatcher, onBindFalse);
+
+            dispatchM.invoke(dispatcher, "oneway-skipped", normalOneWay);
+            Object fetchSkipped = fetchM.invoke(dispatcher, "fetch-skipped", "fallback-skipped", successReturn);
+            android.util.Log.i("exerciseServiceDispatcher", "fetch-skipped (should be fallback) -> " + fetchSkipped);
+
+            android.util.Log.i("exerciseServiceDispatcher", "exerciseServiceDispatcher finished.");
+        } catch (Throwable t) {
+            android.util.Log.e("exerciseServiceDispatcher", "Exception while exercising ServiceDispatcher", t);
+        }
+    }
+
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
