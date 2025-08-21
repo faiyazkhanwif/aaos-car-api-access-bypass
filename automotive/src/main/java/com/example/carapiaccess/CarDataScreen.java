@@ -18,6 +18,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.PixelFormat;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
@@ -193,7 +194,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseNavigationManager();
 
-            exerciseServiceDispatcher();
+            exercisePropertyRequestProcessor();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -6697,6 +6698,184 @@ public class CarDataScreen extends Screen {
             android.util.Log.i("exerciseServiceDispatcher", "exerciseServiceDispatcher finished.");
         } catch (Throwable t) {
             android.util.Log.e("exerciseServiceDispatcher", "Exception while exercising ServiceDispatcher", t);
+        }
+    }
+
+    @SuppressLint({"RestrictedApi"})
+    public void ExerciseSurfaceHolderListener() {
+        final String TAG = "EXERCISE_SurfaceHolderListener";
+        try {
+            // Obtain Application context reflectively
+            android.app.Application app =
+                    (android.app.Application) Class.forName("android.app.ActivityThread")
+                            .getMethod("currentApplication")
+                            .invoke(null);
+
+            if (app == null) {
+                android.util.Log.w(TAG, "No Application instance available; aborting exercise.");
+                return;
+            }
+
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.renderer.surface.TemplateSurfaceView templateView =
+                    new androidx.car.app.activity.renderer.surface.TemplateSurfaceView(app, null);
+
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.renderer.surface.SurfaceWrapperProvider surfaceWrapperProvider =
+                    new androidx.car.app.activity.renderer.surface.SurfaceWrapperProvider(templateView);
+
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ErrorHandler errorHandler = new androidx.car.app.activity.ErrorHandler() {
+                @SuppressLint("RestrictedApi")
+                @Override
+                public void onError(@SuppressLint("RestrictedApi") @NonNull ErrorHandler.ErrorType errorType) {
+                    android.util.Log.e(TAG, "ErrorHandler.onError: " + errorType);
+                }
+            };
+
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ServiceDispatcher.OnBindingListener onBindingListener =
+                    new androidx.car.app.activity.ServiceDispatcher.OnBindingListener() {
+                        @SuppressLint("RestrictedApi")
+                        @Override
+                        public boolean isBound() {
+                            // pretend bound so fetch/dispatch will attempt calls
+                            return true;
+                        }
+                    };
+
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.ServiceDispatcher serviceDispatcher =
+                    new androidx.car.app.activity.ServiceDispatcher(errorHandler, onBindingListener);
+
+            @SuppressLint("RestrictedApi") androidx.car.app.activity.renderer.surface.SurfaceHolderListener listener =
+                    new androidx.car.app.activity.renderer.surface.SurfaceHolderListener(
+                            serviceDispatcher, surfaceWrapperProvider);
+
+            // Minimal stub SurfaceHolder implementation
+            android.view.SurfaceHolder dummyHolder = new android.view.SurfaceHolder() {
+                private android.view.SurfaceHolder.Callback storedCallback;
+
+                @Override public void addCallback(Callback callback) { storedCallback = callback; }
+                @Override public void removeCallback(Callback callback) { if (storedCallback == callback) storedCallback = null; }
+                @Override public boolean isCreating() { return false; }
+                @Override public void setType(int i) { /* no-op */ }
+                @Override public void setFixedSize(int i, int i1) { /* no-op */ }
+                @Override public void setSizeFromLayout() { /* no-op */ }
+                @Override public void setFormat(int i) { /* no-op */ }
+
+                @Override
+                public void setKeepScreenOn(boolean b) {
+
+                }
+
+                @Override public android.graphics.Rect getSurfaceFrame() { return new android.graphics.Rect(0,0,100,100); }
+                @Override public android.view.Surface getSurface() { return null; }
+                @Override public android.graphics.Canvas lockCanvas() { return null; }
+                @Override public android.graphics.Canvas lockCanvas(android.graphics.Rect rect) { return null; }
+                @Override public void unlockCanvasAndPost(android.graphics.Canvas canvas) { /* no-op */ }
+                @Override public android.graphics.Canvas lockHardwareCanvas() { return null; }
+            };
+
+            // lifecycle callbacks
+            try {
+                listener.surfaceCreated(dummyHolder);
+                android.util.Log.d(TAG, "surfaceCreated invoked successfully");
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "surfaceCreated threw", t);
+            }
+
+            try {
+                listener.surfaceChanged(dummyHolder, PixelFormat.RGBA_8888, 320, 240);
+                android.util.Log.d(TAG, "surfaceChanged invoked successfully");
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "surfaceChanged threw", t);
+            }
+
+            try {
+                listener.surfaceDestroyed(dummyHolder);
+                android.util.Log.d(TAG, "surfaceDestroyed invoked successfully");
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "surfaceDestroyed threw", t);
+            }
+
+            // mock ISurfaceListener
+            androidx.car.app.activity.renderer.surface.ISurfaceListener clientSurfaceListener =
+                    new androidx.car.app.activity.renderer.surface.ISurfaceListener() {
+                        @Override
+                        public IBinder asBinder() {
+                            return null;
+                        }
+
+                        @Override
+                        public void onSurfaceAvailable(@NonNull androidx.car.app.serialization.Bundleable wrapper) {
+                            android.util.Log.d(TAG, "ISurfaceListener.onSurfaceAvailable -> " + (wrapper == null ? "null" : wrapper.getClass()));
+                        }
+
+                        @Override
+                        public void onSurfaceChanged(@NonNull androidx.car.app.serialization.Bundleable wrapper) {
+                            android.util.Log.d(TAG, "ISurfaceListener.onSurfaceChanged -> " + (wrapper == null ? "null" : wrapper.getClass()));
+                        }
+
+                        @Override
+                        public void onSurfaceDestroyed(@NonNull androidx.car.app.serialization.Bundleable wrapper) {
+                            android.util.Log.d(TAG, "ISurfaceListener.onSurfaceDestroyed -> " + (wrapper == null ? "null" : wrapper.getClass()));
+                        }
+                    };
+
+            try {
+                listener.setSurfaceListener(clientSurfaceListener);
+                android.util.Log.d(TAG, "setSurfaceListener(non-null) succeeded");
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "setSurfaceListener(non-null) threw", t);
+            }
+
+            try {
+                listener.setSurfaceListener(null);
+                android.util.Log.d(TAG, "setSurfaceListener(null) succeeded");
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "setSurfaceListener(null) threw", t);
+            }
+
+            try {
+                listener.surfaceCreated(dummyHolder);
+                listener.setSurfaceListener(clientSurfaceListener);
+                android.util.Log.d(TAG, "surfaceCreated + setSurfaceListener triggered onSurfaceAvailable path");
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "re-triggering created/listener threw", t);
+            }
+
+            try {
+                java.lang.reflect.Method mCreated =
+                        androidx.car.app.activity.renderer.surface.SurfaceHolderListener.class
+                                .getDeclaredMethod("notifySurfaceCreated");
+                mCreated.setAccessible(true);
+                mCreated.invoke(listener);
+                android.util.Log.d(TAG, "notifySurfaceCreated (reflective) invoked");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "notifySurfaceCreated reflection failed", t);
+            }
+
+            try {
+                java.lang.reflect.Method mChanged =
+                        androidx.car.app.activity.renderer.surface.SurfaceHolderListener.class
+                                .getDeclaredMethod("notifySurfaceChanged");
+                mChanged.setAccessible(true);
+                mChanged.invoke(listener);
+                android.util.Log.d(TAG, "notifySurfaceChanged (reflective) invoked");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "notifySurfaceChanged reflection failed", t);
+            }
+
+            try {
+                java.lang.reflect.Method mDestroyed =
+                        androidx.car.app.activity.renderer.surface.SurfaceHolderListener.class
+                                .getDeclaredMethod("notifySurfaceDestroyed");
+                mDestroyed.setAccessible(true);
+                mDestroyed.invoke(listener);
+                android.util.Log.d(TAG, "notifySurfaceDestroyed (reflective) invoked");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "notifySurfaceDestroyed reflection failed", t);
+            }
+
+            android.util.Log.i(TAG, "Aggressive exercise completed.");
+        } catch (Throwable outer) {
+            android.util.Log.e("EXERCISE_SurfaceHolderListener", "Unexpected failure exercising SurfaceHolderListener", outer);
         }
     }
 
