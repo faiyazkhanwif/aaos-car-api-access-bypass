@@ -193,8 +193,7 @@ public class CarDataScreen extends Screen {
             //exerciseHostValidator();
 
             //exerciseNavigationManager();
-
-            exercisePropertyRequestProcessor();
+            exerciseCabinTemperatureProfile();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1094,46 +1093,41 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.SurfaceContainer"
                 };
 */
-            case "activity":
+            case "hardware.climate":
                 return new String[]{
-                        "androidx.car.app.activity.HostUpdateReceiver",
-                        "androidx.car.app.activity.LauncherActivity",
-                        "androidx.car.app.activity.ResultManagerAutomotive",
-                    /*
-                        "androidx.car.app.activity.ActivityLifecycleDelegate",
-                        "androidx.car.app.activity.BaseCarAppActivity",
-                        "androidx.car.app.activity.CarAppActivity",
-                        "androidx.car.app.activity.CarAppViewModel",
-                        "androidx.car.app.activity.CarAppViewModelFactory",
-                        "androidx.car.app.activity.ErrorHandler",
-                        "androidx.car.app.activity.HostUpdateReceiver",
-                        "androidx.car.app.activity.LauncherActivity",
-                        "androidx.car.app.activity.LogTags",
-                        "androidx.car.app.activity.ResultManagerAutomotive",
-                        "androidx.car.app.activity.ServiceConnectionManager",
-                        "androidx.car.app.activity.ServiceDispatcher",
-                        // renderer
-                        "androidx.car.app.activity.renderer.ICarAppActivity",
-                        "androidx.car.app.activity.renderer.IInsetsListener",
-                        "androidx.car.app.activity.renderer.IProxyInputConnection",
-                        "androidx.car.app.activity.renderer.IRendererCallback",
-                        "androidx.car.app.activity.renderer.IRendererService",
-                        // renderer.surface
-                        "androidx.car.app.activity.renderer.surface.ISurfaceControl",
-                        "androidx.car.app.activity.renderer.surface.ISurfaceListener",
-                        "androidx.car.app.activity.renderer.surface.LegacySurfacePackage",
-                        "androidx.car.app.activity.renderer.surface.OnBackPressedListener",
-                        "androidx.car.app.activity.renderer.surface.OnCreateInputConnectionListener",
-                        "androidx.car.app.activity.renderer.surface.RemoteProxyInputConnection",
-                        "androidx.car.app.activity.renderer.surface.SurfaceControlCallback",
-                        "androidx.car.app.activity.renderer.surface.SurfaceHolderListener",
-                        "androidx.car.app.activity.renderer.surface.SurfaceWrapper",
-                        "androidx.car.app.activity.renderer.surface.SurfaceWrapperProvider",
-                        "androidx.car.app.activity.renderer.surface.TemplateSurfaceView",
-                        // ui
-                        "androidx.car.app.activity.ui.ErrorMessageView",
-                        "androidx.car.app.activity.ui.LoadingView"
-                        */
+                        "androidx.car.app.hardware.climate.CabinTemperatureProfile",
+                        "androidx.car.app.hardware.climate.CarClimate",
+                        "androidx.car.app.hardware.climate.CarClimateFeature",
+                        "androidx.car.app.hardware.climate.CarClimateProfileCallback",
+                        "androidx.car.app.hardware.climate.CarClimateStateCallback",
+
+                        /*
+                        "androidx.car.app.hardware.climate.AutomotiveCarClimate",
+                        "androidx.car.app.hardware.climate.CabinTemperatureProfile",
+                        "androidx.car.app.hardware.climate.CarClimate",
+                        "androidx.car.app.hardware.climate.CarClimateFeature",
+                        "androidx.car.app.hardware.climate.CarClimateProfileCallback",
+                        "androidx.car.app.hardware.climate.CarClimateStateCallback",
+                        "androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
+                        "androidx.car.app.hardware.climate.ClimateProfileRequest",
+                        "androidx.car.app.hardware.climate.ClimateStateRequest",
+                        "androidx.car.app.hardware.climate.DefrosterProfile",
+                        "androidx.car.app.hardware.climate.ElectricDefrosterProfile",
+                        "androidx.car.app.hardware.climate.FanDirectionProfile",
+                        "androidx.car.app.hardware.climate.FanSpeedLevelProfile",
+                        "androidx.car.app.hardware.climate.HvacAcProfile",
+                        "androidx.car.app.hardware.climate.HvacAutoModeProfile",
+                        "androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
+                        "androidx.car.app.hardware.climate.HvacDualModeProfile",
+                        "androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
+                        "androidx.car.app.hardware.climate.HvacPowerProfile",
+                        "androidx.car.app.hardware.climate.HvacRecirculationProfile",
+                        "androidx.car.app.hardware.climate.MaxDefrosterProfile",
+                        "androidx.car.app.hardware.climate.RegisterClimateStateRequest",
+                        "androidx.car.app.hardware.climate.SeatTemperatureProfile",
+                        "androidx.car.app.hardware.climate.SeatVentilationProfile",
+                        "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
+                                */
                 };
             default:
                 return new String[0];
@@ -6879,6 +6873,161 @@ public class CarDataScreen extends Screen {
         }
     }
 
+    public void exerciseCabinTemperatureProfile() {
+        final String TAG = "CabinTempProfileReflex";
+        try {
+            Class<?> cpClass = Class.forName(
+                    "androidx.car.app.hardware.climate.CabinTemperatureProfile");
+            Class<?> builderClass = Class.forName(
+                    "androidx.car.app.hardware.climate.CabinTemperatureProfile$Builder");
+            Class<?> carZoneClass = Class.forName(
+                    "androidx.car.app.hardware.common.CarZone");
+
+            android.util.Pair<Float, Float> celsiusRange =
+                    new android.util.Pair<>(18.0f, 30.0f);
+            android.util.Pair<Float, Float> fahrenheitRange =
+                    new android.util.Pair<>(64.4f, 86.0f);
+
+            java.util.HashSet<Object> zoneSet = new java.util.HashSet<>();
+            Object carZoneGlobal = carZoneClass.getField("CAR_ZONE_GLOBAL").get(null);
+            zoneSet.add(carZoneGlobal);
+            java.util.Map<java.util.Set<Object>, android.util.Pair<Float, Float>> zoneMap =
+                    new java.util.HashMap<>();
+            zoneMap.put(zoneSet, celsiusRange);
+
+            // Build a populated profile via direct API
+            Object populatedBuilder =
+                    builderClass.getDeclaredConstructor().newInstance();
+            try {
+                // use reflection to chain builder setters
+                builderClass.getMethod("setSupportedMinMaxCelsiusRange", android.util.Pair.class)
+                        .invoke(populatedBuilder, celsiusRange);
+                builderClass.getMethod("setSupportedMinMaxFahrenheitRange", android.util.Pair.class)
+                        .invoke(populatedBuilder, fahrenheitRange);
+                builderClass.getMethod("setCarZoneSetsToCabinCelsiusTemperatureRanges",
+                        java.util.Map.class).invoke(populatedBuilder, zoneMap);
+                builderClass.getMethod("setCelsiusSupportedIncrement", float.class)
+                        .invoke(populatedBuilder, 0.5f);
+                builderClass.getMethod("setFahrenheitSupportedIncrement", float.class)
+                        .invoke(populatedBuilder, 1.0f);
+            } catch (NoSuchMethodException nsme) {
+                Log.w(TAG, "Some Builder methods not found by reflection: " + nsme);
+            }
+            Object populatedProfile =
+                    builderClass.getMethod("build").invoke(populatedBuilder);
+
+            // Build a default profile
+            Object defaultBuilder = builderClass.getDeclaredConstructor().newInstance();
+            Object defaultProfile = builderClass.getMethod("build").invoke(defaultBuilder);
+
+            java.util.function.Consumer<Object> runChecks = (instance) -> {
+                try {
+                    Log.i(TAG, "=== Running checks on instance: " + instance.getClass().getName()
+                            + " @ " + System.identityHashCode(instance));
+                    java.lang.reflect.Method[] methods = cpClass.getDeclaredMethods();
+                    for (java.lang.reflect.Method m : methods) {
+                        m.setAccessible(true);
+                        if (m.getParameterCount() == 0) {
+                            try {
+                                Object result = m.invoke(instance);
+                                Log.i(TAG, "Invoked " + m.getName() + " -> " + result);
+                            } catch (java.lang.reflect.InvocationTargetException ite) {
+                                Throwable cause = ite.getCause();
+                                Log.w(TAG, "Invocation of " + m.getName() + " threw: "
+                                        + (cause == null ? ite.toString() : cause.toString()));
+                            } catch (Exception e) {
+                                Log.w(TAG, "Failed to invoke " + m.getName() + ": " + e);
+                            }
+                        } else {
+                            // log method signature for awareness; aggressive: try small known patterns
+                            Log.d(TAG, "Skipping non-zero-arg method: " + m);
+                        }
+                    }
+
+                    try {
+                        java.lang.reflect.Method toStr = cpClass.getMethod("toString");
+                        Object s = toStr.invoke(instance);
+                        Log.i(TAG, "toString(): " + s);
+                    } catch (Exception ignored) {}
+                    try {
+                        java.lang.reflect.Method hash = cpClass.getMethod("hashCode");
+                        Object h = hash.invoke(instance);
+                        Log.i(TAG, "hashCode(): " + h);
+                    } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    Log.e(TAG, "runChecks generic failure", e);
+                }
+            };
+
+            runChecks.accept(populatedProfile);
+            runChecks.accept(defaultProfile);
+
+            try {
+                java.lang.reflect.Constructor<?> ctor = cpClass.getDeclaredConstructor(builderClass);
+                ctor.setAccessible(true);
+                Object profileFromCtor = ctor.newInstance(populatedBuilder);
+                Log.i(TAG, "Constructed via package-private ctor: " + profileFromCtor);
+                runChecks.accept(profileFromCtor);
+            } catch (NoSuchMethodException nsme) {
+                Log.w(TAG, "Package-private ctor(builder) not found: " + nsme);
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to call package-private ctor(builder): " + e);
+            }
+
+            // Inspect static fields
+            java.lang.reflect.Field[] fields = cpClass.getDeclaredFields();
+            for (java.lang.reflect.Field f : fields) {
+                try {
+                    f.setAccessible(true);
+                    if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                        Object val = f.get(null);
+                        Log.i(TAG, "Static field: " + f.getName() + " = " + String.valueOf(val));
+                    }
+                } catch (Exception e) {
+                    Log.d(TAG, "Could not read static field " + f.getName() + " : " + e);
+                }
+            }
+
+            // exercise Builder methods
+            try {
+                Object chainBuilder = builderClass.getDeclaredConstructor().newInstance();
+                java.lang.reflect.Method m1 = builderClass.getMethod("setSupportedMinMaxCelsiusRange",
+                        android.util.Pair.class);
+                java.lang.reflect.Method m2 = builderClass.getMethod("setCelsiusSupportedIncrement",
+                        float.class);
+                java.lang.reflect.Method buildMethod = builderClass.getMethod("build");
+
+                // chain by invoking and reusing returned Builder (these setters return Builder)
+                Object ret1 = m1.invoke(chainBuilder, celsiusRange);
+                Log.i(TAG, "Builder.setSupportedMinMaxCelsiusRange returned: " + ret1);
+                Object ret2 = m2.invoke(chainBuilder, 0.5f);
+                Log.i(TAG, "Builder.setCelsiusSupportedIncrement returned: " + ret2);
+
+                Object built = buildMethod.invoke(chainBuilder);
+                Log.i(TAG, "Built profile via reflection build(): " + built);
+                runChecks.accept(built);
+            } catch (NoSuchMethodException nsm) {
+                Log.w(TAG, "Builder methods not found for chaining: " + nsm);
+            } catch (Exception e) {
+                Log.w(TAG, "Problem exercising Builder via reflection: " + e);
+            }
+
+            try {
+                java.lang.reflect.Method getter = cpClass.getMethod("getSupportedMinMaxCelsiusRange");
+                Object res = getter.invoke(defaultProfile);
+                Log.i(TAG, "DEFAULT profile celsius range (unexpectedly present): " + res);
+            } catch (java.lang.reflect.InvocationTargetException ite) {
+                Log.i(TAG, "Expected exception when calling getter on defaultProfile: "
+                        + ite.getCause());
+            } catch (Exception e) {
+                Log.w(TAG, "Unexpected error when calling getter on defaultProfile: " + e);
+            }
+
+            Log.i(TAG, "CabinTemperatureProfile reflection exercise completed.");
+        } catch (Exception e) {
+            Log.e("CabinTempProfileReflex", "Unexpected top-level error", e);
+        }
+    }
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
