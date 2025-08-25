@@ -192,7 +192,8 @@ public class CarDataScreen extends Screen {
 
             //exerciseHostValidator();
 
-            exerciseCarPropertyProfileReflection();
+            exercisePropertyUtilsReflection();
+            //exercisePropertyRequestProcessor();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1094,9 +1095,10 @@ public class CarDataScreen extends Screen {
 */
             case "hardware.common":
                 return new String[]{
-                        "androidx.car.app.hardware.common.CarSetOperationStatusCallback",
-                        "androidx.car.app.hardware.common.CarPropertyProfile",
-                        "androidx.car.app.hardware.common.PropertyUtils"
+                        "androidx.car.app.hardware.common.CarInternalError",
+                        "androidx.car.app.hardware.common.PropertyUtils",
+                        "androidx.car.app.hardware.common.GetPropertyRequest",
+                        "androidx.car.app.hardware.common.PropertyIdAreaId",
 
                         /*
 
@@ -7166,6 +7168,289 @@ public class CarDataScreen extends Screen {
             android.util.Log.e("ReflectionTest", "Unexpected error exercising CarPropertyProfile", e);
         }
     }
+
+    public void exercisePropertyUtilsReflection() {
+        final String TAG = "PropertyUtilsExercise";
+        try {
+            // Load the class under test.
+            Class<?> utilsCls = Class.forName("androidx.car.app.hardware.common.PropertyUtils");
+
+            // convertSpeedUnit(int vehicleUnit)
+            try {
+                java.lang.reflect.Method mConvertSpeed =
+                        utilsCls.getMethod("convertSpeedUnit", int.class);
+                // VEHICLE_UNIT_MILES_PER_HOUR used in source as 0x90 -> pass 0x90
+                int convertedSpeed = (Integer) mConvertSpeed.invoke(null, 0x90);
+                android.util.Log.i(TAG, "convertSpeedUnit(0x90) => " + convertedSpeed);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "convertSpeedUnit failed", t);
+            }
+
+            // convertDistanceUnit(int vehicleUnit)
+            try {
+                java.lang.reflect.Method mConvertDistance =
+                        utilsCls.getMethod("convertDistanceUnit", int.class);
+                // VEHICLE_UNIT_METER (0x21) from source -> pass 0x21
+                int convertedDistance = (Integer) mConvertDistance.invoke(null, 0x21);
+                android.util.Log.i(TAG, "convertDistanceUnit(0x21) => " + convertedDistance);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "convertDistanceUnit failed", t);
+            }
+
+            // convertVolumeUnit(int vehicleUnit)
+            try {
+                java.lang.reflect.Method mConvertVolume =
+                        utilsCls.getMethod("convertVolumeUnit", int.class);
+                // VEHICLE_UNIT_VOLUME_LITER used in source as 0x41
+                int convertedVolume = (Integer) mConvertVolume.invoke(null, 0x41);
+                android.util.Log.i(TAG, "convertVolumeUnit(0x41) => " + convertedVolume);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "convertVolumeUnit failed", t);
+            }
+
+            // convertEvConnectorType(int vehicleEvConnectorType)
+            try {
+                java.lang.reflect.Method mConvertEv =
+                        utilsCls.getMethod("convertEvConnectorType", int.class);
+                int evType = (Integer) mConvertEv.invoke(null, 2);
+                android.util.Log.i(TAG, "convertEvConnectorType(2) => " + evType);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "convertEvConnectorType failed", t);
+            }
+
+            // convertPropertyValueToPropertyResponse(CarPropertyValue<?>)
+            try {
+                Class<?> carPropValCls = Class.forName("android.car.hardware.CarPropertyValue");
+                java.lang.reflect.Method mConvertProp =
+                        utilsCls.getMethod("convertPropertyValueToPropertyResponse", carPropValCls);
+
+                Object carPropValInstance = null;
+                try {
+                    java.lang.reflect.Constructor<?>[] ctors = carPropValCls.getConstructors();
+                    boolean made = false;
+                    for (java.lang.reflect.Constructor<?> ctor : ctors) {
+                        Class<?>[] params = ctor.getParameterTypes();
+                        try {
+                            if (params.length == 5 &&
+                                    params[0] == int.class &&
+                                    params[1] == int.class &&
+                                    params[2] == long.class &&
+                                    params[3] == int.class) {
+                                int propertyId = 1;
+                                int areaId = 0; // fallback to 0 (global)
+                                try {
+                                    Class<?> vehicleAreaType = Class.forName("android.car.VehicleAreaType");
+                                    areaId = vehicleAreaType.getField("VEHICLE_AREA_TYPE_GLOBAL").getInt(null);
+                                } catch (Throwable ignored) { /* fallback 0 */ }
+                                long timestamp = java.lang.System.nanoTime();
+                                int status = 0;
+                                try {
+                                    status = carPropValCls.getField("STATUS_AVAILABLE").getInt(null);
+                                } catch (Throwable ignored) { /* fallback 0 */ }
+                                Object value = Float.valueOf(21.5f);
+                                carPropValInstance = ctor.newInstance(propertyId, areaId, timestamp, status, value);
+                                made = true;
+                                break;
+                            } else if (params.length == 4 &&
+                                    params[0] == int.class &&
+                                    params[1] == int.class &&
+                                    params[2] == long.class) {
+                                // (propertyId, areaId, timestamp, value)
+                                int propertyId = 1;
+                                int areaId = 0;
+                                try {
+                                    Class<?> vehicleAreaType = Class.forName("android.car.VehicleAreaType");
+                                    areaId = vehicleAreaType.getField("VEHICLE_AREA_TYPE_GLOBAL").getInt(null);
+                                } catch (Throwable ignored) { /* fallback 0 */ }
+                                long timestamp = java.lang.System.nanoTime();
+                                Object value = Float.valueOf(19.0f);
+                                carPropValInstance = ctor.newInstance(propertyId, areaId, timestamp, value);
+                                made = true;
+                                break;
+                            }
+                        } catch (Throwable ctorEx) {
+                        }
+                    }
+                    if (!made) {
+                        android.util.Log.w(TAG,
+                                "No matching CarPropertyValue constructor found or instantiation failed; will try null placeholder.");
+                    }
+                } catch (Throwable createEx) {
+                    android.util.Log.w(TAG, "CarPropertyValue construction attempt failed", createEx);
+                }
+
+                try {
+                    Object response = mConvertProp.invoke(null, carPropValInstance);
+                    android.util.Log.i(TAG, "convertPropertyValueToPropertyResponse => " + response);
+                } catch (Throwable tInvoke) {
+                    android.util.Log.w(TAG,
+                            "convertPropertyValueToPropertyResponse invocation failed (CarPropertyValue may be unavailable):", tInvoke);
+                }
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "convertPropertyValueToPropertyResponse reflection setup failed", t);
+            }
+
+            // getReadPermissionsByPropertyIds(List<Integer>)
+            try {
+                java.lang.reflect.Method mGetReadPerms =
+                        utilsCls.getDeclaredMethod("getReadPermissionsByPropertyIds", java.util.List.class);
+                mGetReadPerms.setAccessible(true);
+                // craft parameter: empty list -> safe path (no SecurityException)
+                java.util.List<Integer> emptyList = java.util.Collections.emptyList();
+                emptyList.add(287310851);
+                //emptyList.add(287311364);
+                //emptyList.add(289408513);
+                java.util.Set<String> readPerms = (java.util.Set<String>) mGetReadPerms.invoke(null, emptyList);
+                android.util.Log.i(TAG, "getReadPermissionsByPropertyIds(empty) => " + readPerms);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "getReadPermissionsByPropertyIds failed", t);
+            }
+
+            // getWritePermissions(List<Pair<Integer,Integer>>)
+            try {
+                java.lang.reflect.Method mGetWritePerms =
+                        utilsCls.getDeclaredMethod("getWritePermissions", java.util.List.class);
+                mGetWritePerms.setAccessible(true);
+                // craft parameter: empty list -> safe path
+                java.util.List<?> emptyPairs = java.util.Collections.emptyList();
+                java.util.Set<String> writePerms = (java.util.Set<String>) mGetWritePerms.invoke(null, emptyPairs);
+                android.util.Log.i(TAG, "getWritePermissions(empty) => " + writePerms);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "getWritePermissions failed", t);
+            }
+
+            // isGlobalProperty(int propertyId)
+            try {
+                java.lang.reflect.Method mIsGlobal = utilsCls.getDeclaredMethod("isGlobalProperty", int.class);
+                mIsGlobal.setAccessible(true);
+                // pass VEHICLE_AREA_GLOBAL (0x01000000) to match mask check in source
+                boolean isGlobal = (Boolean) mIsGlobal.invoke(null, 0x01000000);
+                android.util.Log.i(TAG, "isGlobalProperty(0x01000000) => " + isGlobal);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "isGlobalProperty failed", t);
+            }
+
+            // isOnChangeProperty(int propertyId)
+            try {
+                java.lang.reflect.Method mIsOnChange = utilsCls.getDeclaredMethod("isOnChangeProperty", int.class);
+                mIsOnChange.setAccessible(true);
+                // choose a likely-non-onchange id (e.g., 99999) to get false
+                boolean onChange = (Boolean) mIsOnChange.invoke(null, 99999);
+                android.util.Log.i(TAG, "isOnChangeProperty(99999) => " + onChange);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "isOnChangeProperty failed", t);
+            }
+
+            // mapToStatusCodeInCarValue(int carPropertyStatus)
+            try {
+                java.lang.reflect.Method mMapStatus = utilsCls.getDeclaredMethod("mapToStatusCodeInCarValue", int.class);
+                mMapStatus.setAccessible(true);
+                int statusAvailable = -12345;
+                try {
+                    Class<?> carPropValCls = Class.forName("android.car.hardware.CarPropertyValue");
+                    statusAvailable = carPropValCls.getField("STATUS_AVAILABLE").getInt(null);
+                } catch (Throwable t) {
+                    // Fallback to 0 which is likely STATUS_AVAILABLE in many Android versions
+                    statusAvailable = 0;
+                }
+                int mappedCode = (Integer) mMapStatus.invoke(null, statusAvailable);
+                android.util.Log.i(TAG, "mapToStatusCodeInCarValue(statusAvailable=" + statusAvailable + ") => " + mappedCode);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "mapToStatusCodeInCarValue failed", t);
+            }
+
+            // getPropertyIdWithAreaIds(Map<Integer, List<CarZone>> propertyIdToCarZones)
+            try {
+                java.lang.reflect.Method mGetPropWithArea =
+                        utilsCls.getDeclaredMethod("getPropertyIdWithAreaIds", java.util.Map.class);
+                mGetPropWithArea.setAccessible(true);
+
+                // Build CarZone.ALL via CarZone.Builder reflection:
+                Class<?> carZoneCls = Class.forName("androidx.car.app.hardware.common.CarZone");
+                Class<?> carZoneBuilderCls = Class.forName("androidx.car.app.hardware.common.CarZone$Builder");
+                Object builder = carZoneBuilderCls.getConstructor().newInstance();
+
+                // fetch constants CAR_ZONE_ROW_ALL and CAR_ZONE_COLUMN_ALL
+                int rowAll = (Integer) carZoneCls.getField("CAR_ZONE_ROW_ALL").getInt(null);
+                int colAll = (Integer) carZoneCls.getField("CAR_ZONE_COLUMN_ALL").getInt(null);
+                // builder.setRow(rowAll).setColumn(colAll)
+                java.lang.reflect.Method setRow = carZoneBuilderCls.getMethod("setRow", int.class);
+                java.lang.reflect.Method setCol = carZoneBuilderCls.getMethod("setColumn", int.class);
+                java.lang.reflect.Method build = carZoneBuilderCls.getMethod("build");
+                setRow.invoke(builder, rowAll);
+                setCol.invoke(builder, colAll);
+                Object carZoneAll = build.invoke(builder);
+
+                java.util.List<Object> zonesList = new java.util.ArrayList<>();
+                zonesList.add(carZoneAll);
+                java.util.Map<Integer, java.util.List<Object>> propMap = new java.util.HashMap<>();
+                propMap.put(1, zonesList); // propertyId=1 (arbitrary valid id)
+
+                java.util.List<?> uids = (java.util.List<?>) mGetPropWithArea.invoke(null, propMap);
+                android.util.Log.i(TAG, "getPropertyIdWithAreaIds(...) => size: " + (uids == null ? "null" : uids.size()) + " entries: " + uids);
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "getPropertyIdWithAreaIds failed or host classes unavailable", t);
+            }
+
+            // getMinMaxProfileIntegerMap(Map<Set<CarZone>, ? extends Pair<?, ?>>)
+            try {
+                java.lang.reflect.Method mMinMaxInt =
+                        utilsCls.getMethod("getMinMaxProfileIntegerMap", java.util.Map.class);
+                // create a map: key = Set<CarZone> with CAR_ZONE_ALL, value = Pair<Integer,Integer>(10, 20)
+                Class<?> carZoneCls = Class.forName("androidx.car.app.hardware.common.CarZone");
+                java.util.HashSet<Object> keySet = new java.util.HashSet<>();
+                // reuse CAR_ZONE_ALL building
+                Class<?> carZoneBuilderCls = Class.forName("androidx.car.app.hardware.common.CarZone$Builder");
+                Object builder = carZoneBuilderCls.getConstructor().newInstance();
+                int rowAll = (Integer) carZoneCls.getField("CAR_ZONE_ROW_ALL").getInt(null);
+                int colAll = (Integer) carZoneCls.getField("CAR_ZONE_COLUMN_ALL").getInt(null);
+                java.lang.reflect.Method setRow = carZoneBuilderCls.getMethod("setRow", int.class);
+                java.lang.reflect.Method setCol = carZoneBuilderCls.getMethod("setColumn", int.class);
+                java.lang.reflect.Method build = carZoneBuilderCls.getMethod("build");
+                setRow.invoke(builder, rowAll);
+                setCol.invoke(builder, colAll);
+                Object carZoneAll = build.invoke(builder);
+                keySet.add(carZoneAll);
+                java.util.Map<java.util.Set<Object>, android.util.Pair<Integer, Integer>> minMaxIntMap = new java.util.HashMap<>();
+                minMaxIntMap.put(keySet, new android.util.Pair<>(10, 20));
+                java.util.Map resultIntMap = (java.util.Map) mMinMaxInt.invoke(null, minMaxIntMap);
+                android.util.Log.i(TAG, "getMinMaxProfileIntegerMap => " + resultIntMap);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "getMinMaxProfileIntegerMap failed", t);
+            }
+
+            // 13) getMinMaxProfileFloatMap(Map<Set<CarZone>, ? extends Pair<?, ?>>)
+            try {
+                java.lang.reflect.Method mMinMaxFloat =
+                        utilsCls.getMethod("getMinMaxProfileFloatMap", java.util.Map.class);
+                // prepare map: Pair<Float,Float> - note Pair uses raw android.util.Pair
+                Class<?> carZoneCls = Class.forName("androidx.car.app.hardware.common.CarZone");
+                java.util.HashSet<Object> keySet = new java.util.HashSet<>();
+                Class<?> carZoneBuilderCls = Class.forName("androidx.car.app.hardware.common.CarZone$Builder");
+                Object builder = carZoneBuilderCls.getConstructor().newInstance();
+                int rowAll = (Integer) carZoneCls.getField("CAR_ZONE_ROW_ALL").getInt(null);
+                int colAll = (Integer) carZoneCls.getField("CAR_ZONE_COLUMN_ALL").getInt(null);
+                java.lang.reflect.Method setRow2 = carZoneBuilderCls.getMethod("setRow", int.class);
+                java.lang.reflect.Method setCol2 = carZoneBuilderCls.getMethod("setColumn", int.class);
+                java.lang.reflect.Method build2 = carZoneBuilderCls.getMethod("build");
+                setRow2.invoke(builder, rowAll);
+                setCol2.invoke(builder, colAll);
+                Object carZoneAll2 = build2.invoke(builder);
+                keySet.add(carZoneAll2);
+                java.util.Map<java.util.Set<Object>, android.util.Pair<Float, Float>> minMaxFloatMap = new java.util.HashMap<>();
+                minMaxFloatMap.put(keySet, new android.util.Pair<>(15.5f, 25.0f));
+                java.util.Map resultFloatMap = (java.util.Map) mMinMaxFloat.invoke(null, minMaxFloatMap);
+                android.util.Log.i(TAG, "getMinMaxProfileFloatMap => " + resultFloatMap);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "getMinMaxProfileFloatMap failed", t);
+            }
+
+            android.util.Log.i(TAG, "PropertyUtils reflection exercise completed.");
+        } catch (Throwable topEx) {
+            android.util.Log.e("PropertyUtilsExercise", "Unexpected failure setting up reflection.", topEx);
+        }
+    }
+
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
