@@ -192,8 +192,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseHostValidator();
 
-            //exerciseNavigationManager();
-            exerciseCabinTemperatureProfile();
+            exerciseCarPropertyProfileReflection();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1093,41 +1092,37 @@ public class CarDataScreen extends Screen {
                         "androidx.car.app.SurfaceContainer"
                 };
 */
-            case "hardware.climate":
+            case "hardware.common":
                 return new String[]{
-                        "androidx.car.app.hardware.climate.CabinTemperatureProfile",
-                        "androidx.car.app.hardware.climate.CarClimate",
-                        "androidx.car.app.hardware.climate.CarClimateFeature",
-                        "androidx.car.app.hardware.climate.CarClimateProfileCallback",
-                        "androidx.car.app.hardware.climate.CarClimateStateCallback",
+                        "androidx.car.app.hardware.common.CarSetOperationStatusCallback",
+                        "androidx.car.app.hardware.common.CarPropertyProfile",
+                        "androidx.car.app.hardware.common.PropertyUtils"
 
                         /*
-                        "androidx.car.app.hardware.climate.AutomotiveCarClimate",
-                        "androidx.car.app.hardware.climate.CabinTemperatureProfile",
-                        "androidx.car.app.hardware.climate.CarClimate",
-                        "androidx.car.app.hardware.climate.CarClimateFeature",
-                        "androidx.car.app.hardware.climate.CarClimateProfileCallback",
-                        "androidx.car.app.hardware.climate.CarClimateStateCallback",
-                        "androidx.car.app.hardware.climate.CarZoneMappingInfoProfile",
-                        "androidx.car.app.hardware.climate.ClimateProfileRequest",
-                        "androidx.car.app.hardware.climate.ClimateStateRequest",
-                        "androidx.car.app.hardware.climate.DefrosterProfile",
-                        "androidx.car.app.hardware.climate.ElectricDefrosterProfile",
-                        "androidx.car.app.hardware.climate.FanDirectionProfile",
-                        "androidx.car.app.hardware.climate.FanSpeedLevelProfile",
-                        "androidx.car.app.hardware.climate.HvacAcProfile",
-                        "androidx.car.app.hardware.climate.HvacAutoModeProfile",
-                        "androidx.car.app.hardware.climate.HvacAutoRecirculationProfile",
-                        "androidx.car.app.hardware.climate.HvacDualModeProfile",
-                        "androidx.car.app.hardware.climate.HvacMaxAcModeProfile",
-                        "androidx.car.app.hardware.climate.HvacPowerProfile",
-                        "androidx.car.app.hardware.climate.HvacRecirculationProfile",
-                        "androidx.car.app.hardware.climate.MaxDefrosterProfile",
-                        "androidx.car.app.hardware.climate.RegisterClimateStateRequest",
-                        "androidx.car.app.hardware.climate.SeatTemperatureProfile",
-                        "androidx.car.app.hardware.climate.SeatVentilationProfile",
-                        "androidx.car.app.hardware.climate.SteeringWheelHeatProfile"
-                                */
+
+                        "androidx.car.app.hardware.common.CarValue",
+                        "androidx.car.app.hardware.common.CarZone",
+                        "androidx.car.app.hardware.common.CarPropertyResponse",
+                        "androidx.car.app.hardware.common.PropertyManager",
+                        "androidx.car.app.hardware.common.CarUnit",
+                        "androidx.car.app.hardware.common.CarZoneAreaIdConstants",
+                        "androidx.car.app.hardware.common.CarZoneUtils",
+                        "androidx.car.app.hardware.common.PropertyResponseCache",
+                        "androidx.car.app.hardware.common.GlobalCarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.SeatCarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.CarPropertyProfile",
+                        "androidx.car.app.hardware.common.CarValueUtils",
+                        "androidx.car.app.hardware.common.GetPropertyRequest",
+                        "androidx.car.app.hardware.common.PropertyIdAreaId",
+                        "androidx.car.app.hardware.common.PropertyUtils",
+                        "androidx.car.app.hardware.common.CarInternalError",
+                        "androidx.car.app.hardware.common.OnCarPropertyResponseListener",
+                        "androidx.car.app.hardware.common.OnCarDataAvailableListener",
+                        "androidx.car.app.hardware.common.CarSetOperationStatusCallback",
+                        "androidx.car.app.hardware.common.CarZoneAreaIdConverter",
+                        "androidx.car.app.hardware.common.PropertyRequestProcessor"
+
+                        */
                 };
             default:
                 return new String[0];
@@ -7026,6 +7021,149 @@ public class CarDataScreen extends Screen {
             Log.i(TAG, "CabinTemperatureProfile reflection exercise completed.");
         } catch (Exception e) {
             Log.e("CabinTempProfileReflex", "Unexpected top-level error", e);
+        }
+    }
+
+
+    @SuppressLint("RestrictedApi")
+    @OptIn(markerClass = ExperimentalCarApi.class)
+    public void exerciseCarPropertyProfileReflection() {
+        final String TAG = "ReflectionTest";
+        try {
+            // Obtain the static builder()
+            java.lang.reflect.Method builderMethod =
+                    androidx.car.app.hardware.common.CarPropertyProfile.class.getMethod("builder");
+            Object builder = builderMethod.invoke(null);
+
+            //setPropertyId(int)
+            java.lang.reflect.Method setPropertyId =
+                    builder.getClass().getMethod("setPropertyId", int.class);
+            setPropertyId.invoke(builder, 12345);
+
+            //setStatus(int)
+            java.lang.reflect.Method setStatus =
+                    builder.getClass().getMethod("setStatus", int.class);
+            setStatus.invoke(builder, 0);
+
+            //setCarZones(List<Set<CarZone>>)
+            java.util.Set<androidx.car.app.hardware.common.CarZone> carZoneSet =
+                    new java.util.HashSet<>();
+            carZoneSet.add(androidx.car.app.hardware.common.CarZone.CAR_ZONE_GLOBAL);
+            java.util.List<java.util.Set<androidx.car.app.hardware.common.CarZone>> carZones =
+                    new java.util.ArrayList<>();
+            carZones.add(carZoneSet);
+            java.lang.reflect.Method setCarZones =
+                    builder.getClass().getMethod("setCarZones", java.util.List.class);
+            setCarZones.invoke(builder, carZones);
+
+            //setCelsiusRange(Pair<Float,Float>)
+            android.util.Pair<Float, Float> celsiusRange = new android.util.Pair<>(16f, 28f);
+            java.lang.reflect.Method setCelsiusRange =
+                    builder.getClass().getMethod("setCelsiusRange", android.util.Pair.class);
+            setCelsiusRange.invoke(builder, celsiusRange);
+
+            //setFahrenheitRange(Pair<Float,Float>)
+            android.util.Pair<Float, Float> fahrRange = new android.util.Pair<>(60f, 82f);
+            java.lang.reflect.Method setFahrenheitRange =
+                    builder.getClass().getMethod("setFahrenheitRange", android.util.Pair.class);
+            setFahrenheitRange.invoke(builder, fahrRange);
+
+            //setCelsiusIncrement(float)
+            java.lang.reflect.Method setCelsiusIncrement =
+                    builder.getClass().getMethod("setCelsiusIncrement", float.class);
+            setCelsiusIncrement.invoke(builder, 0.5f);
+
+            //setFahrenheitIncrement(float)
+            java.lang.reflect.Method setFahrenheitIncrement =
+                    builder.getClass().getMethod("setFahrenheitIncrement", float.class);
+            setFahrenheitIncrement.invoke(builder, 1.0f);
+
+            //setCarZoneSetsToMinMaxRange(Map<Set<CarZone>, Pair<T,T>>)
+            java.util.Map<java.util.Set<androidx.car.app.hardware.common.CarZone>,
+                    android.util.Pair<Float, Float>> carZoneToRange = new java.util.HashMap<>();
+            carZoneToRange.put(carZoneSet, celsiusRange);
+            java.lang.reflect.Method setCarZoneSetsToMinMaxRange =
+                    builder.getClass().getMethod("setCarZoneSetsToMinMaxRange", java.util.Map.class);
+            setCarZoneSetsToMinMaxRange.invoke(builder, carZoneToRange);
+
+            //setHvacFanDirection(Map<Set<CarZone>, Set<Integer>>)
+            java.util.Map<java.util.Set<androidx.car.app.hardware.common.CarZone>,
+                    java.util.Set<Integer>> hvacMap = new java.util.HashMap<>();
+            java.util.Set<Integer> hvacDirections = new java.util.HashSet<>();
+            hvacDirections.add(androidx.car.app.hardware.common.CarPropertyProfile.FACE);
+            hvacMap.put(carZoneSet, hvacDirections);
+            java.lang.reflect.Method setHvac =
+                    builder.getClass().getMethod("setHvacFanDirection", java.util.Map.class);
+            setHvac.invoke(builder, hvacMap);
+
+            // Build the CarPropertyProfile instance via Builder.build()
+            java.lang.reflect.Method buildMethod = builder.getClass().getMethod("build");
+            Object profile = buildMethod.invoke(builder);
+
+
+            // getPropertyId()
+            java.lang.reflect.Method getPropertyId =
+                    profile.getClass().getMethod("getPropertyId");
+            int gotPropertyId = (Integer) getPropertyId.invoke(profile);
+            android.util.Log.i(TAG, "getPropertyId() -> " + gotPropertyId);
+
+            // getHvacFanDirection()
+            java.lang.reflect.Method getHvacFanDirection =
+                    profile.getClass().getMethod("getHvacFanDirection");
+            Object gotHvac = getHvacFanDirection.invoke(profile);
+            android.util.Log.i(TAG, "getHvacFanDirection() -> " + String.valueOf(gotHvac));
+
+            // getCarZoneSetsToMinMaxRange()
+            java.lang.reflect.Method getCarZoneSetsToMinMaxRange =
+                    profile.getClass().getMethod("getCarZoneSetsToMinMaxRange");
+            Object gotMap = getCarZoneSetsToMinMaxRange.invoke(profile);
+            android.util.Log.i(TAG, "getCarZoneSetsToMinMaxRange() -> " + String.valueOf(gotMap));
+
+            // getCelsiusRange()
+            java.lang.reflect.Method getCelsiusRange =
+                    profile.getClass().getMethod("getCelsiusRange");
+            Object gotCelsiusRange = getCelsiusRange.invoke(profile);
+            android.util.Log.i(TAG, "getCelsiusRange() -> " + String.valueOf(gotCelsiusRange));
+
+            // getFahrenheitRange()
+            java.lang.reflect.Method getFahrenheitRange =
+                    profile.getClass().getMethod("getFahrenheitRange");
+            Object gotFahrRange = getFahrenheitRange.invoke(profile);
+            android.util.Log.i(TAG, "getFahrenheitRange() -> " + String.valueOf(gotFahrRange));
+
+            // getCelsiusIncrement()
+            java.lang.reflect.Method getCelsiusIncrement =
+                    profile.getClass().getMethod("getCelsiusIncrement");
+            float gotCelsiusInc = (Float) getCelsiusIncrement.invoke(profile);
+            android.util.Log.i(TAG, "getCelsiusIncrement() -> " + gotCelsiusInc);
+
+            // getFahrenheitIncrement()
+            java.lang.reflect.Method getFahrenheitIncrement =
+                    profile.getClass().getMethod("getFahrenheitIncrement");
+            float gotFahrInc = (Float) getFahrenheitIncrement.invoke(profile);
+            android.util.Log.i(TAG, "getFahrenheitIncrement() -> " + gotFahrInc);
+
+            // getCarZones()
+            java.lang.reflect.Method getCarZonesMethod =
+                    profile.getClass().getMethod("getCarZones");
+            Object gotCarZones = getCarZonesMethod.invoke(profile);
+            android.util.Log.i(TAG, "getCarZones() -> " + String.valueOf(gotCarZones));
+
+            // getStatus()
+            java.lang.reflect.Method getStatus =
+                    profile.getClass().getMethod("getStatus");
+            int gotStatus = (Integer) getStatus.invoke(profile);
+            android.util.Log.i(TAG, "getStatus() -> " + gotStatus);
+
+            android.util.Log.i(TAG, "CarPropertyProfile reflection exercise completed successfully.");
+        } catch (NoSuchMethodException nsme) {
+            android.util.Log.e("ReflectionTest", "Expected method not found", nsme);
+        } catch (IllegalArgumentException iae) {
+            android.util.Log.e("ReflectionTest", "Bad argument", iae);
+        } catch (java.lang.reflect.InvocationTargetException ite) {
+            android.util.Log.e("ReflectionTest", "InvocationTargetException", ite.getCause());
+        } catch (Exception e) {
+            android.util.Log.e("ReflectionTest", "Unexpected error exercising CarPropertyProfile", e);
         }
     }
 
