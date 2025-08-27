@@ -176,7 +176,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseAutomotiveCarClimate();
 
-            dumpCarAppHierarchyAndroidX();
+            //dumpCarAppHierarchyAndroidX();
 
             //exerciseAutomotiveCarSensors();
 
@@ -192,7 +192,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseHostValidator();
 
-            exercisePropertyUtilsReflection();
+            exerciseBaseCarAppActivityReflection();
             //exercisePropertyRequestProcessor();
 
             long elapsed = System.currentTimeMillis() - start;
@@ -6476,22 +6476,43 @@ public class CarDataScreen extends Screen {
 
             out.append("Found methods to try: ").append(methodsToTry.size()).append("\n\n");
 
+            int invokeCounter = 0;
             for (java.lang.reflect.Method method : methodsToTry) {
                 // Skip synthetic / bridge methods
                 if (method.isSynthetic() || method.isBridge()) continue;
 
+                invokeCounter++;
                 String mName = method.getName();
-                out.append("=== Invoking ").append(mName).append(" (")
-                        .append(java.util.Arrays.toString(method.getParameterTypes())).append(") ===\n");
-                method.setAccessible(true);
-
                 Class<?>[] ptypes = method.getParameterTypes();
+
+                // Build textual argument summary
+                StringBuilder argSummary = new StringBuilder();
                 Object[] args = new Object[ptypes.length];
                 for (int i = 0; i < ptypes.length; i++) {
                     args[i] = makeArg.apply(ptypes[i]);
-                    out.append("  arg[").append(i).append("] type=").append(ptypes[i].getName())
-                            .append(" value=").append(args[i]).append("\n");
+                    argSummary.append("arg[").append(i).append("] ")
+                            .append(ptypes[i].getName()).append("=")
+                            .append(String.valueOf(args[i]));
+                    if (i < ptypes.length - 1) argSummary.append(", ");
                 }
+
+                // Append to the long out buffer
+                out.append("=== Invoking #").append(invokeCounter).append(": ").append(mName).append(" ===\n");
+                out.append("  signature: ").append(java.util.Arrays.toString(ptypes)).append("\n");
+                out.append("  args: ").append(argSummary).append("\n");
+                out.append("  modifiers: ").append(java.lang.reflect.Modifier.toString(method.getModifiers())).append("\n");
+
+                // log to logcat before the invocation to see if process dies.
+                String immediateLog = "INVOCATION #" + invokeCounter + " ts=" + System.currentTimeMillis()
+                        + " thread=" + Thread.currentThread().getName()
+                        + " method=" + method.getDeclaringClass().getName() + "#" + mName
+                        + " params=" + java.util.Arrays.toString(ptypes)
+                        + " args=[" + argSummary + "]";
+                try {
+                    android.util.Log.i(TAG, immediateLog);
+                } catch (Throwable ignored) { }
+
+                method.setAccessible(true);
 
                 // If instance is null and method is not static, try to create an instance anyway
                 Object target = instance;
@@ -6499,23 +6520,26 @@ public class CarDataScreen extends Screen {
                     try {
                         target = clazz.getDeclaredConstructor().newInstance();
                         out.append("  created fallback instance: ").append(target).append("\n");
+                        try { android.util.Log.i(TAG, "Created fallback instance for method #" + invokeCounter + " -> " + target); } catch (Throwable ignored) {}
                     } catch (Throwable t) {
                         out.append("  could not create fallback instance: ").append(t).append("\n");
+                        try { android.util.Log.i(TAG, "Could not create fallback instance for method #" + invokeCounter + " -> " + t); } catch (Throwable ignored) {}
                     }
                 }
 
                 try {
                     Object result = method.invoke(target, args);
                     out.append("  -> returned: ").append(result).append("\n");
+                    try { android.util.Log.i(TAG, "RETURN from invocation #" + invokeCounter + " result=" + String.valueOf(result)); } catch (Throwable ignored) {}
                 } catch (Throwable t) {
                     // unwrap target invocation exception if present
                     Throwable cause = t;
-                    if (t instanceof java.lang.reflect.InvocationTargetException
-                            && t.getCause() != null) {
+                    if (t instanceof java.lang.reflect.InvocationTargetException && t.getCause() != null) {
                         cause = t.getCause();
                     }
                     out.append("  -> threw: ").append(cause.getClass().getName())
-                            .append(" : ").append(cause.getMessage()).append("\n");
+                            .append(" : ").append(String.valueOf(cause.getMessage())).append("\n");
+                    try { android.util.Log.w(TAG, "EXCEPTION in invocation #" + invokeCounter + " ex=" + cause, cause); } catch (Throwable ignored) {}
                 }
                 out.append("\n");
             }
