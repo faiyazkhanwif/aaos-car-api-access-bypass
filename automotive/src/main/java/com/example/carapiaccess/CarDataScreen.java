@@ -213,7 +213,8 @@ public class CarDataScreen extends Screen {
             */
             //exercisePropertyRequestProcessorToGenerateErrorLog();
             //fetchAllCarProperties();
-            //dumpCarAppHierarchyComAndroid();
+
+            dumpCarHierarchyAndroid();
 
             //exerciseAutomotiveCarClimate();
 
@@ -233,7 +234,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseHostValidator();
 
-            exerciseBaseCarAppActivityReflection();
+            //exerciseBaseCarAppActivityReflection();
             //exercisePropertyRequestProcessor();
 
             long elapsed = System.currentTimeMillis() - start;
@@ -1205,7 +1206,6 @@ public class CarDataScreen extends Screen {
     //For android.car
     private String[] getClassListForAndroid(String sub) {
         switch (sub) {
-            /*
             case "hardware":
                 return new String[]{
                         "android.car.hardware.CarPropertyConfig",
@@ -1213,7 +1213,6 @@ public class CarDataScreen extends Screen {
                         "android.car.hardware.CarSensorEvent",
                         "android.car.hardware.CarSensorManager"
                 };
-            */
             case "hardware.power":
                 return new String[]{
                         "android.car.hardware.power.ICarPower",
@@ -1222,7 +1221,6 @@ public class CarDataScreen extends Screen {
                         "android.car.hardware.power.CarPowerPolicyFilter",
                         "android.car.hardware.power.PowerComponent"
                 };
-            /*
             case "hardware.property":
                 return new String[]{
                         "android.car.hardware.property.AreaIdConfig",
@@ -1269,13 +1267,36 @@ public class CarDataScreen extends Screen {
                         "android.car.watchdog.PerStateBytes",
                         "android.car.watchdog.ResourceOveruseStats"
                 };
-            */
+            case "car":
+                return new String[]{
+                        "android.car.ApiVersion",
+                        "android.car.Car",
+                        "android.car.CarAppFocusManager",
+                        "android.car.CarInfoManager",
+                        "android.car.CarNotConnectedException",
+                        "android.car.CarOccupantZoneManager",
+                        "android.car.CarVersion",
+                        "android.car.PlatformVersion",
+                        "android.car.PlatformVersionMismatchException",
+                        "android.car.EvConnectorType",
+                        "android.car.FuelType",
+                        "android.car.GsrComplianceType",
+                        "android.car.PortLocationType",
+                        "android.car.VehicleAreaSeat",
+                        "android.car.VehicleAreaType",
+                        "android.car.VehicleAreaWheel",
+                        "android.car.VehicleGear",
+                        "android.car.VehicleIgnitionState",
+                        "android.car.VehiclePropertyIds",
+                        "android.car.VehicleUnit"
+                };
             default:
                 return new String[0];
         }
     }
-    private void dumpCarHardwareHierarchyAndroid() {
-        String[] subs = {"hardware", "hardware.power", "hardware.property", "content.pm", "drivingstate", "input", "media", "remoteaccess", "watchdog"};
+
+    private void dumpCarHierarchyAndroid() {
+        String[] subs = {"hardware", "hardware.power", "hardware.property", "content.pm", "drivingstate", "input", "media", "remoteaccess", "watchdog" ,"car"};
         for (String sub : subs) {
             String pkg = "android.car." + sub;
             Log.d(TAG, "====================================================================");
