@@ -214,7 +214,7 @@ public class CarDataScreen extends Screen {
             //exercisePropertyRequestProcessorToGenerateErrorLog();
             //fetchAllCarProperties();
 
-            dumpCarHierarchyAndroid();
+            //dumpCarHierarchyAndroid();
 
             //exerciseAutomotiveCarClimate();
 
@@ -235,7 +235,9 @@ public class CarDataScreen extends Screen {
             //exerciseHostValidator();
 
             //exerciseBaseCarAppActivityReflection();
-            //exercisePropertyRequestProcessor();
+            exercisePropertyRequestProcessor();
+
+            //exerciseAppManagerReflection();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -420,7 +422,6 @@ public class CarDataScreen extends Screen {
      * Logs fields (with static values), methods, and annotations for a given class.
      */
     private void dumpClassDetails(Class<?> cls) {
-        // 1) Annotations on the class
         Annotation[] classAnnos = cls.getAnnotations();
         if (classAnnos.length > 0) {
             Log.d(TAG, "Class Annotations:");
@@ -431,7 +432,6 @@ public class CarDataScreen extends Screen {
             Log.d(TAG, "No class-level annotations.");
         }
 
-        // 2) Fields
         Field[] fields = cls.getDeclaredFields();
         if (fields.length > 0) {
             Log.d(TAG, " Fields:");
@@ -463,7 +463,6 @@ public class CarDataScreen extends Screen {
             Log.d(TAG, " No declared fields.");
         }
 
-        // 3) Methods
         Method[] methods = cls.getDeclaredMethods();
         if (methods.length > 0) {
             Log.d(TAG, " Methods:");
@@ -728,7 +727,6 @@ public class CarDataScreen extends Screen {
     private void executeClassMembers(Class<?> cls) {
         Log.d(TAG, "\n>>> Executing members of " + cls.getName() + " <<<");
 
-        // 1) Fields
         for (Field f : cls.getDeclaredFields()) {
             f.setAccessible(true);
             boolean isStatic = Modifier.isStatic(f.getModifiers());
@@ -751,7 +749,6 @@ public class CarDataScreen extends Screen {
             }
         }
 
-        // 2) Methods
         for (Method m : cls.getDeclaredMethods()) {
             m.setAccessible(true);
             boolean isStatic = Modifier.isStatic(m.getModifiers());
@@ -1517,7 +1514,6 @@ public class CarDataScreen extends Screen {
             }
             Log.d(TAG, "Using propertyId = HVAC_FAN_DIRECTION (" + fanDirId + ")");
 
-            // 4) Build a List<PropertyIdAreaId> via PropertyUtils.getPropertyIdWithAreaIds(...)
             // Map<Integer,List<CarZone>> map = Collections.singletonMap(fanDirId, Collections.singletonList(CarZone.CAR_ZONE_GLOBAL));
             Class<?> carZoneCls = ReflectUtil.safeForName(
                     "androidx.car.app.hardware.common.CarZone");
@@ -1541,7 +1537,7 @@ public class CarDataScreen extends Screen {
                     (List<?>) getIdWithAreas.invoke(null, reqMap);
             Log.d(TAG, "Built PropertyIdAreaId list of size " + pidAidList.size());
 
-            // 5) Create a dynamic proxy for OnGetPropertiesListener
+            // dynamic proxy for OnGetPropertiesListener
             Class<?> onGetPropsListenerIface = ReflectUtil.safeForName(
                     "androidx.car.app.hardware.common.PropertyRequestProcessor$OnGetPropertiesListener");
             Object getPropsListener = Proxy.newProxyInstance(
@@ -1565,13 +1561,13 @@ public class CarDataScreen extends Screen {
                         }
                     });
 
-            // 6) Call fetchCarPropertyValues(requests, listener)
+            // fetchCarPropertyValues(requests, listener)
             Method fetchValues = prpClass.getDeclaredMethod(
                     "fetchCarPropertyValues", List.class, onGetPropsListenerIface);
             fetchValues.setAccessible(true);
             fetchValues.invoke(processor, pidAidList, getPropsListener);
 
-            // 7) Similarly for fetchCarPropertyProfiles
+            // fetchCarPropertyProfiles
             Class<?> onGetProfilesIface = ReflectUtil.safeForName(
                     "androidx.car.app.hardware.common.PropertyRequestProcessor$OnGetCarPropertyProfilesListener");
             Object getProfilesListener = Proxy.newProxyInstance(
@@ -1595,13 +1591,13 @@ public class CarDataScreen extends Screen {
                     java.util.Collections.singletonList(fanDirId),
                     getProfilesListener);
 
-            // 8) registerProperty(int, float)
+            // registerProperty(int, float)
             Method registerProp = prpClass.getDeclaredMethod(
                     "registerProperty", int.class, float.class);
             registerProp.setAccessible(true);
             registerProp.invoke(processor, fanDirId, /*sampleRate=*/1.0f);
 
-            // 9) unregisterProperty(int)
+            // unregisterProperty(int)
             Method unregisterProp = prpClass.getDeclaredMethod(
                     "unregisterProperty", int.class);
             unregisterProp.setAccessible(true);
@@ -2014,98 +2010,6 @@ public class CarDataScreen extends Screen {
         }
     }
 
-/*
-    @SuppressLint("RestrictedApi")
-    private void exerciseAutomotiveCarInfo() {
-        try {
-            // 1) Get your hidden PropertyManager
-            CarHardwareManager hwMgr =
-                    getCarContext().getCarService(CarHardwareManager.class);
-            PropertyManager pm = getPropertyManager(hwMgr);
-            if (pm == null) {
-                Log.w(TAG, "No PropertyManager; cannot exercise AutomotiveCarInfo");
-                return;
-            }
-
-            // 2) Instantiate AutomotiveCarInfo(PropertyManager)
-            Class<?> infoCls = Class.forName(
-                    "androidx.car.app.hardware.info.AutomotiveCarInfo");
-            Constructor<?> infoCtor = infoCls.getConstructor(PropertyManager.class);
-            Object info = infoCtor.newInstance(pm);
-            Log.d(TAG, "Created AutomotiveCarInfo");
-
-            // 3) Prepare Executor and listener proxy
-            Executor executor = Runnable::run;
-            Class<?> listenerIface = Class.forName(
-                    "androidx.car.app.hardware.common.OnCarDataAvailableListener");
-            Object dataListener = Proxy.newProxyInstance(
-                    listenerIface.getClassLoader(),
-                    new Class[]{ listenerIface },
-                    (proxy, method, args) -> {
-                        if ("onCarDataAvailable".equals(method.getName())
-                                && args.length == 1) {
-                            Object payload = args[0];
-                            Log.i(TAG, "InfoCallback."
-                                    + payload.getClass().getSimpleName()
-                                    + " - " + payload.toString());
-                        }
-                        return null;
-                    });
-
-            // 4) DYNAMICALLY invoke every fetchXxx(...) with (Executor, Listener)
-            for (Method m : infoCls.getMethods()) {
-                if (m.getName().startsWith("fetch")
-                        && m.getParameterCount() == 2
-                        && Executor.class.isAssignableFrom(m.getParameterTypes()[0])
-                        && listenerIface.isAssignableFrom(m.getParameterTypes()[1])) {
-                    m.setAccessible(true);
-                    m.invoke(info, executor, dataListener);
-                    Log.d(TAG, m.getName() + "(executor, listener) invoked");
-                }
-            }
-
-            // 5) Now invoke every addXxxListener(...) & removeXxxListener(...)
-            //    Methods look like addFooListener(Executor, Listener) or just (Listener)
-            //    We pair them by name: add... ↔ remove...
-            List<String> addNames = new ArrayList<>();
-            for (Method m : infoCls.getMethods()) {
-                String name = m.getName();
-                if (name.startsWith("add") && name.endsWith("Listener")
-                        && m.getParameterCount() == 2
-                        && Executor.class.isAssignableFrom(m.getParameterTypes()[0])
-                        && listenerIface.isAssignableFrom(m.getParameterTypes()[1])) {
-                    addNames.add(name);
-                }
-            }
-            for (String addName : addNames) {
-                String removeName = addName.replaceFirst("^add", "remove");
-                // invoke add
-                Method addM = infoCls.getMethod(addName,
-                        Executor.class, listenerIface);
-                addM.setAccessible(true);
-                addM.invoke(info, executor, dataListener);
-                Log.d(TAG, addName + "(executor, listener) invoked");
-
-                // invoke remove
-                try {
-                    Method remM = infoCls.getMethod(removeName, listenerIface);
-                    remM.setAccessible(true);
-                    remM.invoke(info, dataListener);
-                    Log.d(TAG, removeName + "(listener) invoked");
-                } catch (NoSuchMethodException nsme) {
-                    Log.w(TAG, "No matching remove method for " + addName);
-                }
-            }
-
-        } catch (InvocationTargetException ite) {
-            Log.e(TAG, "Underlying exception in AutomotiveCarInfo:",
-                    ite.getTargetException());
-        } catch (Exception e) {
-            Log.e(TAG, "Error exercising AutomotiveCarInfo", e);
-        }
-    }
-*/
-
     @SuppressLint("RestrictedApi")
     private void exerciseAutomotiveCarInfo() {
         try {
@@ -2226,14 +2130,14 @@ public class CarDataScreen extends Screen {
     @SuppressLint("RestrictedApi")
     private void exerciseAutomotiveCarAudioRecord() {
         try {
-            // 1) Load and instantiate AutomotiveCarAudioRecord(CarContext)
+            // Load and instantiate AutomotiveCarAudioRecord(CarContext)
             Class<?> audioRecCls = Class.forName(
                     "androidx.car.app.media.AutomotiveCarAudioRecord");
             Constructor<?> audioRecCtor = audioRecCls.getConstructor(CarContext.class);
             Object audioRec = audioRecCtor.newInstance(getCarContext());
             Log.d(TAG, "Created AutomotiveCarAudioRecord");
 
-            // 2) Build a CarAudioCallback proxy to log callback events
+            // CarAudioCallback proxy
             Class<?> carAudioCbIface = Class.forName(
                     "androidx.car.app.media.CarAudioCallback");
             Object carAudioCb = Proxy.newProxyInstance(
@@ -2245,7 +2149,7 @@ public class CarDataScreen extends Screen {
                         return null;
                     });
 
-            // 3) Build an OpenMicrophoneResponse via its Builder(CarAudioCallback)
+            // OpenMicrophoneResponse
             Class<?> obrBuilderCls = Class.forName(
                     "androidx.car.app.media.OpenMicrophoneResponse$Builder");
             Constructor<?> obrBuilderCtor = obrBuilderCls.getConstructor(carAudioCbIface);
@@ -2254,18 +2158,16 @@ public class CarDataScreen extends Screen {
             Object openMicResp = buildObr.invoke(obrBuilder);
             Log.d(TAG, "Built OpenMicrophoneResponse");
 
-            // 4) Call startRecordingInternal(OpenMicrophoneResponse)
+            // startRecordingInternal(OpenMicrophoneResponse)
             Method startRecM = audioRecCls.getDeclaredMethod(
                     "startRecordingInternal", openMicResp.getClass());
             startRecM.setAccessible(true);
             startRecM.invoke(audioRec, openMicResp);
             Log.d(TAG, "startRecordingInternal(...) invoked");
-
-            // 5) Wait for 5 seconds to capture audio
             Log.d(TAG, "Recording for 5 seconds…");
             Thread.sleep(5_000);
 
-            // 6) Prepare buffer for readInternal(...)
+            // Prepare buffer
             Class<?> baseCarAudioRecCls = Class.forName(
                     "androidx.car.app.media.CarAudioRecord");
             Field bufField = baseCarAudioRecCls.getDeclaredField("AUDIO_CONTENT_BUFFER_SIZE");
@@ -2273,7 +2175,7 @@ public class CarDataScreen extends Screen {
             int bufSize = bufField.getInt(null);
             byte[] buffer = new byte[bufSize];
 
-            // 7) Call readInternal(byte[], int, int)
+            // readInternal(byte[], int, int)
             Method readInternalM = audioRecCls.getDeclaredMethod(
                     "readInternal", byte[].class, int.class, int.class);
             readInternalM.setAccessible(true);
@@ -2281,13 +2183,13 @@ public class CarDataScreen extends Screen {
                     audioRec, buffer, 0, bufSize);
             Log.i(TAG, "readInternal returned bytesRead=" + bytesRead);
 
-            // 8) Call stopRecordingInternal()
+            // stopRecordingInternal()
             Method stopRecM = audioRecCls.getDeclaredMethod("stopRecordingInternal");
             stopRecM.setAccessible(true);
             stopRecM.invoke(audioRec);
             Log.d(TAG, "stopRecordingInternal() invoked");
 
-            // 9) Dump first few bytes
+            // Dump first few bytes
             int toDump = Math.min(bytesRead, 16);
             StringBuilder sb = new StringBuilder("First " + toDump + " bytes: ");
             for (int i = 0; i < toDump; i++) {
@@ -2310,11 +2212,9 @@ public class CarDataScreen extends Screen {
     @SuppressLint("RestrictedApi")
     private void exerciseConversationCallbackDelegateImpl() {
         try {
-            // 1) Load the delegate class
             Class<?> delegateCls = Class.forName(
                     "androidx.car.app.messaging.model.ConversationCallbackDelegateImpl");
 
-            // 2) Prepare a dynamic ConversationCallback proxy
             Class<?> convoCbIface = Class.forName(
                     "androidx.car.app.messaging.model.ConversationCallback");
             Object convoCb = Proxy.newProxyInstance(
@@ -2331,13 +2231,12 @@ public class CarDataScreen extends Screen {
                         return null;
                     });
 
-            // 3) Instantiate ConversationCallbackDelegateImpl(ConversationCallback)
             Constructor<?> delegateCtor = delegateCls.getDeclaredConstructor(convoCbIface);
             delegateCtor.setAccessible(true);
             Object delegate = delegateCtor.newInstance(convoCb);
             Log.d(TAG, "Created ConversationCallbackDelegateImpl");
 
-            // 4) Prepare an OnDoneCallback proxy that logs success/failure
+            // Prepare OnDoneCallback proxy
             Class<?> onDoneIface = Class.forName(
                     "androidx.car.app.OnDoneCallback");
             Object onDoneCb = Proxy.newProxyInstance(
@@ -2355,14 +2254,14 @@ public class CarDataScreen extends Screen {
                         return null;
                     });
 
-            // 5) Invoke sendMarkAsRead(OnDoneCallback)
+            // Invoke sendMarkAsRead(OnDoneCallback)
             Method sendMark = delegateCls.getDeclaredMethod(
                     "sendMarkAsRead", onDoneIface);
             sendMark.setAccessible(true);
             sendMark.invoke(delegate, onDoneCb);
             Log.d(TAG, "sendMarkAsRead(onDoneCb) invoked");
 
-            // 6) Invoke sendTextReply(String, OnDoneCallback)
+            // Invoke sendTextReply(String, OnDoneCallback)
             Method sendReply = delegateCls.getDeclaredMethod(
                     "sendTextReply", String.class, onDoneIface);
             sendReply.setAccessible(true);
@@ -2464,12 +2363,12 @@ public class CarDataScreen extends Screen {
     @SuppressLint("RestrictedApi")
     private void exerciseHostDispatcher() {
         try {
-            // 1) Instantiate HostDispatcher
+            // Instantiate HostDispatcher
             Class<?> hdCls = Class.forName("androidx.car.app.HostDispatcher");
             Object hostDispatcher = hdCls.getConstructor().newInstance();
             Log.d(TAG, "Created HostDispatcher");
 
-            // 2) Build a fake ICarHost proxy (implements ICarHost & IInterface)
+            // ICarHost proxy
             Class<?> iCarHostIface    = Class.forName("androidx.car.app.ICarHost");
             Class<?> iInterfaceIface  = Class.forName("android.os.IInterface");
             Object fakeCarHost = Proxy.newProxyInstance(
@@ -2484,13 +2383,12 @@ public class CarDataScreen extends Screen {
                         return null;
                     });
 
-            // 3) Bind our fake ICarHost
             Method setCarHostM = hdCls.getDeclaredMethod("setCarHost", iCarHostIface);
             setCarHostM.setAccessible(true);
             setCarHostM.invoke(hostDispatcher, fakeCarHost);
             Log.d(TAG, "Bound fake ICarHost to HostDispatcher");
 
-            // 4) Find dispatchForResult(...) & dispatch(...) reflectively
+            // dispatchForResult() & dispatch()
             Method dispatchForResultM = null, dispatchVoidM = null;
             for (Method m : hdCls.getMethods()) {
                 if (m.getName().equals("dispatchForResult") && m.getParameterCount() == 3) {
@@ -2507,7 +2405,7 @@ public class CarDataScreen extends Screen {
             dispatchForResultM.setAccessible(true);
             dispatchVoidM   .setAccessible(true);
 
-            // 5) Build the HostCall<ServiceT,ReturnT> proxy from the actual third parameter type
+            // Build the HostCall<ServiceT,ReturnT> proxy
             Class<?> hostCallType = dispatchForResultM.getParameterTypes()[2];
             InvocationHandler callHandler = new InvocationHandler() {
                 private final int hash = System.identityHashCode(this);
@@ -2538,7 +2436,7 @@ public class CarDataScreen extends Screen {
                     new Class[]{ hostCallType },
                     callHandler);
 
-            // 6) Invoke **only** the CAR_SERVICE path
+            // Invoke the CAR_SERVICE path
             String carSvc = CarContext.CAR_SERVICE; // "car"
             Object result = dispatchForResultM.invoke(
                     hostDispatcher,
@@ -2554,7 +2452,6 @@ public class CarDataScreen extends Screen {
                     hostCallProxy);
             Log.i(TAG, "dispatch(car) invoked");
 
-            // 7) Clean up
             Method resetM = hdCls.getDeclaredMethod("resetHosts");
             resetM.setAccessible(true);
             resetM.invoke(hostDispatcher);
@@ -2571,14 +2468,13 @@ public class CarDataScreen extends Screen {
     @SuppressLint("RestrictedApi")
     private void exerciseHostDispatcherNavigationRpc() {
         try {
-            // 1) Grab HostDispatcher
             Field hdField = CarContext.class.getDeclaredField("mHostDispatcher");
             hdField.setAccessible(true);
             Object hostDispatcher = hdField.get(getCarContext());
             Class<?> hdCls = hostDispatcher.getClass();
             Log.d(TAG, "Found HostDispatcher: " + hdCls.getName());
 
-            // 2) Locate dispatchForResult(String, String, HostCall) dynamically
+            // Locate dispatchForResult(String, String, HostCall) dynamically
             Method dispatchForResultM = null;
             Class<?> hostCallIface = null;
             for (Method m : hdCls.getMethods()) {
@@ -2596,7 +2492,7 @@ public class CarDataScreen extends Screen {
                 return;
             }
 
-            // 3) Build HostCall proxy that only calls start/stop navigation
+            // Build HostCall proxy
             Object hostCallProxy = Proxy.newProxyInstance(
                     hostCallIface.getClassLoader(),
                     new Class[]{ hostCallIface },
@@ -2624,7 +2520,7 @@ public class CarDataScreen extends Screen {
                         return null;
                     });
 
-            // 4) Dispatch via HostDispatcher
+            // Dispatch via HostDispatcher
             dispatchForResultM.setAccessible(true);
             String navService = CarContext.NAVIGATION_SERVICE;  // "navigation"
             dispatchForResultM.invoke(
@@ -3495,34 +3391,27 @@ public class CarDataScreen extends Screen {
 
     private void exerciseCarPendingIntent() {
         try {
-            // 1) Load the class
             Class<?> clazz = Class.forName("androidx.car.app.notification.CarPendingIntent");
 
-            // 2) Prepare context
             Context ctx = getCarContext(); // your CarContext
             String pkg = ctx.getPackageName();
 
-            // 3) Build Intents for each supported path:
 
-            // 3a) Valid navigation Intent with lat/long
             Uri navUriLL = Uri.parse("geo:37.4219983,-122.084?q=37.4219983,-122.084");
             Intent navIntentLL = new Intent(CarContext.ACTION_NAVIGATE, navUriLL);
 
-            // 3b) Valid navigation Intent with address query
             Uri navUriQ = Uri.parse("geo:0,0?q=1600+Amphitheatre+Parkway");
             Intent navIntentQ = new Intent(CarContext.ACTION_NAVIGATE, navUriQ);
 
-            // 3c) Valid phone Intent (dial)
             Intent phoneDial = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:1234567890"));
 
-            // 3d) Valid phone Intent (call)
             Intent phoneCall = new Intent(Intent.ACTION_CALL, Uri.parse("tel:0987654321"));
 
-            // 3e) Explicit CarAppService start
+            //CarAppService start
             ComponentName svc = new ComponentName(pkg, MyCarAppService.class.getName());
             Intent svcIntent = new Intent().setComponent(svc);
 
-            // 4) Find & invoke validateIntent (VisibleForTesting)
+            // invoke validateIntent (VisibleForTesting)
             Method mValidate = clazz.getDeclaredMethod(
                     "validateIntent", Context.class, Intent.class);
             mValidate.setAccessible(true);
@@ -3535,14 +3424,14 @@ public class CarDataScreen extends Screen {
 
             Log.i("PendingIntentTest", "validateIntent passed");
 
-            // 5) isLatitudeLongitude (private static)
+            // isLatitudeLongitude (private static)
             Method mIsLatLng = clazz.getDeclaredMethod(
                     "isLatitudeLongitude", String.class);
             mIsLatLng.setAccessible(true);
             boolean okLL = (boolean) mIsLatLng.invoke(null, "37.4219983,-122.084");
             Log.i("PendingIntentTest", "isLatitudeLongitude - " + okLL);
 
-            // 6) getQueryString (private static)
+            // getQueryString (private static)
             Method mGetQuery = clazz.getDeclaredMethod(
                     "getQueryString", Uri.class);
             mGetQuery.setAccessible(true);
@@ -3551,7 +3440,7 @@ public class CarDataScreen extends Screen {
             Log.i("PendingIntentTest", "getQueryString(LL) - " + q1);
             Log.i("PendingIntentTest", "getQueryString(Q) - " + q2);
 
-            // 7) validatePhoneIntentIsValid
+            // validatePhoneIntentIsValid
             Method mValidatePhone = clazz.getDeclaredMethod(
                     "validatePhoneIntentIsValid", Intent.class);
             mValidatePhone.setAccessible(true);
@@ -3559,7 +3448,7 @@ public class CarDataScreen extends Screen {
             mValidatePhone.invoke(null, phoneCall);
             Log.i("PendingIntentTest", "validatePhoneIntentIsValid passed");
 
-            // 8) validateNavigationIntentIsValid
+            // validateNavigationIntentIsValid
             Method mValidateNav = clazz.getDeclaredMethod(
                     "validateNavigationIntentIsValid", Intent.class);
             mValidateNav.setAccessible(true);
@@ -3567,7 +3456,6 @@ public class CarDataScreen extends Screen {
             mValidateNav.invoke(null, navIntentQ);
             Log.i("PendingIntentTest", "validateNavigationIntentIsValid passed");
 
-            // 9) now call getCarApp (public static)
             Method mGetCarApp = clazz.getMethod(
                     "getCarApp", Context.class, int.class, Intent.class, int.class);
 
@@ -3583,7 +3471,7 @@ public class CarDataScreen extends Screen {
                     null, ctx, 44, svcIntent, 0);
             Log.i("PendingIntentTest", "getCarApp(explicit) - " + piSvc);
 
-            // 10) Call createForAutomotive & createForProjected directly (private static)
+            // Call createForAutomotive & createForProjected (private static)
             Method mCreateAuto = clazz.getDeclaredMethod(
                     "createForAutomotive", Context.class, int.class, Intent.class, int.class);
             Method mCreateProj = clazz.getDeclaredMethod(
@@ -4704,31 +4592,28 @@ public class CarDataScreen extends Screen {
     }
 
 
-    @SuppressWarnings({"BanUncheckedReflection"})
     public void exerciseCarAppServiceReflection() {
         final String TAG = "ExerciseCarAppService";
         try {
-            // App context and package info used as "real" parameters
             android.content.Context appContext = getCarContext().getBaseContext();
             final String packageName = appContext.getPackageName();
             final int myUid = android.os.Process.myUid();
 
             Log.i(TAG, "Starting exerciseCarAppServiceReflection for package: " + packageName);
 
-            // Create a minimal anonymous CarAppService subclass overriding only createHostValidator()
             androidx.car.app.CarAppService testService = new androidx.car.app.CarAppService() {
                 @NonNull
                 @Override
                 public androidx.car.app.validation.HostValidator createHostValidator() {
-                    // Use the permissive validator for test runs.
+                    // Use the permissive validator
                     return androidx.car.app.validation.HostValidator.ALLOW_ALL_HOSTS_VALIDATOR;
                 }
 
                 // Do not call onCreateSession / lifecycle methods here; we won't exercise those.
             };
 
-            // Attach the application Context to the Service instance (Service is a ContextWrapper).
-            // attachBaseContext is protected in ContextWrapper; call via reflection.
+            // Attach the application Context to the Service instance
+            // attachBaseContext is protected in ContextWrapper
             try {
                 java.lang.reflect.Method attachBase = android.content.ContextWrapper.class
                         .getDeclaredMethod("attachBaseContext", android.content.Context.class);
@@ -4739,7 +4624,7 @@ public class CarDataScreen extends Screen {
                 Log.e(TAG, "Failed to attach base context to testService", e);
             }
 
-            // 1) setHostInfo (package-private) -> set a HostInfo using the current package name and uid
+            // setHostInfo (package-private)
             try {
                 Class<?> hostInfoClass = Class.forName("androidx.car.app.HostInfo");
                 java.lang.reflect.Constructor<?> hostInfoCtor =
@@ -4755,7 +4640,7 @@ public class CarDataScreen extends Screen {
                 Log.e(TAG, "Failed to call setHostInfo", e);
             }
 
-            // 2) getHostInfo (public)
+            // getHostInfo (public)
             try {
                 java.lang.reflect.Method getHostInfo = androidx.car.app.CarAppService.class
                         .getMethod("getHostInfo");
@@ -4765,10 +4650,10 @@ public class CarDataScreen extends Screen {
                 Log.e(TAG, "Failed to call getHostInfo", e);
             }
 
-            // 3) onBind(Intent) - craft a real Intent with SERVICE_INTERFACE, use our package
+            // onBind(Intent)
             android.content.Intent bindIntent = new android.content.Intent(
                     androidx.car.app.CarAppService.SERVICE_INTERFACE);
-            bindIntent.setPackage(packageName); // real package
+            bindIntent.setPackage(packageName);
             try {
                 java.lang.reflect.Method onBindMethod =
                         androidx.car.app.CarAppService.class.getMethod("onBind", android.content.Intent.class);
@@ -4778,7 +4663,7 @@ public class CarDataScreen extends Screen {
                 Log.e(TAG, "Failed to call onBind(Intent)", e);
             }
 
-            // 4) getCurrentSession() (deprecated helper) - may be null
+            // getCurrentSession() (deprecated helper)
             try {
                 java.lang.reflect.Method getCurrentSessionMethod =
                         androidx.car.app.CarAppService.class.getMethod("getCurrentSession");
@@ -4788,7 +4673,7 @@ public class CarDataScreen extends Screen {
                 Log.e(TAG, "Failed to call getCurrentSession()", e);
             }
 
-            // 5) getSession(SessionInfo) - craft a SessionInfo instance via SessionInfo.DEFAULT_SESSION_INFO
+            // getSession(SessionInfo)
             try {
                 Class<?> sessionInfoClass = Class.forName("androidx.car.app.SessionInfo");
                 java.lang.reflect.Field defaultField = sessionInfoClass.getField("DEFAULT_SESSION_INFO");
@@ -4798,13 +4683,12 @@ public class CarDataScreen extends Screen {
                 Object session = getSessionMethod.invoke(testService, defaultSessionInfo);
                 Log.i(TAG, "getSession(DEFAULT_SESSION_INFO) -> " + session);
             } catch (NoSuchFieldException nsf) {
-                // Older/modified versions might not expose DEFAULT_SESSION_INFO; that's ok.
                 Log.w(TAG, "SessionInfo.DEFAULT_SESSION_INFO not available; skipping getSession", nsf);
             } catch (Exception e) {
                 Log.e(TAG, "Failed to call getSession(SessionInfo)", e);
             }
 
-            // 6) getAppInfo() - should return AppInfo built from the attached context's package manager
+            // getAppInfo()
             try {
                 java.lang.reflect.Method getAppInfoMethod =
                         androidx.car.app.CarAppService.class.getDeclaredMethod("getAppInfo");
@@ -4814,7 +4698,7 @@ public class CarDataScreen extends Screen {
                 Log.e(TAG, "Failed to call getAppInfo()", e);
             }
 
-            // 7) dump(FileDescriptor, PrintWriter, String[]) - create a reliable pipe and writer
+            // dump(FileDescriptor, PrintWriter, String[])
             java.io.PrintWriter dumpWriter = null;
             android.os.ParcelFileDescriptor[] pipe = null;
             try {
@@ -4827,14 +4711,14 @@ public class CarDataScreen extends Screen {
                         "dump", java.io.FileDescriptor.class, java.io.PrintWriter.class, String[].class);
                 // pass the read-side FileDescriptor
                 dumpMethod.invoke(testService, pipe[0].getFileDescriptor(), dumpWriter, dumpArgs);
-                // flush writer so any text written is pushed into the pipe
+                // flush writer
                 dumpWriter.flush();
 
-                // read any bytes written to the pipe (non-blocking read loop)
+                // read any bytes
                 java.io.InputStream is = new android.os.ParcelFileDescriptor.AutoCloseInputStream(pipe[0]);
                 StringBuilder sb = new StringBuilder();
                 byte[] buffer = new byte[1024];
-                // try to read available data with a small timeout loop
+                // try to read available data
                 long start = System.currentTimeMillis();
                 while (System.currentTimeMillis() - start < 200) { // read for up to 200ms
                     int avail = is.available();
@@ -4850,7 +4734,7 @@ public class CarDataScreen extends Screen {
                     }
                 }
                 Log.i(TAG, "dump() output (first chunk): " + sb.toString().trim());
-                // close streams (AutoClose will close underlying fds)
+                // close streams
                 is.close();
                 os.close();
             } catch (Exception e) {
@@ -4868,7 +4752,7 @@ public class CarDataScreen extends Screen {
                 }
             }
 
-            // 8) onUnbind(Intent) - call with same intent
+            // onUnbind(Intent)
             try {
                 java.lang.reflect.Method onUnbindMethod =
                         androidx.car.app.CarAppService.class.getMethod("onUnbind", android.content.Intent.class);
@@ -4878,7 +4762,7 @@ public class CarDataScreen extends Screen {
                 Log.e(TAG, "Failed to call onUnbind(Intent)", e);
             }
 
-            // 9) onDestroy - call the lifecycle destroy (safe to call)
+            // onDestroy
             try {
                 java.lang.reflect.Method onDestroy = androidx.car.app.CarAppService.class.getMethod("onDestroy");
                 onDestroy.invoke(testService);
@@ -5133,7 +5017,6 @@ public class CarDataScreen extends Screen {
         final String TAG = "ExerciseCarAppPermission";
         android.content.Context context = null;
 
-        // 1) Try to obtain a Context via ActivityThread.currentApplication()
         try {
             Class<?> activityThread = Class.forName("android.app.ActivityThread");
             java.lang.reflect.Method currentApp = activityThread.getMethod("currentApplication");
@@ -5148,27 +5031,20 @@ public class CarDataScreen extends Screen {
             android.util.Log.w(TAG, "Could not get Context via ActivityThread.currentApplication(): " + t);
         }
 
-        // 2) If we still don't have a context, attempt some additional fallbacks (best-effort).
+        // additional fallbacks
         if (context == null) {
             try {
-                // Try to use android.app.ApplicationContext by reflective lookup of a running process.
-                // This is best-effort; in many cases the ActivityThread approach already worked.
                 Class<?> appClass = Class.forName("android.app.Application");
-                // no reliable static getter here - so we just log and move on.
                 android.util.Log.w(TAG,
-                        "No Context available via reflection. If this runs inside an Activity/Service, "
-                                + "consider calling the method from a place that has a Context.");
+                        "No Context available via reflection.");
             } catch (Throwable ignored) {
                 // ignore
             }
         }
 
-        // If still null, we will still proceed and calls will fail with NPE; we catch and log those.
-        // 3) Reflectively get CarAppPermission and its public methods & fields.
         try {
             Class<?> capClass = Class.forName("androidx.car.app.CarAppPermission");
 
-            // Read the static permission fields (ACCESS_SURFACE, NAVIGATION_TEMPLATES, MAP_TEMPLATES)
             java.util.Map<String, String> constants = new java.util.LinkedHashMap<>();
             try {
                 java.lang.reflect.Field f = capClass.getField("ACCESS_SURFACE");
@@ -5183,24 +5059,20 @@ public class CarDataScreen extends Screen {
                 constants.put("MAP_TEMPLATES", (String) f.get(null));
             } catch (NoSuchFieldException ignore) { android.util.Log.w(TAG, "MAP_TEMPLATES not found"); }
 
-            // Add an obviously invalid permission to test rejection path:
             constants.put("INVALID_PERMISSION", "com.example.this_permission_does_not_exist");
 
-            // Locate methods
             java.lang.reflect.Method checkHasPermission =
                     capClass.getMethod("checkHasPermission", android.content.Context.class, String.class);
 
             java.lang.reflect.Method checkHasLibraryPermission =
                     capClass.getMethod("checkHasLibraryPermission", android.content.Context.class, String.class);
 
-            // Iterate and invoke checkHasPermission
             for (java.util.Map.Entry<String, String> e : constants.entrySet()) {
                 String name = e.getKey();
                 String perm = e.getValue();
                 String tag = "checkHasPermission - " + name;
                 try {
                     android.util.Log.d(TAG, "Invoking " + tag + " with permission: " + perm);
-                    // invoke static method: null target
                     checkHasPermission.invoke(null, context, perm);
                     String msg = tag + " -> SUCCESS (permission present)";
                     android.util.Log.i(TAG, msg);
@@ -5217,7 +5089,7 @@ public class CarDataScreen extends Screen {
                 }
             }
 
-            // Iterate and invoke checkHasLibraryPermission for library perms only (use the real constants)
+            // Iterate and invoke checkHasLibraryPermission for library perms only
             for (String fieldName : new String[]{"ACCESS_SURFACE", "NAVIGATION_TEMPLATES", "MAP_TEMPLATES"}) {
                 try {
                     java.lang.reflect.Field ff = capClass.getField(fieldName);
@@ -5244,7 +5116,6 @@ public class CarDataScreen extends Screen {
                 }
             }
 
-            // 4) Try to access and call the private constructor (utility classes often have private ctor).
             try {
                 java.lang.reflect.Constructor<?> ctor = capClass.getDeclaredConstructor();
                 ctor.setAccessible(true);
@@ -5284,25 +5155,20 @@ public class CarDataScreen extends Screen {
         try {
             Class<?> activityCls = Class.forName("androidx.car.app.CarAppPermissionActivity");
 
-            // 1) instantiate (no-arg ctor)
             java.lang.reflect.Constructor<?> ctor = activityCls.getDeclaredConstructor();
             ctor.setAccessible(true);
             Object activityInstance = ctor.newInstance();
             Log.d(LOG_TAG, "Instantiated CarAppPermissionActivity via reflection.");
 
-            // 2) attach base context -> use current CarContext if available
             try {
                 java.lang.reflect.Method attachBase =
                         android.content.ContextWrapper.class.getDeclaredMethod("attachBaseContext",
                                 android.content.Context.class);
                 attachBase.setAccessible(true);
 
-                // Attempt to use getCarContext() if present on the host class; otherwise fall back
-                // to the application context.
+                // Attempt to use getCarContext()
                 android.content.Context ctx = null;
                 try {
-                    // This code assumes this method is inside a Screen/Service/Activity that has
-                    // getCarContext(). Try it first (common in this repo's harness).
                     java.lang.reflect.Method getCarContextMethod =
                             this.getClass().getMethod("getCarContext");
                     Object got = getCarContextMethod.invoke(this);
@@ -5310,7 +5176,6 @@ public class CarDataScreen extends Screen {
                         ctx = (android.content.Context) got;
                     }
                 } catch (NoSuchMethodException ignored) {
-                    // Not present; try to use getContext() or fallback to app context
                     try {
                         java.lang.reflect.Method getContextMethod =
                                 this.getClass().getMethod("getContext");
@@ -5341,7 +5206,6 @@ public class CarDataScreen extends Screen {
                 }
 
                 if (ctx == null) {
-                    // If still null, use the current thread's default context via reflection to ActivityThread
                     try {
                         @SuppressLint("PrivateApi") Class<?> at = Class.forName("android.app.ActivityThread");
                         @SuppressLint("DiscouragedPrivateApi") java.lang.reflect.Method currentApplication =
@@ -5364,12 +5228,11 @@ public class CarDataScreen extends Screen {
                 Log.w(LOG_TAG, "Failed to attach base context reflectively: " + t);
             }
 
-            // 3) craft an Intent that matches CarContext.REQUEST_PERMISSIONS_ACTION and extras
+            // craft an Intent
             android.content.Intent intent = new android.content.Intent(
-                    "androidx.car.app.action.REQUEST_PERMISSIONS"); // CarContext.REQUEST_PERMISSIONS_ACTION
+                    "androidx.car.app.action.REQUEST_PERMISSIONS");
             android.os.Bundle extras = new android.os.Bundle();
 
-            // Create a stub listener binder for IOnRequestPermissionsListener
             try {
                 final androidx.car.app.IOnRequestPermissionsListener.Stub listener =
                         new androidx.car.app.IOnRequestPermissionsListener.Stub() {
@@ -5395,7 +5258,7 @@ public class CarDataScreen extends Screen {
 
             intent.putExtras(extras);
 
-            // 4) setIntent(activityInstance, intent)
+            // setIntent(activityInstance, intent)
             try {
                 java.lang.reflect.Method setIntent =
                         android.app.Activity.class.getMethod("setIntent", android.content.Intent.class);
@@ -5405,7 +5268,7 @@ public class CarDataScreen extends Screen {
                 Log.w(LOG_TAG, "Failed to set Intent on activity instance: " + t);
             }
 
-            // 5) invoke lifecycle onCreate(null)
+            // invoke lifecycle onCreate(null)
             try {
                 java.lang.reflect.Method onCreate = android.app.Activity.class
                         .getDeclaredMethod("onCreate", android.os.Bundle.class);
@@ -5416,7 +5279,7 @@ public class CarDataScreen extends Screen {
                 Log.w(LOG_TAG, "Failed to invoke onCreate: " + t);
             }
 
-            // 6) attempt to call private maybeSetCustomBackground()
+            // maybeSetCustomBackground()
             try {
                 java.lang.reflect.Method maybeSet =
                         activityCls.getDeclaredMethod("maybeSetCustomBackground");
@@ -5427,7 +5290,7 @@ public class CarDataScreen extends Screen {
                 Log.w(LOG_TAG, "Failed to invoke maybeSetCustomBackground(): " + t);
             }
 
-            // 7) attempt to call private processInternal(Intent)
+            // processInternal(Intent)
             try {
                 java.lang.reflect.Method processInternal =
                         activityCls.getDeclaredMethod("processInternal", android.content.Intent.class);
@@ -5438,7 +5301,7 @@ public class CarDataScreen extends Screen {
                 Log.w(LOG_TAG, "Failed to invoke processInternal(Intent): " + t);
             }
 
-            // 8) attempt to call private requestPermissions(Intent)
+            // requestPermissions(Intent)
             try {
                 java.lang.reflect.Method requestPerm =
                         activityCls.getDeclaredMethod("requestPermissions", android.content.Intent.class);
@@ -5449,7 +5312,7 @@ public class CarDataScreen extends Screen {
                 Log.w(LOG_TAG, "Failed to invoke requestPermissions(Intent): " + t);
             }
 
-            // 9) try to call finish()
+            // finish()
             try {
                 java.lang.reflect.Method finish = android.app.Activity.class.getMethod("finish");
                 finish.invoke(activityInstance);
@@ -5935,7 +5798,7 @@ public class CarDataScreen extends Screen {
                 }
             }
 
-            // 1) getServiceConnectionManager()
+            // getServiceConnectionManager()
             try {
                 Method mGetScm = CarAppViewModel.class.getDeclaredMethod("getServiceConnectionManager");
                 mGetScm.setAccessible(true);
@@ -5945,7 +5808,7 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "getServiceConnectionManager failed: " + t);
             }
 
-            // 2) setServiceConnectionManager(...) - call with same object if available (safe), or null.
+            // setServiceConnectionManager()
             try {
                 Method mGetScm = CarAppViewModel.class.getDeclaredMethod("getServiceConnectionManager");
                 mGetScm.setAccessible(true);
@@ -5953,11 +5816,9 @@ public class CarDataScreen extends Screen {
                 Method mSetScm = CarAppViewModel.class.getDeclaredMethod("setServiceConnectionManager",
                         Class.forName("androidx.car.app.activity.ServiceConnectionManager"));
                 mSetScm.setAccessible(true);
-                // If we have scm, pass it, else pass null by reflection (allowed)
                 mSetScm.invoke(vm, scm);
                 Log.i(TAG, "setServiceConnectionManager invoked with " + scm);
             } catch (ClassNotFoundException cnfe) {
-                // If ServiceConnectionManager class is hidden, try generic reflection fallback:
                 try {
                     Method mSetScm = CarAppViewModel.class.getDeclaredMethod("setServiceConnectionManager",
                             Object.class);
@@ -5971,7 +5832,7 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "setServiceConnectionManager failed: " + t);
             }
 
-            // 3) getServiceDispatcher()
+            // getServiceDispatcher()
             try {
                 Method mGetDispatcher = CarAppViewModel.class.getDeclaredMethod("getServiceDispatcher");
                 mGetDispatcher.setAccessible(true);
@@ -5981,7 +5842,7 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "getServiceDispatcher failed: " + t);
             }
 
-            // 4) setRendererCallback(IRendererCallback) — provide a dynamic proxy for the interface
+            // setRendererCallback(IRendererCallback)
             try {
                 Class<?> ircCls = Class.forName("androidx.car.app.activity.renderer.IRendererCallback");
                 Object proxy = Proxy.newProxyInstance(ircCls.getClassLoader(), new Class<?>[]{ircCls},
@@ -6003,7 +5864,6 @@ public class CarDataScreen extends Screen {
             } catch (ClassNotFoundException cnf) {
                 Log.w(TAG, "IRendererCallback not found (skipping setRendererCallback): " + cnf);
             } catch (NoSuchMethodException nsme) {
-                // fallback: try to find any method named setRendererCallback
                 try {
                     for (Method mm : CarAppViewModel.class.getDeclaredMethods()) {
                         if (mm.getName().equals("setRendererCallback") && mm.getParameterTypes().length == 1) {
@@ -6020,7 +5880,7 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "setRendererCallback failed: " + t);
             }
 
-            // 5) setActivity(Activity) - pass current activity if available, else null
+            // setActivity(Activity)
             try {
                 Activity maybeActivity = null;
                 try {
@@ -6039,7 +5899,7 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "setActivity failed: " + t);
             }
 
-            // 6) resetState()
+            // resetState()
             try {
                 Method reset = CarAppViewModel.class.getDeclaredMethod("resetState");
                 reset.setAccessible(true);
@@ -6049,7 +5909,7 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "resetState failed: " + t);
             }
 
-            // 7) onCleared() - triggers cleanup
+            // onCleared() - triggers cleanup
             try {
                 Method onCleared = CarAppViewModel.class.getDeclaredMethod("onCleared");
                 onCleared.setAccessible(true);
@@ -6059,7 +5919,7 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "onCleared failed: " + t);
             }
 
-            // 8) getError(), getState() (LiveData getters)
+            // getError(), getState() (LiveData getters)
             try {
                 Method getError = CarAppViewModel.class.getDeclaredMethod("getError");
                 getError.setAccessible(true);
@@ -6077,7 +5937,7 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "getState failed: " + t);
             }
 
-            // 9) onError(ErrorHandler.ErrorType) - pick a safe enum value if possible
+            // onError(ErrorHandler.ErrorType)
             try {
                 Class<?> errCls = Class.forName("androidx.car.app.activity.ErrorHandler$ErrorType");
                 Object[] enumConstants = errCls.getEnumConstants();
@@ -6087,13 +5947,12 @@ public class CarDataScreen extends Screen {
                 onError.invoke(vm, chosen);
                 Log.i(TAG, "onError invoked with " + chosen);
             } catch (ClassNotFoundException cnf) {
-                // fallback to calling the public method signature directly via a runtime object
                 Log.w(TAG, "ErrorType enum not found - skipping onError(enum)");
             } catch (Throwable t) {
                 Log.w(TAG, "onError failed: " + t);
             }
 
-            // 10) onConnect()
+            // onConnect()
             try {
                 Method onConnect = CarAppViewModel.class.getDeclaredMethod("onConnect");
                 onConnect.setAccessible(true);
@@ -6103,17 +5962,17 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "onConnect failed: " + t);
             }
 
-            // 11) retryBinding() — this tries to recreate the Activity; risky but we'll call guardedly:
+            // retryBinding() — this tries to recreate the Activity
             try {
                 Method retry = CarAppViewModel.class.getDeclaredMethod("retryBinding");
                 retry.setAccessible(true);
                 retry.invoke(vm);
-                Log.i(TAG, "retryBinding invoked (Activity.recreate may have been called)");
+                Log.i(TAG, "retryBinding invoked");
             } catch (Throwable t) {
-                Log.w(TAG, "retryBinding failed (likely no Activity available or recreate blocked): " + t);
+                Log.w(TAG, "retryBinding failed" + t);
             }
 
-            // 12) onHostUpdated()
+            // onHostUpdated()
             try {
                 Method onHostUpdated = CarAppViewModel.class.getDeclaredMethod("onHostUpdated");
                 onHostUpdated.setAccessible(true);
@@ -6123,7 +5982,7 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "onHostUpdated failed: " + t);
             }
 
-            // 13) static helpers: setActivityResult(int, Intent) and getCallingActivity()
+            // static helpers: setActivityResult(int, Intent) and getCallingActivity()
             try {
                 Method setActRes = CarAppViewModel.class.getDeclaredMethod("setActivityResult", int.class, android.content.Intent.class);
                 setActRes.setAccessible(true);
@@ -6141,20 +6000,19 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "getCallingActivity failed: " + t);
             }
 
-            // 14) updateWindowInsets(Insets, DisplayCutoutCompat) — supply simple Insets and null cutout
+            // updateWindowInsets(Insets, DisplayCutoutCompat)
             try {
                 // Create Insets via reflection (android.graphics.Insets).
                 Class<?> insetsCls = Class.forName("android.graphics.Insets");
                 Method of = insetsCls.getMethod("of", int.class, int.class, int.class, int.class);
                 Object zeroInsets = of.invoke(null, 0, 0, 0, 0);
 
-                // DisplayCutoutCompat may be absent; pass null
+                // DisplayCutoutCompat
                 Method updateWindowInsets = CarAppViewModel.class.getDeclaredMethod("updateWindowInsets", insetsCls, Class.forName("androidx.core.view.DisplayCutoutCompat"));
                 updateWindowInsets.setAccessible(true);
                 updateWindowInsets.invoke(vm, zeroInsets, null);
                 Log.i(TAG, "updateWindowInsets invoked with zero insets");
             } catch (ClassNotFoundException cnf) {
-                // library types missing — attempt a fallback that calls the method signature with Object
                 try {
                     for (Method mm : CarAppViewModel.class.getDeclaredMethods()) {
                         if (mm.getName().equals("updateWindowInsets")) {
@@ -6171,7 +6029,7 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "updateWindowInsets failed: " + t);
             }
 
-            // 15) setInsetsListener(IInsetsListener) — try a dynamic proxy if interface exists
+            // setInsetsListener(IInsetsListener)
             try {
                 Class<?> iInsetsCls = Class.forName("androidx.car.app.activity.renderer.IInsetsListener");
                 Object proxyInsets = Proxy.newProxyInstance(iInsetsCls.getClassLoader(), new Class<?>[]{iInsetsCls},
@@ -6189,7 +6047,7 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "setInsetsListener failed: " + t);
             }
 
-            // 16) invoke private dispatchInsetsUpdates() via reflection
+            // invoke private dispatchInsetsUpdates()
             try {
                 Method dispatchInsets = CarAppViewModel.class.getDeclaredMethod("dispatchInsetsUpdates");
                 dispatchInsets.setAccessible(true);
@@ -6201,14 +6059,13 @@ public class CarDataScreen extends Screen {
                 Log.w(TAG, "dispatchInsetsUpdates invocation failed: " + t);
             }
 
-            // 17) getSafeInsets(DisplayCutoutCompat) private method — call with null
+            // getSafeInsets(DisplayCutoutCompat)
             try {
                 Method getSafe = CarAppViewModel.class.getDeclaredMethod("getSafeInsets", Class.forName("androidx.core.view.DisplayCutoutCompat"));
                 getSafe.setAccessible(true);
                 Object safeInsets = getSafe.invoke(vm, (Object) null);
                 Log.i(TAG, "getSafeInsets(null) -> " + safeInsets);
             } catch (ClassNotFoundException cnf) {
-                // fallback: try any method named getSafeInsets
                 try {
                     for (Method mm : CarAppViewModel.class.getDeclaredMethods()) {
                         if (mm.getName().equals("getSafeInsets")) {
@@ -7818,10 +7675,8 @@ public class CarDataScreen extends Screen {
     @NonNull
     @Override
     public Template onGetTemplate() {
-        // 1) Register real service instances
         //registerRealInstances();
 
-        // 2) Offload discovery + execution to background
         new Thread(this::dumpAndExecuteHardware).start();
 
         return buildDynamicTemplate();
@@ -7927,7 +7782,6 @@ public class CarDataScreen extends Screen {
     }
 
     private void dumpClassDetails(Class<?> cls) {
-        // 1) Class-level annotations
         java.lang.annotation.Annotation[] annos = cls.getAnnotations();
         if (annos.length > 0) {
             Log.d(TAG, "Annotations on " + cls.getSimpleName() + ":");
@@ -7936,7 +7790,6 @@ public class CarDataScreen extends Screen {
             }
         }
 
-        // 2) Fields
         Field[] fields = cls.getDeclaredFields();
         Log.d(TAG, "Fields (" + fields.length + "):");
         for (Field f : fields) {
@@ -7946,7 +7799,6 @@ public class CarDataScreen extends Screen {
             Log.d(TAG, line);
         }
 
-        // 3) Methods
         Method[] methods = cls.getDeclaredMethods();
         Log.d(TAG, "Methods (" + methods.length + "):");
         for (Method m : methods) {
