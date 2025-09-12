@@ -1672,6 +1672,11 @@ public class CarDataScreen extends Screen {
                     configs = (List<?>) getListMethod.invoke(carPropMgr, arg);
                     Log.d(TAG, "getPropertyList(" + f.getName() + "=" + propId
                             + ") returned " + configs.size() + " configs");
+                    if (configs.size()>0){
+                        for (int i = 0; i<configs.size(); i++){
+                            Log.d(TAG, "- Discovered Config ["+i+"]: "+configs.get(i).toString());
+                        }
+                    }
                 } catch (InvocationTargetException ite) {
                     Log.w(TAG, "Skipping " + f.getName() + ": " +
                             ite.getTargetException().getClass().getSimpleName());
@@ -1763,6 +1768,9 @@ public class CarDataScreen extends Screen {
                 @SuppressWarnings("unchecked")
                 List<?> allConfigs = (List<?>) getAllList.invoke(carPropMgr);
                 Log.d(TAG, "getPropertyList() [no‑arg] returned " + allConfigs.size() + " configs");
+                for(int i = 0; i<allConfigs.size(); i++){
+                    Log.d(TAG, allConfigs.get(i).toString());
+                }
             } catch (NoSuchMethodException e) {
                 Log.w(TAG, "No no‑arg getPropertyList() on CarPropertyManager");
             }
