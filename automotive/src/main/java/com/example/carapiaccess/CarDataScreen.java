@@ -235,9 +235,11 @@ public class CarDataScreen extends Screen {
             //exerciseHostValidator();
 
             //exerciseBaseCarAppActivityReflection();
-            exercisePropertyRequestProcessor();
+            //exercisePropertyRequestProcessor();
 
             //exerciseAppManagerReflection();
+
+            exerciseCarPropertyManager_setProperty();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1203,6 +1205,7 @@ public class CarDataScreen extends Screen {
     //For android.car
     private String[] getClassListForAndroid(String sub) {
         switch (sub) {
+            /*
             case "hardware":
                 return new String[]{
                         "android.car.hardware.CarPropertyConfig",
@@ -1218,11 +1221,13 @@ public class CarDataScreen extends Screen {
                         "android.car.hardware.power.CarPowerPolicyFilter",
                         "android.car.hardware.power.PowerComponent"
                 };
+                */
             case "hardware.property":
                 return new String[]{
-                        "android.car.hardware.property.AreaIdConfig",
-                        "android.car.hardware.property.CarInternalErrorException",
+                        //"android.car.hardware.property.AreaIdConfig",
+                        //"android.car.hardware.property.CarInternalErrorException",
                         "android.car.hardware.property.CarPropertyManager",
+                        /*
                         "android.car.hardware.property.EvChargeState",
                         "android.car.hardware.property.EvChargingConnectorType",
                         "android.car.hardware.property.EvRegenerativeBrakingState",
@@ -1233,7 +1238,9 @@ public class CarDataScreen extends Screen {
                         "android.car.hardware.property.PropertyNotAvailableException",
                         "android.car.hardware.property.VehicleElectronicTollCollectionCardStatus",
                         "android.car.hardware.property.VehicleElectronicTollCollectionCardType"
+                        */
                 };
+                /*
             case "content.pm":
                 return new String[]{
                         "android.car.content.pm.CarPackageManager"
@@ -1287,6 +1294,7 @@ public class CarDataScreen extends Screen {
                         "android.car.VehiclePropertyIds",
                         "android.car.VehicleUnit"
                 };
+                */
             default:
                 return new String[0];
         }
@@ -7400,6 +7408,129 @@ public class CarDataScreen extends Screen {
         } catch (Throwable topEx) {
             android.util.Log.e("PropertyUtilsExercise", "Unexpected failure setting up reflection.", topEx);
         }
+    }
+
+
+    public void exerciseCarPropertyManager_setProperty() {
+        // run on background thread because setProperty may block / require non-main thread
+        new Thread(() -> {
+            try {
+                Class<?> carClass = Class.forName("android.car.Car");
+                java.lang.reflect.Method createCar = carClass.getMethod("createCar", android.content.Context.class);
+                Object car = createCar.invoke(null, getCarContext());
+
+                // get constant Car.PROPERTY_SERVICE (String)
+                String propertyServiceName = (String) carClass.getField("PROPERTY_SERVICE").get(null);
+                java.lang.reflect.Method getCarManager = carClass.getMethod("getCarManager", String.class);
+                Object carPropertyManager = getCarManager.invoke(car, propertyServiceName);
+                if (carPropertyManager == null) {
+                    System.err.println("CarPropertyManager is null (car.getCarManager returned null).");
+                    return;
+                }
+
+                // setProperty(Class, int, int, Object)
+                Class<?> cpmClass = Class.forName("android.car.hardware.property.CarPropertyManager");
+                java.lang.reflect.Method setPropertyMethod = null;
+                for (java.lang.reflect.Method m : cpmClass.getMethods()) {
+                    if ("setProperty".equals(m.getName())) {
+                        Class<?>[] params = m.getParameterTypes();
+                        if (params.length == 4 && params[0] == Class.class && params[1] == int.class
+                                && params[2] == int.class) {
+                            // found matching signature
+                            setPropertyMethod = m;
+                            break;
+                        }
+                    }
+                }
+                if (setPropertyMethod == null) {
+                    System.err.println("Could not find setProperty(Class, int, int, E) via reflection.");
+                    return;
+                }
+
+                Method finalSetPropertyMethod = setPropertyMethod;
+                java.util.function.BiConsumer<Object[], String> tryInvoke = (args, desc) -> {
+                    try {
+                        System.out.println("Invoking setProperty: " + desc);
+                        finalSetPropertyMethod.invoke(carPropertyManager, args);
+                        System.out.println("Invocation succeeded: " + desc);
+                    } catch (Throwable t) {
+                        Throwable cause = t;
+                        if (t instanceof java.lang.reflect.InvocationTargetException
+                                && t.getCause() != null) {
+                            cause = t.getCause();
+                        }
+                        System.err.println("Invocation failed for: " + desc + " -> " + cause.getClass().getName()
+                                + ": " + cause.getMessage());
+                        cause.printStackTrace();
+                    }
+                };
+
+                // get integer constant
+                java.util.function.BiFunction<String, String, Integer> getIntConstant =
+                        (className, fieldName) -> {
+                            try {
+                                Class<?> cls = Class.forName(className);
+                                return cls.getField(fieldName).getInt(null);
+                            } catch (Throwable t) {
+                                System.err.println("Failed to get int constant " + className + "#" + fieldName);
+                                t.printStackTrace();
+                                return null;
+                            }
+                        };
+
+                // VehicleAreaType
+                Integer areaGlobal = getIntConstant.apply("android.car.VehicleAreaType", "VEHICLE_AREA_TYPE_GLOBAL");
+                Integer areaSeat = getIntConstant.apply("android.car.VehicleAreaType", "VEHICLE_AREA_TYPE_SEAT");
+
+                // Prepare property ids
+                Integer hvacPowerId = getIntConstant.apply("android.car.VehiclePropertyIds", "HVAC_POWER_ON");
+                Integer hvacAcId = getIntConstant.apply("android.car.VehiclePropertyIds", "HVAC_AC_ON");
+                Integer hvacTempSetId = getIntConstant.apply("android.car.VehiclePropertyIds", "HVAC_TEMPERATURE_SET");
+                Integer infoVinId = getIntConstant.apply("android.car.VehiclePropertyIds", "INFO_VIN");
+                Integer vehicleSpeedId = getIntConstant.apply("android.car.VehiclePropertyIds", "VEHICLE_SPEED_DISPLAY_UNITS");
+                Integer ignitionStateId = getIntConstant.apply("android.car.VehiclePropertyIds", "IGNITION_STATE");
+
+                if (hvacPowerId != null && areaGlobal != null) {
+                    Object[] args = new Object[] { Boolean.class, hvacPowerId.intValue(), areaGlobal.intValue(), Boolean.TRUE };
+                    tryInvoke.accept(args, "HVAC_POWER_ON -> true (Boolean.class)");
+                }
+
+                if (hvacAcId != null && areaGlobal != null) {
+                    Object[] args = new Object[] { Boolean.class, hvacAcId.intValue(), areaGlobal.intValue(), Boolean.FALSE };
+                    tryInvoke.accept(args, "HVAC_AC_ON -> false (Boolean.class)");
+                }
+
+                if (hvacTempSetId != null && areaSeat != null) {
+                    int tenths = Math.round(22.5f * 2);
+                    Object[] argsInt = new Object[] { Integer.class, hvacTempSetId.intValue(), areaSeat.intValue(), Integer.valueOf(tenths) };
+                    tryInvoke.accept(argsInt, "HVAC_TEMPERATURE_SET -> " + tenths + " (Integer.class, tenths)");
+
+                    // attempt as Float
+                    Object[] argsFloat = new Object[] { Float.class, hvacTempSetId.intValue(), areaSeat.intValue(), Float.valueOf(22.5f) };
+                    tryInvoke.accept(argsFloat, "HVAC_TEMPERATURE_SET -> 22.5f (Float.class)");
+                }
+
+                if (vehicleSpeedId != null && areaGlobal != null) {
+                    Object[] args = new Object[] { Integer.class, vehicleSpeedId.intValue(), areaGlobal.intValue(), Integer.valueOf(123) };
+                    tryInvoke.accept(args, "VEHICLE_SPEED_DISPLAY_UNITS -> 123 (Integer.class) [expected String]");
+                }
+
+                if (ignitionStateId != null && areaGlobal != null) {
+                    Object[] args = new Object[] { Integer.class, ignitionStateId.intValue(), areaGlobal.intValue(), Integer.valueOf(123) };
+                    tryInvoke.accept(args, "IGNITION_STATE -> 123 (Integer.class) [expected String]");
+                }
+
+                if (infoVinId != null && areaGlobal != null) {
+                    Object[] args = new Object[] { String.class, infoVinId.intValue(), areaGlobal.intValue(), "TEST-VIN-123456" };
+                    tryInvoke.accept(args, "INFO_VIN -> \"TEST-VIN-123456\" (String.class)");
+                }
+
+                System.out.println("Finished attempting setProperty permutations.");
+            } catch (Throwable outer) {
+                System.err.println("Fatal reflection error in exercise method: " + outer.getClass().getName() + ": " + outer.getMessage());
+                outer.printStackTrace();
+            }
+        }).start();
     }
 
 
