@@ -7533,6 +7533,133 @@ public class CarDataScreen extends Screen {
         }).start();
     }
 
+    public void exerciseCarPropertyManager_setPropertyAll() {
+        new Thread(() -> {
+            try {
+                // create car and get CarPropertyManager
+                Class<?> carClass = Class.forName("android.car.Car");
+                java.lang.reflect.Method createCar = carClass.getMethod("createCar", android.content.Context.class);
+                Object car = createCar.invoke(null, getCarContext());
+
+                String propertyServiceName = (String) carClass.getField("PROPERTY_SERVICE").get(null);
+                java.lang.reflect.Method getCarManager = carClass.getMethod("getCarManager", String.class);
+                Object carPropertyManager = getCarManager.invoke(car, propertyServiceName);
+                if (carPropertyManager == null) {
+                    System.err.println("CarPropertyManager is null (car.getCarManager returned null).");
+                    return;
+                }
+
+                // locate setProperty(Class, int, int, E) method
+                Class<?> cpmClass = Class.forName("android.car.hardware.property.CarPropertyManager");
+                java.lang.reflect.Method setPropertyMethod = null;
+                for (java.lang.reflect.Method m : cpmClass.getMethods()) {
+                    if ("setProperty".equals(m.getName())) {
+                        Class<?>[] params = m.getParameterTypes();
+                        if (params.length == 4 && params[0] == Class.class && params[1] == int.class
+                                && params[2] == int.class) {
+                            setPropertyMethod = m;
+                            break;
+                        }
+                    }
+                }
+                if (setPropertyMethod == null) {
+                    System.err.println("Could not find setProperty(Class, int, int, E) via reflection.");
+                    return;
+                }
+                Method finalSetPropertyMethod = setPropertyMethod;
+
+                // helper to get int constants
+                java.util.function.BiFunction<String, String, Integer> getIntConstant =
+                        (className, fieldName) -> {
+                            try {
+                                Class<?> cls = Class.forName(className);
+                                return cls.getField(fieldName).getInt(null);
+                            } catch (Throwable t) {
+                                // silent - caller can handle null
+                                return null;
+                            }
+                        };
+
+                // vehicle area types (may be missing on some platforms; null-check)
+                Integer areaGlobal = getIntConstant.apply("android.car.VehicleAreaType", "VEHICLE_AREA_TYPE_GLOBAL");
+                Integer areaSeat = getIntConstant.apply("android.car.VehicleAreaType", "VEHICLE_AREA_TYPE_SEAT");
+
+                // fallback area values list (try both if present, else 0)
+                java.util.List<Integer> areaCandidates = new java.util.ArrayList<>();
+                if (areaGlobal != null) areaCandidates.add(areaGlobal);
+                if (areaSeat != null && !areaCandidates.contains(areaSeat)) areaCandidates.add(areaSeat);
+                // always add 0 as last resort
+                areaCandidates.add(0);
+
+                // build a small set of sample (typeClass -> sampleValue)
+                java.util.LinkedHashMap<Class<?>, Object> sampleValues = new java.util.LinkedHashMap<>();
+                sampleValues.put(Boolean.class, Boolean.TRUE);
+                sampleValues.put(Integer.class, Integer.valueOf(1));
+                sampleValues.put(Float.class, Float.valueOf(22.5f));
+                sampleValues.put(String.class, "TEST-VALUE-123");
+                sampleValues.put(int[].class, new int[]{1});
+                // (add more sample types here if you want)
+
+                // discover all public static int fields in VehiclePropertyIds
+                Class<?> vehiclePropClass = Class.forName("android.car.VehiclePropertyIds");
+                java.lang.reflect.Field[] fields = vehiclePropClass.getFields();
+                java.util.List<java.lang.reflect.Field> intFields = new java.util.ArrayList<>();
+                for (java.lang.reflect.Field f : fields) {
+                    intModifiers:
+                    {
+                        int mods = f.getModifiers();
+                        if (!java.lang.reflect.Modifier.isStatic(mods) || !java.lang.reflect.Modifier.isPublic(mods)) break intModifiers;
+                        if (f.getType() == int.class) intFields.add(f);
+                    }
+                }
+
+                System.out.println("Found " + intFields.size() + " VehiclePropertyIds fields; will attempt setProperty permutations.");
+
+                // iterator through each property field
+                for (java.lang.reflect.Field propField : intFields) {
+                    String propName = propField.getName();
+                    int propId;
+                    try {
+                        propId = propField.getInt(null);
+                    } catch (Throwable t) {
+                        System.err.println("Skipping " + propName + " — couldn't read int value: " + t);
+                        continue;
+                    }
+
+                    // for each area candidate and sample type/value, try setProperty
+                    for (Integer area : areaCandidates) {
+                        for (java.util.Map.Entry<Class<?>, Object> entry : sampleValues.entrySet()) {
+                            Class<?> valueType = entry.getKey();
+                            Object sampleValue = entry.getValue();
+
+                            // prepare args: (Class, int propertyId, int area, E value)
+                            Object[] args = new Object[] { valueType, Integer.valueOf(propId), Integer.valueOf(area), sampleValue };
+
+                            String desc = propName + " (id=" + propId + ") area=" + area + " type=" + valueType.getSimpleName();
+                            try {
+                                System.out.println("Attempting: " + desc);
+                                finalSetPropertyMethod.invoke(carPropertyManager, args);
+                                System.out.println("SUCCESS: " + desc);
+                                // if you want to stop after the first success for a property, uncomment the next line:
+                                // break out of both loops to move to the next property.
+                            } catch (Throwable t) {
+                                Throwable cause = t;
+                                if (t instanceof java.lang.reflect.InvocationTargetException && t.getCause() != null) {
+                                    cause = t.getCause();
+                                }
+                                System.err.println("FAILED: " + desc + " -> " + cause.getClass().getName() + ": " + cause.getMessage());
+                            }
+                        }
+                    }
+                }
+
+                System.out.println("Finished attempting setProperty permutations for all VehiclePropertyIds.");
+            } catch (Throwable outer) {
+                System.err.println("Fatal reflection error in exercise method: " + outer.getClass().getName() + ": " + outer.getMessage());
+                outer.printStackTrace();
+            }
+        }).start();
+    }
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
