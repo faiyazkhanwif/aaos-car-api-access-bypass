@@ -241,7 +241,7 @@ public class CarDataScreen extends Screen {
 
             //exerciseCarPropertyManager_setProperty();
 
-            exercisePropertyRequestProcessor_validConfigs();
+            exerciseCarPropertyManager_setProperty_validConfigs();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -7713,6 +7713,133 @@ public class CarDataScreen extends Screen {
             }
         }).start();
     }
+
+    @SuppressLint("RestrictedApi")
+    public void exerciseCarPropertyManager_setProperty_validConfigs() {
+        // run on background thread because setProperty may block / require non-main thread
+        new Thread(() -> {
+            try {
+                Class<?> carClass = Class.forName("android.car.Car");
+                java.lang.reflect.Method createCar = carClass.getMethod("createCar", android.content.Context.class);
+                Object car = createCar.invoke(null, getCarContext());
+
+                // get constant Car.PROPERTY_SERVICE (String)
+                String propertyServiceName = (String) carClass.getField("PROPERTY_SERVICE").get(null);
+                java.lang.reflect.Method getCarManager = carClass.getMethod("getCarManager", String.class);
+                Object carPropertyManager = getCarManager.invoke(car, propertyServiceName);
+                if (carPropertyManager == null) {
+                    System.err.println("CarPropertyManager is null (car.getCarManager returned null).");
+                    return;
+                }
+
+                // find setProperty(Class, int, int, E)
+                Class<?> cpmClass = Class.forName("android.car.hardware.property.CarPropertyManager");
+                java.lang.reflect.Method setPropertyMethod = null;
+                for (java.lang.reflect.Method m : cpmClass.getMethods()) {
+                    if ("setProperty".equals(m.getName())) {
+                        Class<?>[] params = m.getParameterTypes();
+                        if (params.length == 4 && params[0] == Class.class && params[1] == int.class
+                                && params[2] == int.class) {
+                            setPropertyMethod = m;
+                            break;
+                        }
+                    }
+                }
+                if (setPropertyMethod == null) {
+                    System.err.println("Could not find setProperty(Class, int, int, E) via reflection.");
+                    return;
+                }
+
+                Method finalSetPropertyMethod = setPropertyMethod;
+                java.util.function.BiConsumer<Object[], String> tryInvoke = (args, desc) -> {
+                    try {
+                        System.out.println("Invoking setProperty: " + desc);
+                        finalSetPropertyMethod.invoke(carPropertyManager, args);
+                        System.out.println("Invocation succeeded: " + desc);
+                    } catch (Throwable t) {
+                        Throwable cause = t;
+                        if (t instanceof java.lang.reflect.InvocationTargetException
+                                && t.getCause() != null) {
+                            cause = t.getCause();
+                        }
+                        System.err.println("Invocation failed for: " + desc + " -> " + cause.getClass().getName()
+                                + ": " + cause.getMessage());
+                        cause.printStackTrace();
+                    }
+                };
+
+                Object[][] props = new Object[][] {
+                        { Integer.class, 289408512, 0, Integer.valueOf(37) },                     // DISTANCE_DISPLAY_UNITS
+                        { Integer.class, 289410874, 0, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_STATUS
+                        { Integer.class, 289410873, 0, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_TYPE
+                        { Float.class,   291505923, 0, Float.valueOf(26.0f) },                    // ENV_OUTSIDE_TEMPERATURE
+                        { Float.class,   291504908, 0, Float.valueOf(1.0f) },                     // EV_BATTERY_INSTANTANEOUS_CHARGE_RATE
+                        { Integer.class, 291504905, 0, Integer.valueOf(1) },                      // EV_BATTERY_LEVEL
+                        { Float.class,   291508031, 0, Float.valueOf(13.5f) },                    // EV_CHARGE_CURRENT_DRAW_LIMIT
+                        { Integer.class, 291508032, 0, Integer.valueOf(41) },                     // EV_CHARGE_PERCENT_LIMIT
+                        { Integer.class, 289410881, 0, Integer.valueOf(3) },                      // EV_CHARGE_STATE
+                        { Boolean.class, 287313730, 0, Boolean.FALSE },                           // EV_CHARGE_SWITCH
+                        { Integer.class, 289410883, 0, Integer.valueOf(21) },                     // EV_CHARGE_TIME_REMAINING
+                        { Integer.class, 289410884, 0, Integer.valueOf(3) },                      // EV_REGENERATIVE_BRAKING_STATE
+                        { Boolean.class, 287311364, 0, Boolean.TRUE },                            // FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME
+                        { Integer.class, 291504903, 0, Integer.valueOf(14000) },                  // FUEL_LEVEL
+                        { Boolean.class, 287310853, 0, Boolean.FALSE },                           // FUEL_LEVEL_LOW
+                        { Integer.class, 289408513, 0, Integer.valueOf(65) },                     // FUEL_VOLUME_DISPLAY_UNITS
+                        { Integer.class, 289408000, 0, Integer.valueOf(3) },                      // GEAR_SELECTION
+                        { Integer.class, 289408009, 0, Integer.valueOf(3) },                      // IGNITION_STATE
+                        { Integer.class, 356516106, 3, Integer.valueOf(2) },                      // INFO_DRIVER_SEAT (area=3)
+                        { Integer.class, 291504390, 0, Integer.valueOf(525) },                    // INFO_EV_BATTERY_CAPACITY
+                        { int[].class,  289472779, 0, new int[] {1800, 450, 1400} },              // INFO_EXTERIOR_DIMENSIONS (LxWxH mm)
+                        { Integer.class, 291504388, 0, Integer.valueOf(47500) },                  // INFO_FUEL_CAPACITY
+                        { Integer.class, 289407240, 0, Integer.valueOf(3) },                      // INFO_FUEL_DOOR_LOCATION
+                        { int[].class,  289472773, 0, new int[] {1} },                            // INFO_FUEL_TYPE (array-like; small int[])
+                        { String.class, 286261505, 0, "HondaX" },                                  // INFO_MAKE
+                        { String.class, 286261506, 0, "AccordX" },                                 // INFO_MODEL
+                        { Integer.class, 289407235, 0, Integer.valueOf(2020) },                   // INFO_MODEL_YEAR
+                        { Boolean.class, 287310855, 0, Boolean.TRUE },                           // NIGHT_MODE
+                        { Boolean.class, 287310851, 0, Boolean.FALSE },                            // PARKING_BRAKE_AUTO_APPLY
+                        { Boolean.class, 287310850, 0, Boolean.FALSE },                            // PARKING_BRAKE_ON
+                        { Float.class,   291504647, 0, Float.valueOf(1.0f) },                     // PERF_VEHICLE_SPEED
+                        { Integer.class, 291504648, 0, Integer.valueOf(1) },                      // PERF_VEHICLE_SPEED_DISPLAY
+                        { Integer.class, 291504904, 0, Integer.valueOf(110) },                    // RANGE_REMAINING
+                        { Integer.class, 289408516, 0, Integer.valueOf(134) },                    // VEHICLE_SPEED_DISPLAY_UNITS
+                        { long[].class,  290521862, 0, new long[] {1000L, 2000L} }                // WHEEL_TICK
+                };
+
+                for (Object[] entry : props) {
+                    try {
+                        Class<?> valClass = (Class<?>) entry[0];
+                        int propId = ((Integer) entry[1]).intValue();
+                        int area = ((Integer) entry[2]).intValue();
+                        Object value = entry[3];
+
+                        Object[] args = new Object[] { valClass, Integer.valueOf(propId), Integer.valueOf(area), value };
+                        String desc = String.format("propId=%d area=%d class=%s value=%s",
+                                propId, area, valClass.getSimpleName(),
+                                (value == null ? "null" : value.getClass().isArray() ? java.util.Arrays.toString((Object[]) (value instanceof Object[] ? value : null))
+                                        : value.toString()));
+                        if (value != null && value.getClass().isArray()) {
+                            if (value instanceof int[]) desc = String.format("propId=%d area=%d class=%s value=%s",
+                                    propId, area, "int[]", java.util.Arrays.toString((int[]) value));
+                            else if (value instanceof long[]) desc = String.format("propId=%d area=%d class=%s value=%s",
+                                    propId, area, "long[]", java.util.Arrays.toString((long[]) value));
+                        }
+
+                        tryInvoke.accept(args, desc);
+                    } catch (Throwable t) {
+                        System.err.println("Error preparing/invoking property entry: " + t.getMessage());
+                        t.printStackTrace();
+                    }
+                }
+
+                System.out.println("Finished attempting setProperty for the requested 35 properties.");
+            } catch (Throwable outer) {
+                System.err.println("Fatal reflection error in exercise method: " + outer.getClass().getName() + ": " + outer.getMessage());
+                outer.printStackTrace();
+            }
+        }).start();
+    }
+
 
     public void exerciseCarPropertyManager_setPropertyAll() {
         new Thread(() -> {
