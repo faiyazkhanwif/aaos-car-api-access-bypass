@@ -239,7 +239,9 @@ public class CarDataScreen extends Screen {
 
             //exerciseAppManagerReflection();
 
-            exerciseCarPropertyManager_setProperty();
+            //exerciseCarPropertyManager_setProperty();
+
+            exercisePropertyRequestProcessor_validConfigs();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -1789,6 +1791,185 @@ public class CarDataScreen extends Screen {
             Log.e(TAG, "Error exercising PropertyRequestProcessor", e);
         }
     }
+
+    @SuppressLint("RestrictedApi")
+    private void exercisePropertyRequestProcessor_validConfigs() {
+        try {
+            //Obtain PropertyRequestProcessor
+            CarHardwareManager hwMgr = getCarContext().getCarService(CarHardwareManager.class);
+            PropertyManager pm = getPropertyManager(hwMgr);
+            if (pm == null) {
+                Log.w(TAG, "No PropertyManager; aborting.");
+                return;
+            }
+            Field procField = ReflectUtil.safeGetField(pm.getClass(), "mPropertyRequestProcessor");
+            Object processor = ReflectUtil.safeGetInstanceObject(procField, pm);
+            if (processor == null) {
+                Log.w(TAG, "PropertyRequestProcessor is null");
+                return;
+            }
+            Class<?> prpClass = processor.getClass();
+
+            //Prepare CarPropertyManager.getPropertyList(...) lookup
+            Field carPropMgrField = ReflectUtil.safeGetField(prpClass, "mCarPropertyManager");
+            Object carPropMgr = ReflectUtil.safeGetInstanceObject(carPropMgrField, processor);
+            if (carPropMgr == null) {
+                Log.w(TAG, "Cannot access mCarPropertyManager");
+                return;
+            }
+            Method getListMethod = null;
+            for (Method m : carPropMgr.getClass().getMethods()) {
+                if ("getPropertyList".equals(m.getName()) && m.getParameterCount() == 1) {
+                    getListMethod = m;
+                    getListMethod.setAccessible(true);
+                    break;
+                }
+            }
+            if (getListMethod == null) {
+                Log.w(TAG, "No single-arg getPropertyList found");
+                return;
+            }
+
+            //Scan all VehiclePropertyIds
+            Class<?> vehicleIds = ReflectUtil.safeForName("android.car.VehiclePropertyIds");
+            Field[] vidFields = vehicleIds.getDeclaredFields();
+            Map<Field, List<?>> workingMap = new LinkedHashMap<>();
+
+            for (Field f : vidFields) {
+                if (f.getType() != int.class) continue;
+                f.setAccessible(true);
+                int propId = ReflectUtil.safeGetStaticInt(f, -1);
+                if (propId < 0) continue;
+
+                // build correct arg
+                Class<?> paramType = getListMethod.getParameterTypes()[0];
+                Object arg = paramType.getName().equals("android.util.ArraySet")
+                        ? new android.util.ArraySet<>(Collections.singleton(propId))
+                        : Collections.singleton(propId);
+
+                List<?> configs;
+                try {
+                    configs = (List<?>) getListMethod.invoke(carPropMgr, arg);
+                    Log.d(TAG, "getPropertyList(" + f.getName() + "=" + propId
+                            + ") returned " + configs.size() + " configs");
+                    if (configs.size() > 0) {
+                        for (int i = 0; i < configs.size(); i++) {
+                            Log.d(TAG, "- Discovered Config [" + i + "]: " + configs.get(i).toString());
+                        }
+                    }
+                } catch (InvocationTargetException ite) {
+                    Log.w(TAG, "Skipping " + f.getName() + ": " +
+                            ite.getTargetException().getClass().getSimpleName());
+                    continue;
+                }
+
+                if (!configs.isEmpty()) {
+                    workingMap.put(f, configs);
+                }
+            }
+            if (workingMap.isEmpty()) {
+                Log.w(TAG, "No implemented properties found");
+                return;
+            }
+
+            //For each supported property, run fetch and log values
+            for (Map.Entry<Field, List<?>> entry : workingMap.entrySet()) {
+                Field f = entry.getKey();
+                int propId = ReflectUtil.safeGetStaticInt(f, -1);
+                Log.i(TAG, "=== Property " + f.getName() + " (" + propId + ") ===");
+
+                // Only fetch values when the config list for this property actually has items
+                List<?> configs = entry.getValue();
+                if (configs == null || configs.size() == 0) {
+                    Log.w(TAG, "No configs for " + f.getName() + "; skipping fetch");
+                    continue;
+                }
+
+                // build a PropertyIdAreaId list
+                Class<?> carZoneCls = ReflectUtil.safeForName(
+                        "androidx.car.app.hardware.common.CarZone");
+                Object globalZone = ReflectUtil.safeGetStaticObject(
+                        ReflectUtil.safeGetField(carZoneCls, "CAR_ZONE_GLOBAL"));
+                Map<Integer, List<Object>> map = new HashMap<>();
+                map.put(propId, Collections.singletonList(globalZone));
+                Class<?> utilsCls = ReflectUtil.safeForName(
+                        "androidx.car.app.hardware.common.PropertyUtils");
+                Method getIdWithAreas = utilsCls.getDeclaredMethod("getPropertyIdWithAreaIds", Map.class);
+                getIdWithAreas.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                List<?> pidAidList = (List<?>) getIdWithAreas.invoke(null, map);
+
+                // prepare listener
+                Class<?> onGetPropsIface = ReflectUtil.safeForName(
+                        "androidx.car.app.hardware.common.PropertyRequestProcessor$OnGetPropertiesListener");
+                Object getPropsListener = Proxy.newProxyInstance(
+                        onGetPropsIface.getClassLoader(),
+                        new Class[]{onGetPropsIface},
+                        (proxy, method, args) -> {
+                            if ("onGetProperties".equals(method.getName()) && args.length == 2) {
+                                @SuppressWarnings("unchecked")
+                                List<Object> values = (List<Object>) args[0];
+                                @SuppressWarnings("unchecked")
+                                List<Object> errors = (List<Object>) args[1];
+                                Log.d(TAG, "fetchCarPropertyValues - values=" + values.size()
+                                        + ", errors=" + errors.size());
+                                // print value
+                                for (Object valObj : values) {
+                                    try {
+                                        Class<?> respCls = valObj.getClass();
+                                        Method getId = respCls.getMethod("getPropertyId");
+                                        Method getVal = respCls.getMethod("getValue");
+                                        Method getArea = respCls.getMethod("getAreaId");
+                                        Object id = getId.invoke(valObj);
+                                        Object area = getArea.invoke(valObj);
+                                        Object v = getVal.invoke(valObj);
+                                        Log.d(TAG, String.format(
+                                                "  [%s] area=%s - %s",
+                                                id, area, v));
+                                    } catch (NoSuchMethodException nsme) {
+                                        // fallback to toString()
+                                        Log.d(TAG, "  value: " + valObj);
+                                    }
+                                }
+                                // print errors
+                                for (Object errObj : errors) {
+                                    Log.w(TAG, "  error: " + errObj);
+                                }
+                            }
+                            return null;
+                        });
+
+                // invoke fetchCarPropertyValues
+                Method fetchValues = prpClass.getDeclaredMethod(
+                        "fetchCarPropertyValues", List.class, onGetPropsIface);
+                fetchValues.setAccessible(true);
+                fetchValues.invoke(processor, pidAidList, getPropsListener);
+
+                // have to wait if asynchronous values
+            }
+
+            //invoke no-arg getPropertyList()
+            try {
+                Method getAllList = carPropMgr.getClass().getMethod("getPropertyList");
+                getAllList.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                List<?> allConfigs = (List<?>) getAllList.invoke(carPropMgr);
+                Log.d(TAG, "getPropertyList() [no-arg] returned " + allConfigs.size() + " configs");
+                for (int i = 0; i < allConfigs.size(); i++) {
+                    Log.d(TAG, allConfigs.get(i).toString());
+                }
+            } catch (NoSuchMethodException e) {
+                Log.w(TAG, "No no-arg getPropertyList() on CarPropertyManager");
+            }
+
+        } catch (InvocationTargetException ite) {
+            Log.e(TAG, "Underlying throw:", ite.getTargetException());
+        } catch (Exception e) {
+            Log.e(TAG, "Error exercising PropertyRequestProcessor", e);
+        }
+    }
+
+
 
     @SuppressLint("RestrictedApi")
     private void exerciseAutomotiveCarClimate() {
