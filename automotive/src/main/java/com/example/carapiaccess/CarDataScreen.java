@@ -207,41 +207,14 @@ public class CarDataScreen extends Screen {
         if (!dumped) {
             updateDynamicRow("STATUS", "Dumping AndroidX hierarchy…");
             long start = System.currentTimeMillis();
-            /*
-            dumpCarAppHierarchyAndroidX();
-            exercisePropertyRequestProcessor();
-            */
-            //exercisePropertyRequestProcessorToGenerateErrorLog();
-            //fetchAllCarProperties();
 
-            //dumpCarHierarchyAndroid();
+            //Comparison target with aosp build
+            //fetchAllCarProperties(); //messy
 
-            //exerciseAutomotiveCarClimate();
+            //exercisePropertyRequestProcessor(); // -> gives you configs
 
-            //dumpCarAppHierarchyAndroidX();
-
-            //exerciseAutomotiveCarSensors();
-
-            //exerciseAutomotiveCarInfo();
-
-            //exerciseAutomotiveCarInfo();
-
-            //fetchAllCarProperties();
-
-            //exerciseCarConnection();
-
-            //exerciseHostDispatcherNavigationRpc();
-
-            //exerciseHostValidator();
-
-            //exerciseBaseCarAppActivityReflection();
-            //exercisePropertyRequestProcessor();
-
-            //exerciseAppManagerReflection();
-
-            //exerciseCarPropertyManager_setProperty();
-
-            exerciseCarPropertyManager_setProperty_validConfigs();
+            //exerciseCarPropertyManager_setProperty_validConfigs();
+            //exerciseCarPropertyManager_setPropertyAll();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");

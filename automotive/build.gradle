@@ -34,7 +34,7 @@ dependencies {
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
-    implementation libs.app
+    //implementation libs.app
     implementation libs.app.automotive
     annotationProcessor libs.auto.value
     implementation libs.auto.value.annotations
