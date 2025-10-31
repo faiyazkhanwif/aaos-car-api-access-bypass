@@ -216,6 +216,8 @@ public class CarDataScreen extends Screen {
             //exerciseCarPropertyManager_setProperty_validConfigs();
             //exerciseCarPropertyManager_setPropertyAll();
 
+            exerciseCarPropertyManager_setProperty_validConfigs();
+
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
             Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
@@ -7740,7 +7742,7 @@ public class CarDataScreen extends Screen {
                         cause.printStackTrace();
                     }
                 };
-
+/*
                 Object[][] props = new Object[][] {
                         { Integer.class, 289408512, 0, Integer.valueOf(37) },                     // DISTANCE_DISPLAY_UNITS
                         { Integer.class, 289410874, 0, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_STATUS
@@ -7778,6 +7780,292 @@ public class CarDataScreen extends Screen {
                         { Integer.class, 289408516, 0, Integer.valueOf(134) },                    // VEHICLE_SPEED_DISPLAY_UNITS
                         { long[].class,  290521862, 0, new long[] {1000L, 2000L} }                // WHEEL_TICK
                 };
+ */
+
+                Object[][] props = new Object[][] {
+                        { Integer.class, 289408512, 0, Integer.valueOf(37) },                     // DISTANCE_DISPLAY_UNITS (area=0)
+                        { Integer.class, 289408512, 1, Integer.valueOf(37) },                     // DISTANCE_DISPLAY_UNITS (area=1)
+                        { Integer.class, 289408512, 2, Integer.valueOf(37) },                     // DISTANCE_DISPLAY_UNITS (area=2)
+                        { Integer.class, 289408512, 3, Integer.valueOf(37) },                     // DISTANCE_DISPLAY_UNITS (area=3)
+                        { Integer.class, 289408512, 4, Integer.valueOf(37) },                     // DISTANCE_DISPLAY_UNITS (area=4)
+                        { Integer.class, 289408512, 5, Integer.valueOf(37) },                     // DISTANCE_DISPLAY_UNITS (area=5)
+                        { Integer.class, 289408512, 6, Integer.valueOf(37) },                     // DISTANCE_DISPLAY_UNITS (area=6)
+
+                        { Integer.class, 289410874, 0, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_STATUS (area=0)
+                        { Integer.class, 289410874, 1, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_STATUS (area=1)
+                        { Integer.class, 289410874, 2, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_STATUS (area=2)
+                        { Integer.class, 289410874, 3, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_STATUS (area=3)
+                        { Integer.class, 289410874, 4, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_STATUS (area=4)
+                        { Integer.class, 289410874, 5, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_STATUS (area=5)
+                        { Integer.class, 289410874, 6, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_STATUS (area=6)
+
+                        { Integer.class, 289410873, 0, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_TYPE (area=0)
+                        { Integer.class, 289410873, 1, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_TYPE (area=1)
+                        { Integer.class, 289410873, 2, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_TYPE (area=2)
+                        { Integer.class, 289410873, 3, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_TYPE (area=3)
+                        { Integer.class, 289410873, 4, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_TYPE (area=4)
+                        { Integer.class, 289410873, 5, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_TYPE (area=5)
+                        { Integer.class, 289410873, 6, Integer.valueOf(1) },                      // ELECTRONIC_TOLL_COLLECTION_CARD_TYPE (area=6)
+
+                        { Float.class,   291505923, 0, Float.valueOf(26.0f) },                    // ENV_OUTSIDE_TEMPERATURE (area=0)
+                        { Float.class,   291505923, 1, Float.valueOf(26.0f) },                    // ENV_OUTSIDE_TEMPERATURE (area=1)
+                        { Float.class,   291505923, 2, Float.valueOf(26.0f) },                    // ENV_OUTSIDE_TEMPERATURE (area=2)
+                        { Float.class,   291505923, 3, Float.valueOf(26.0f) },                    // ENV_OUTSIDE_TEMPERATURE (area=3)
+                        { Float.class,   291505923, 4, Float.valueOf(26.0f) },                    // ENV_OUTSIDE_TEMPERATURE (area=4)
+                        { Float.class,   291505923, 5, Float.valueOf(26.0f) },                    // ENV_OUTSIDE_TEMPERATURE (area=5)
+                        { Float.class,   291505923, 6, Float.valueOf(26.0f) },                    // ENV_OUTSIDE_TEMPERATURE (area=6)
+
+                        { Float.class,   291504908, 0, Float.valueOf(1.0f) },                     // EV_BATTERY_INSTANTANEOUS_CHARGE_RATE (area=0)
+                        { Float.class,   291504908, 1, Float.valueOf(1.0f) },                     // EV_BATTERY_INSTANTANEOUS_CHARGE_RATE (area=1)
+                        { Float.class,   291504908, 2, Float.valueOf(1.0f) },                     // EV_BATTERY_INSTANTANEOUS_CHARGE_RATE (area=2)
+                        { Float.class,   291504908, 3, Float.valueOf(1.0f) },                     // EV_BATTERY_INSTANTANEOUS_CHARGE_RATE (area=3)
+                        { Float.class,   291504908, 4, Float.valueOf(1.0f) },                     // EV_BATTERY_INSTANTANEOUS_CHARGE_RATE (area=4)
+                        { Float.class,   291504908, 5, Float.valueOf(1.0f) },                     // EV_BATTERY_INSTANTANEOUS_CHARGE_RATE (area=5)
+                        { Float.class,   291504908, 6, Float.valueOf(1.0f) },                     // EV_BATTERY_INSTANTANEOUS_CHARGE_RATE (area=6)
+
+                        { Integer.class, 291504905, 0, Integer.valueOf(1) },                      // EV_BATTERY_LEVEL (area=0)
+                        { Integer.class, 291504905, 1, Integer.valueOf(1) },                      // EV_BATTERY_LEVEL (area=1)
+                        { Integer.class, 291504905, 2, Integer.valueOf(1) },                      // EV_BATTERY_LEVEL (area=2)
+                        { Integer.class, 291504905, 3, Integer.valueOf(1) },                      // EV_BATTERY_LEVEL (area=3)
+                        { Integer.class, 291504905, 4, Integer.valueOf(1) },                      // EV_BATTERY_LEVEL (area=4)
+                        { Integer.class, 291504905, 5, Integer.valueOf(1) },                      // EV_BATTERY_LEVEL (area=5)
+                        { Integer.class, 291504905, 6, Integer.valueOf(1) },                      // EV_BATTERY_LEVEL (area=6)
+
+                        { Float.class,   291508031, 0, Float.valueOf(13.5f) },                    // EV_CHARGE_CURRENT_DRAW_LIMIT (area=0)
+                        { Float.class,   291508031, 1, Float.valueOf(13.5f) },                    // EV_CHARGE_CURRENT_DRAW_LIMIT (area=1)
+                        { Float.class,   291508031, 2, Float.valueOf(13.5f) },                    // EV_CHARGE_CURRENT_DRAW_LIMIT (area=2)
+                        { Float.class,   291508031, 3, Float.valueOf(13.5f) },                    // EV_CHARGE_CURRENT_DRAW_LIMIT (area=3)
+                        { Float.class,   291508031, 4, Float.valueOf(13.5f) },                    // EV_CHARGE_CURRENT_DRAW_LIMIT (area=4)
+                        { Float.class,   291508031, 5, Float.valueOf(13.5f) },                    // EV_CHARGE_CURRENT_DRAW_LIMIT (area=5)
+                        { Float.class,   291508031, 6, Float.valueOf(13.5f) },                    // EV_CHARGE_CURRENT_DRAW_LIMIT (area=6)
+
+                        { Integer.class, 291508032, 0, Integer.valueOf(41) },                     // EV_CHARGE_PERCENT_LIMIT (area=0)
+                        { Integer.class, 291508032, 1, Integer.valueOf(41) },                     // EV_CHARGE_PERCENT_LIMIT (area=1)
+                        { Integer.class, 291508032, 2, Integer.valueOf(41) },                     // EV_CHARGE_PERCENT_LIMIT (area=2)
+                        { Integer.class, 291508032, 3, Integer.valueOf(41) },                     // EV_CHARGE_PERCENT_LIMIT (area=3)
+                        { Integer.class, 291508032, 4, Integer.valueOf(41) },                     // EV_CHARGE_PERCENT_LIMIT (area=4)
+                        { Integer.class, 291508032, 5, Integer.valueOf(41) },                     // EV_CHARGE_PERCENT_LIMIT (area=5)
+                        { Integer.class, 291508032, 6, Integer.valueOf(41) },                     // EV_CHARGE_PERCENT_LIMIT (area=6)
+
+                        { Integer.class, 289410881, 0, Integer.valueOf(3) },                      // EV_CHARGE_STATE (area=0)
+                        { Integer.class, 289410881, 1, Integer.valueOf(3) },                      // EV_CHARGE_STATE (area=1)
+                        { Integer.class, 289410881, 2, Integer.valueOf(3) },                      // EV_CHARGE_STATE (area=2)
+                        { Integer.class, 289410881, 3, Integer.valueOf(3) },                      // EV_CHARGE_STATE (area=3)
+                        { Integer.class, 289410881, 4, Integer.valueOf(3) },                      // EV_CHARGE_STATE (area=4)
+                        { Integer.class, 289410881, 5, Integer.valueOf(3) },                      // EV_CHARGE_STATE (area=5)
+                        { Integer.class, 289410881, 6, Integer.valueOf(3) },                      // EV_CHARGE_STATE (area=6)
+
+                        { Boolean.class, 287313730, 0, Boolean.FALSE },                           // EV_CHARGE_SWITCH (area=0)
+                        { Boolean.class, 287313730, 1, Boolean.FALSE },                           // EV_CHARGE_SWITCH (area=1)
+                        { Boolean.class, 287313730, 2, Boolean.FALSE },                           // EV_CHARGE_SWITCH (area=2)
+                        { Boolean.class, 287313730, 3, Boolean.FALSE },                           // EV_CHARGE_SWITCH (area=3)
+                        { Boolean.class, 287313730, 4, Boolean.FALSE },                           // EV_CHARGE_SWITCH (area=4)
+                        { Boolean.class, 287313730, 5, Boolean.FALSE },                           // EV_CHARGE_SWITCH (area=5)
+                        { Boolean.class, 287313730, 6, Boolean.FALSE },                           // EV_CHARGE_SWITCH (area=6)
+
+                        { Integer.class, 289410883, 0, Integer.valueOf(21) },                     // EV_CHARGE_TIME_REMAINING (area=0)
+                        { Integer.class, 289410883, 1, Integer.valueOf(21) },                     // EV_CHARGE_TIME_REMAINING (area=1)
+                        { Integer.class, 289410883, 2, Integer.valueOf(21) },                     // EV_CHARGE_TIME_REMAINING (area=2)
+                        { Integer.class, 289410883, 3, Integer.valueOf(21) },                     // EV_CHARGE_TIME_REMAINING (area=3)
+                        { Integer.class, 289410883, 4, Integer.valueOf(21) },                     // EV_CHARGE_TIME_REMAINING (area=4)
+                        { Integer.class, 289410883, 5, Integer.valueOf(21) },                     // EV_CHARGE_TIME_REMAINING (area=5)
+                        { Integer.class, 289410883, 6, Integer.valueOf(21) },                     // EV_CHARGE_TIME_REMAINING (area=6)
+
+                        { Integer.class, 289410884, 0, Integer.valueOf(3) },                      // EV_REGENERATIVE_BRAKING_STATE (area=0)
+                        { Integer.class, 289410884, 1, Integer.valueOf(3) },                      // EV_REGENERATIVE_BRAKING_STATE (area=1)
+                        { Integer.class, 289410884, 2, Integer.valueOf(3) },                      // EV_REGENERATIVE_BRAKING_STATE (area=2)
+                        { Integer.class, 289410884, 3, Integer.valueOf(3) },                      // EV_REGENERATIVE_BRAKING_STATE (area=3)
+                        { Integer.class, 289410884, 4, Integer.valueOf(3) },                      // EV_REGENERATIVE_BRAKING_STATE (area=4)
+                        { Integer.class, 289410884, 5, Integer.valueOf(3) },                      // EV_REGENERATIVE_BRAKING_STATE (area=5)
+                        { Integer.class, 289410884, 6, Integer.valueOf(3) },                      // EV_REGENERATIVE_BRAKING_STATE (area=6)
+
+                        { Boolean.class, 287311364, 0, Boolean.TRUE },                            // FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME (area=0)
+                        { Boolean.class, 287311364, 1, Boolean.TRUE },                            // FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME (area=1)
+                        { Boolean.class, 287311364, 2, Boolean.TRUE },                            // FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME (area=2)
+                        { Boolean.class, 287311364, 3, Boolean.TRUE },                            // FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME (area=3)
+                        { Boolean.class, 287311364, 4, Boolean.TRUE },                            // FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME (area=4)
+                        { Boolean.class, 287311364, 5, Boolean.TRUE },                            // FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME (area=5)
+                        { Boolean.class, 287311364, 6, Boolean.TRUE },                            // FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME (area=6)
+
+                        { Integer.class, 291504903, 0, Integer.valueOf(14000) },                  // FUEL_LEVEL (area=0)
+                        { Integer.class, 291504903, 1, Integer.valueOf(14000) },                  // FUEL_LEVEL (area=1)
+                        { Integer.class, 291504903, 2, Integer.valueOf(14000) },                  // FUEL_LEVEL (area=2)
+                        { Integer.class, 291504903, 3, Integer.valueOf(14000) },                  // FUEL_LEVEL (area=3)
+                        { Integer.class, 291504903, 4, Integer.valueOf(14000) },                  // FUEL_LEVEL (area=4)
+                        { Integer.class, 291504903, 5, Integer.valueOf(14000) },                  // FUEL_LEVEL (area=5)
+                        { Integer.class, 291504903, 6, Integer.valueOf(14000) },                  // FUEL_LEVEL (area=6)
+
+                        { Boolean.class, 287310853, 0, Boolean.FALSE },                           // FUEL_LEVEL_LOW (area=0)
+                        { Boolean.class, 287310853, 1, Boolean.FALSE },                           // FUEL_LEVEL_LOW (area=1)
+                        { Boolean.class, 287310853, 2, Boolean.FALSE },                           // FUEL_LEVEL_LOW (area=2)
+                        { Boolean.class, 287310853, 3, Boolean.FALSE },                           // FUEL_LEVEL_LOW (area=3)
+                        { Boolean.class, 287310853, 4, Boolean.FALSE },                           // FUEL_LEVEL_LOW (area=4)
+                        { Boolean.class, 287310853, 5, Boolean.FALSE },                           // FUEL_LEVEL_LOW (area=5)
+                        { Boolean.class, 287310853, 6, Boolean.FALSE },                           // FUEL_LEVEL_LOW (area=6)
+
+                        { Integer.class, 289408513, 0, Integer.valueOf(65) },                     // FUEL_VOLUME_DISPLAY_UNITS (area=0)
+                        { Integer.class, 289408513, 1, Integer.valueOf(65) },                     // FUEL_VOLUME_DISPLAY_UNITS (area=1)
+                        { Integer.class, 289408513, 2, Integer.valueOf(65) },                     // FUEL_VOLUME_DISPLAY_UNITS (area=2)
+                        { Integer.class, 289408513, 3, Integer.valueOf(65) },                     // FUEL_VOLUME_DISPLAY_UNITS (area=3)
+                        { Integer.class, 289408513, 4, Integer.valueOf(65) },                     // FUEL_VOLUME_DISPLAY_UNITS (area=4)
+                        { Integer.class, 289408513, 5, Integer.valueOf(65) },                     // FUEL_VOLUME_DISPLAY_UNITS (area=5)
+                        { Integer.class, 289408513, 6, Integer.valueOf(65) },                     // FUEL_VOLUME_DISPLAY_UNITS (area=6)
+
+                        { Integer.class, 289408000, 0, Integer.valueOf(3) },                      // GEAR_SELECTION (area=0)
+                        { Integer.class, 289408000, 1, Integer.valueOf(3) },                      // GEAR_SELECTION (area=1)
+                        { Integer.class, 289408000, 2, Integer.valueOf(3) },                      // GEAR_SELECTION (area=2)
+                        { Integer.class, 289408000, 3, Integer.valueOf(3) },                      // GEAR_SELECTION (area=3)
+                        { Integer.class, 289408000, 4, Integer.valueOf(3) },                      // GEAR_SELECTION (area=4)
+                        { Integer.class, 289408000, 5, Integer.valueOf(3) },                      // GEAR_SELECTION (area=5)
+                        { Integer.class, 289408000, 6, Integer.valueOf(3) },                      // GEAR_SELECTION (area=6)
+
+                        { Integer.class, 289408009, 0, Integer.valueOf(3) },                      // IGNITION_STATE (area=0)
+                        { Integer.class, 289408009, 1, Integer.valueOf(3) },                      // IGNITION_STATE (area=1)
+                        { Integer.class, 289408009, 2, Integer.valueOf(3) },                      // IGNITION_STATE (area=2)
+                        { Integer.class, 289408009, 3, Integer.valueOf(3) },                      // IGNITION_STATE (area=3)
+                        { Integer.class, 289408009, 4, Integer.valueOf(3) },                      // IGNITION_STATE (area=4)
+                        { Integer.class, 289408009, 5, Integer.valueOf(3) },                      // IGNITION_STATE (area=5)
+                        { Integer.class, 289408009, 6, Integer.valueOf(3) },                      // IGNITION_STATE (area=6)
+
+                        { Integer.class, 356516106, 0, Integer.valueOf(2) },                      // INFO_DRIVER_SEAT (area=0)
+                        { Integer.class, 356516106, 1, Integer.valueOf(2) },                      // INFO_DRIVER_SEAT (area=1)
+                        { Integer.class, 356516106, 2, Integer.valueOf(2) },                      // INFO_DRIVER_SEAT (area=2)
+                        { Integer.class, 356516106, 3, Integer.valueOf(2) },                      // INFO_DRIVER_SEAT (area=3)
+                        { Integer.class, 356516106, 4, Integer.valueOf(2) },                      // INFO_DRIVER_SEAT (area=4)
+                        { Integer.class, 356516106, 5, Integer.valueOf(2) },                      // INFO_DRIVER_SEAT (area=5)
+                        { Integer.class, 356516106, 6, Integer.valueOf(2) },                      // INFO_DRIVER_SEAT (area=6)
+
+                        { Integer.class, 291504390, 0, Integer.valueOf(525) },                    // INFO_EV_BATTERY_CAPACITY (area=0)
+                        { Integer.class, 291504390, 1, Integer.valueOf(525) },                    // INFO_EV_BATTERY_CAPACITY (area=1)
+                        { Integer.class, 291504390, 2, Integer.valueOf(525) },                    // INFO_EV_BATTERY_CAPACITY (area=2)
+                        { Integer.class, 291504390, 3, Integer.valueOf(525) },                    // INFO_EV_BATTERY_CAPACITY (area=3)
+                        { Integer.class, 291504390, 4, Integer.valueOf(525) },                    // INFO_EV_BATTERY_CAPACITY (area=4)
+                        { Integer.class, 291504390, 5, Integer.valueOf(525) },                    // INFO_EV_BATTERY_CAPACITY (area=5)
+                        { Integer.class, 291504390, 6, Integer.valueOf(525) },                    // INFO_EV_BATTERY_CAPACITY (area=6)
+
+                        { int[].class,  289472779, 0, new int[] {1800, 450, 1400} },              // INFO_EXTERIOR_DIMENSIONS (area=0)
+                        { int[].class,  289472779, 1, new int[] {1800, 450, 1400} },              // INFO_EXTERIOR_DIMENSIONS (area=1)
+                        { int[].class,  289472779, 2, new int[] {1800, 450, 1400} },              // INFO_EXTERIOR_DIMENSIONS (area=2)
+                        { int[].class,  289472779, 3, new int[] {1800, 450, 1400} },              // INFO_EXTERIOR_DIMENSIONS (area=3)
+                        { int[].class,  289472779, 4, new int[] {1800, 450, 1400} },              // INFO_EXTERIOR_DIMENSIONS (area=4)
+                        { int[].class,  289472779, 5, new int[] {1800, 450, 1400} },              // INFO_EXTERIOR_DIMENSIONS (area=5)
+                        { int[].class,  289472779, 6, new int[] {1800, 450, 1400} },              // INFO_EXTERIOR_DIMENSIONS (area=6)
+
+                        { Integer.class, 291504388, 0, Integer.valueOf(47500) },                  // INFO_FUEL_CAPACITY (area=0)
+                        { Integer.class, 291504388, 1, Integer.valueOf(47500) },                  // INFO_FUEL_CAPACITY (area=1)
+                        { Integer.class, 291504388, 2, Integer.valueOf(47500) },                  // INFO_FUEL_CAPACITY (area=2)
+                        { Integer.class, 291504388, 3, Integer.valueOf(47500) },                  // INFO_FUEL_CAPACITY (area=3)
+                        { Integer.class, 291504388, 4, Integer.valueOf(47500) },                  // INFO_FUEL_CAPACITY (area=4)
+                        { Integer.class, 291504388, 5, Integer.valueOf(47500) },                  // INFO_FUEL_CAPACITY (area=5)
+                        { Integer.class, 291504388, 6, Integer.valueOf(47500) },                  // INFO_FUEL_CAPACITY (area=6)
+
+                        { Integer.class, 289407240, 0, Integer.valueOf(3) },                      // INFO_FUEL_DOOR_LOCATION (area=0)
+                        { Integer.class, 289407240, 1, Integer.valueOf(3) },                      // INFO_FUEL_DOOR_LOCATION (area=1)
+                        { Integer.class, 289407240, 2, Integer.valueOf(3) },                      // INFO_FUEL_DOOR_LOCATION (area=2)
+                        { Integer.class, 289407240, 3, Integer.valueOf(3) },                      // INFO_FUEL_DOOR_LOCATION (area=3)
+                        { Integer.class, 289407240, 4, Integer.valueOf(3) },                      // INFO_FUEL_DOOR_LOCATION (area=4)
+                        { Integer.class, 289407240, 5, Integer.valueOf(3) },                      // INFO_FUEL_DOOR_LOCATION (area=5)
+                        { Integer.class, 289407240, 6, Integer.valueOf(3) },                      // INFO_FUEL_DOOR_LOCATION (area=6)
+
+                        { int[].class,  289472773, 0, new int[] {1} },                            // INFO_FUEL_TYPE (area=0)
+                        { int[].class,  289472773, 1, new int[] {1} },                            // INFO_FUEL_TYPE (area=1)
+                        { int[].class,  289472773, 2, new int[] {1} },                            // INFO_FUEL_TYPE (area=2)
+                        { int[].class,  289472773, 3, new int[] {1} },                            // INFO_FUEL_TYPE (area=3)
+                        { int[].class,  289472773, 4, new int[] {1} },                            // INFO_FUEL_TYPE (area=4)
+                        { int[].class,  289472773, 5, new int[] {1} },                            // INFO_FUEL_TYPE (area=5)
+                        { int[].class,  289472773, 6, new int[] {1} },                            // INFO_FUEL_TYPE (area=6)
+
+                        { String.class, 286261505, 0, "HondaX" },                                  // INFO_MAKE (area=0)
+                        { String.class, 286261505, 1, "HondaX" },                                  // INFO_MAKE (area=1)
+                        { String.class, 286261505, 2, "HondaX" },                                  // INFO_MAKE (area=2)
+                        { String.class, 286261505, 3, "HondaX" },                                  // INFO_MAKE (area=3)
+                        { String.class, 286261505, 4, "HondaX" },                                  // INFO_MAKE (area=4)
+                        { String.class, 286261505, 5, "HondaX" },                                  // INFO_MAKE (area=5)
+                        { String.class, 286261505, 6, "HondaX" },                                  // INFO_MAKE (area=6)
+
+                        { String.class, 286261506, 0, "AccordX" },                                 // INFO_MODEL (area=0)
+                        { String.class, 286261506, 1, "AccordX" },                                 // INFO_MODEL (area=1)
+                        { String.class, 286261506, 2, "AccordX" },                                 // INFO_MODEL (area=2)
+                        { String.class, 286261506, 3, "AccordX" },                                 // INFO_MODEL (area=3)
+                        { String.class, 286261506, 4, "AccordX" },                                 // INFO_MODEL (area=4)
+                        { String.class, 286261506, 5, "AccordX" },                                 // INFO_MODEL (area=5)
+                        { String.class, 286261506, 6, "AccordX" },                                 // INFO_MODEL (area=6)
+
+                        { Integer.class, 289407235, 0, Integer.valueOf(2020) },                   // INFO_MODEL_YEAR (area=0)
+                        { Integer.class, 289407235, 1, Integer.valueOf(2020) },                   // INFO_MODEL_YEAR (area=1)
+                        { Integer.class, 289407235, 2, Integer.valueOf(2020) },                   // INFO_MODEL_YEAR (area=2)
+                        { Integer.class, 289407235, 3, Integer.valueOf(2020) },                   // INFO_MODEL_YEAR (area=3)
+                        { Integer.class, 289407235, 4, Integer.valueOf(2020) },                   // INFO_MODEL_YEAR (area=4)
+                        { Integer.class, 289407235, 5, Integer.valueOf(2020) },                   // INFO_MODEL_YEAR (area=5)
+                        { Integer.class, 289407235, 6, Integer.valueOf(2020) },                   // INFO_MODEL_YEAR (area=6)
+
+                        { Boolean.class, 287310855, 0, Boolean.TRUE },                           // NIGHT_MODE (area=0)
+                        { Boolean.class, 287310855, 1, Boolean.TRUE },                           // NIGHT_MODE (area=1)
+                        { Boolean.class, 287310855, 2, Boolean.TRUE },                           // NIGHT_MODE (area=2)
+                        { Boolean.class, 287310855, 3, Boolean.TRUE },                           // NIGHT_MODE (area=3)
+                        { Boolean.class, 287310855, 4, Boolean.TRUE },                           // NIGHT_MODE (area=4)
+                        { Boolean.class, 287310855, 5, Boolean.TRUE },                           // NIGHT_MODE (area=5)
+                        { Boolean.class, 287310855, 6, Boolean.TRUE },                           // NIGHT_MODE (area=6)
+
+                        { Boolean.class, 287310851, 0, Boolean.FALSE },                            // PARKING_BRAKE_AUTO_APPLY (area=0)
+                        { Boolean.class, 287310851, 1, Boolean.FALSE },                            // PARKING_BRAKE_AUTO_APPLY (area=1)
+                        { Boolean.class, 287310851, 2, Boolean.FALSE },                            // PARKING_BRAKE_AUTO_APPLY (area=2)
+                        { Boolean.class, 287310851, 3, Boolean.FALSE },                            // PARKING_BRAKE_AUTO_APPLY (area=3)
+                        { Boolean.class, 287310851, 4, Boolean.FALSE },                            // PARKING_BRAKE_AUTO_APPLY (area=4)
+                        { Boolean.class, 287310851, 5, Boolean.FALSE },                            // PARKING_BRAKE_AUTO_APPLY (area=5)
+                        { Boolean.class, 287310851, 6, Boolean.FALSE },                            // PARKING_BRAKE_AUTO_APPLY (area=6)
+
+                        { Boolean.class, 287310850, 0, Boolean.FALSE },                            // PARKING_BRAKE_ON (area=0)
+                        { Boolean.class, 287310850, 1, Boolean.FALSE },                            // PARKING_BRAKE_ON (area=1)
+                        { Boolean.class, 287310850, 2, Boolean.FALSE },                            // PARKING_BRAKE_ON (area=2)
+                        { Boolean.class, 287310850, 3, Boolean.FALSE },                            // PARKING_BRAKE_ON (area=3)
+                        { Boolean.class, 287310850, 4, Boolean.FALSE },                            // PARKING_BRAKE_ON (area=4)
+                        { Boolean.class, 287310850, 5, Boolean.FALSE },                            // PARKING_BRAKE_ON (area=5)
+                        { Boolean.class, 287310850, 6, Boolean.FALSE },                            // PARKING_BRAKE_ON (area=6)
+
+                        { Float.class,   291504647, 0, Float.valueOf(1.0f) },                     // PERF_VEHICLE_SPEED (area=0)
+                        { Float.class,   291504647, 1, Float.valueOf(1.0f) },                     // PERF_VEHICLE_SPEED (area=1)
+                        { Float.class,   291504647, 2, Float.valueOf(1.0f) },                     // PERF_VEHICLE_SPEED (area=2)
+                        { Float.class,   291504647, 3, Float.valueOf(1.0f) },                     // PERF_VEHICLE_SPEED (area=3)
+                        { Float.class,   291504647, 4, Float.valueOf(1.0f) },                     // PERF_VEHICLE_SPEED (area=4)
+                        { Float.class,   291504647, 5, Float.valueOf(1.0f) },                     // PERF_VEHICLE_SPEED (area=5)
+                        { Float.class,   291504647, 6, Float.valueOf(1.0f) },                     // PERF_VEHICLE_SPEED (area=6)
+
+                        { Integer.class, 291504648, 0, Integer.valueOf(1) },                      // PERF_VEHICLE_SPEED_DISPLAY (area=0)
+                        { Integer.class, 291504648, 1, Integer.valueOf(1) },                      // PERF_VEHICLE_SPEED_DISPLAY (area=1)
+                        { Integer.class, 291504648, 2, Integer.valueOf(1) },                      // PERF_VEHICLE_SPEED_DISPLAY (area=2)
+                        { Integer.class, 291504648, 3, Integer.valueOf(1) },                      // PERF_VEHICLE_SPEED_DISPLAY (area=3)
+                        { Integer.class, 291504648, 4, Integer.valueOf(1) },                      // PERF_VEHICLE_SPEED_DISPLAY (area=4)
+                        { Integer.class, 291504648, 5, Integer.valueOf(1) },                      // PERF_VEHICLE_SPEED_DISPLAY (area=5)
+                        { Integer.class, 291504648, 6, Integer.valueOf(1) },                      // PERF_VEHICLE_SPEED_DISPLAY (area=6)
+
+                        { Integer.class, 291504904, 0, Integer.valueOf(110) },                    // RANGE_REMAINING (area=0)
+                        { Integer.class, 291504904, 1, Integer.valueOf(110) },                    // RANGE_REMAINING (area=1)
+                        { Integer.class, 291504904, 2, Integer.valueOf(110) },                    // RANGE_REMAINING (area=2)
+                        { Integer.class, 291504904, 3, Integer.valueOf(110) },                    // RANGE_REMAINING (area=3)
+                        { Integer.class, 291504904, 4, Integer.valueOf(110) },                    // RANGE_REMAINING (area=4)
+                        { Integer.class, 291504904, 5, Integer.valueOf(110) },                    // RANGE_REMAINING (area=5)
+                        { Integer.class, 291504904, 6, Integer.valueOf(110) },                    // RANGE_REMAINING (area=6)
+
+                        { Integer.class, 289408516, 0, Integer.valueOf(134) },                    // VEHICLE_SPEED_DISPLAY_UNITS (area=0)
+                        { Integer.class, 289408516, 1, Integer.valueOf(134) },                    // VEHICLE_SPEED_DISPLAY_UNITS (area=1)
+                        { Integer.class, 289408516, 2, Integer.valueOf(134) },                    // VEHICLE_SPEED_DISPLAY_UNITS (area=2)
+                        { Integer.class, 289408516, 3, Integer.valueOf(134) },                    // VEHICLE_SPEED_DISPLAY_UNITS (area=3)
+                        { Integer.class, 289408516, 4, Integer.valueOf(134) },                    // VEHICLE_SPEED_DISPLAY_UNITS (area=4)
+                        { Integer.class, 289408516, 5, Integer.valueOf(134) },                    // VEHICLE_SPEED_DISPLAY_UNITS (area=5)
+                        { Integer.class, 289408516, 6, Integer.valueOf(134) },                    // VEHICLE_SPEED_DISPLAY_UNITS (area=6)
+
+                        { long[].class,  290521862, 0, new long[] {1000L, 2000L} },               // WHEEL_TICK (area=0)
+                        { long[].class,  290521862, 1, new long[] {1000L, 2000L} },               // WHEEL_TICK (area=1)
+                        { long[].class,  290521862, 2, new long[] {1000L, 2000L} },               // WHEEL_TICK (area=2)
+                        { long[].class,  290521862, 3, new long[] {1000L, 2000L} },               // WHEEL_TICK (area=3)
+                        { long[].class,  290521862, 4, new long[] {1000L, 2000L} },               // WHEEL_TICK (area=4)
+                        { long[].class,  290521862, 5, new long[] {1000L, 2000L} },               // WHEEL_TICK (area=5)
+                        { long[].class,  290521862, 6, new long[] {1000L, 2000L} }                // WHEEL_TICK (area=6)
+                };
+
+
+
 
                 for (Object[] entry : props) {
                     try {
@@ -7862,6 +8150,17 @@ public class CarDataScreen extends Screen {
                         };
 
                 // vehicle area types (may be missing on some platforms; null-check)
+                /*
+                *
+                *   public static final int VEHICLE_AREA_TYPE_DOOR = 4;
+                    public static final int VEHICLE_AREA_TYPE_GLOBAL = 0;
+                    public static final int VEHICLE_AREA_TYPE_MIRROR = 5;
+                    public static final int VEHICLE_AREA_TYPE_SEAT = 3;
+                    public static final int VEHICLE_AREA_TYPE_WHEEL = 6;
+                    public static final int VEHICLE_AREA_TYPE_WINDOW = 2;
+                *
+                * */
+
                 Integer areaGlobal = getIntConstant.apply("android.car.VehicleAreaType", "VEHICLE_AREA_TYPE_GLOBAL");
                 Integer areaSeat = getIntConstant.apply("android.car.VehicleAreaType", "VEHICLE_AREA_TYPE_SEAT");
 
