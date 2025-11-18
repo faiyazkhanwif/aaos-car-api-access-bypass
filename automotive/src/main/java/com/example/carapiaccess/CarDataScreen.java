@@ -145,7 +145,7 @@ import android.car.input.CarInputManager;
 import android.car.drivingstate.CarUxRestrictions;
 import android.car.drivingstate.CarUxRestrictionsManager;
 import android.car.drivingstate.CarUxRestrictionsManager;
-
+import android.car.hardware.property.CarPropertyManager;
 //Reflection Imports
 
 import java.io.InputStream;
@@ -212,12 +212,16 @@ public class CarDataScreen extends Screen {
             //fetchAllCarProperties(); //messy
 
             //exercisePropertyRequestProcessor(); // -> gives you configs
+            //exerciseCarPropertyManager_setProperty_validConfigs();
 
             //exerciseCarPropertyManager_setProperty_validConfigs();
             //exerciseCarPropertyManager_setPropertyAll();
 
-            exerciseCarPropertyManager_setProperty_validConfigs();
+            //exerciseCarPropertyManager_setProperty_validConfigs();
 
+            //exerciseBaseCarAppActivityReflection();
+
+            exercise_CarPropertyManager_Base();
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
             Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
@@ -7782,6 +7786,7 @@ public class CarDataScreen extends Screen {
                 };
  */
 
+                /* Android 13 - valid 35 configs
                 Object[][] props = new Object[][] {
                         { Integer.class, 289408512, 0, Integer.valueOf(37) },                     // DISTANCE_DISPLAY_UNITS (area=0)
                         { Integer.class, 289408512, 1, Integer.valueOf(37) },                     // DISTANCE_DISPLAY_UNITS (area=1)
@@ -8063,6 +8068,74 @@ public class CarDataScreen extends Screen {
                         { long[].class,  290521862, 5, new long[] {1000L, 2000L} },               // WHEEL_TICK (area=5)
                         { long[].class,  290521862, 6, new long[] {1000L, 2000L} }                // WHEEL_TICK (area=6)
                 };
+*/
+/*
+Android 14 - Valid 49 configs
+                */
+                Object[][] props = new Object[][] {
+                        /* Strings */
+                        { String.class, 286261505, 0, "" },                                      // INFO_MAKE (area=0)
+                        { String.class, 286261506, 0, "" },                                      // INFO_MODEL (area=0)
+
+                        /* Booleans */
+                        { Boolean.class, 287310600, 0, Boolean.valueOf(false) },                 // FUEL_DOOR_OPEN (area=0)
+                        { Boolean.class, 287310602, 0, Boolean.valueOf(false) },                 // EV_CHARGE_PORT_OPEN (area=0)
+                        { Boolean.class, 287310603, 0, Boolean.valueOf(false) },                 // EV_CHARGE_PORT_CONNECTED (area=0)
+                        { Boolean.class, 287310850, 0, Boolean.valueOf(false) },                 // PARKING_BRAKE_ON (area=0)
+                        { Boolean.class, 287310851, 0, Boolean.valueOf(false) },                 // PARKING_BRAKE_AUTO_APPLY (area=0)
+                        { Boolean.class, 287310853, 0, Boolean.valueOf(false) },                 // FUEL_LEVEL_LOW (area=0)
+                        { Boolean.class, 287310855, 0, Boolean.valueOf(false) },                 // NIGHT_MODE (area=0)
+                        { Boolean.class, 287311364, 0, Boolean.valueOf(false) },                 // FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME (area=0)
+                        { Boolean.class, 287313730, 0, Boolean.valueOf(false) },                 // EV_CHARGE_SWITCH (area=0)
+
+                        /* Integers (enums / ids / simple ints) */
+                        { Integer.class, 289407235, 0, Integer.valueOf(0) },                     // INFO_MODEL_YEAR (area=0)
+                        { Integer.class, 289407240, 0, Integer.valueOf(0) },                     // INFO_FUEL_DOOR_LOCATION (area=0)
+                        { Integer.class, 289407241, 0, Integer.valueOf(0) },                     // INFO_EV_PORT_LOCATION (area=0)
+                        { Integer.class, 289408000, 0, Integer.valueOf(4) },                     // GEAR_SELECTION (area=0) (choose first supported enum 4)
+                        { Integer.class, 289408001, 0, Integer.valueOf(4) },                     // CURRENT_GEAR (area=0) (choose first supported enum 4)
+                        { Integer.class, 289408009, 0, Integer.valueOf(0) },                     // IGNITION_STATE (area=0)
+                        { Integer.class, 289408012, 0, Integer.valueOf(0) },                     // EV_BRAKE_REGENERATION_LEVEL (area=0)
+                        { Integer.class, 289408013, 0, Integer.valueOf(1) },                     // EV_STOPPING_MODE (area=0) (choose first supported enum 1)
+                        { Integer.class, 289408270, 0, Integer.valueOf(49) },                    // HVAC_TEMPERATURE_DISPLAY_UNITS (area=0) (49 from config)
+                        { Integer.class, 289408512, 0, Integer.valueOf(35) },                    // DISTANCE_DISPLAY_UNITS (area=0) (35 from config)
+                        { Integer.class, 289408513, 0, Integer.valueOf(65) },                    // FUEL_VOLUME_DISPLAY_UNITS (area=0) (65 from config)
+                        { Integer.class, 289408514, 0, Integer.valueOf(112) },                   // TIRE_PRESSURE_DISPLAY_UNITS (area=0) (112 from config)
+                        { Integer.class, 289408515, 0, Integer.valueOf(96) },                    // EV_BATTERY_DISPLAY_UNITS (area=0) (96 from config)
+                        { Integer.class, 289408516, 0, Integer.valueOf(1) },                     // VEHICLE_SPEED_DISPLAY_UNITS (area=0) (1 from config)
+                        { Integer.class, 289410873, 0, Integer.valueOf(0) },                     // ELECTRONIC_TOLL_COLLECTION_CARD_TYPE (area=0)
+                        { Integer.class, 289410874, 0, Integer.valueOf(0) },                     // ELECTRONIC_TOLL_COLLECTION_CARD_STATUS (area=0)
+                        { Integer.class, 289410881, 0, Integer.valueOf(0) },                     // EV_CHARGE_STATE (area=0)
+                        { Integer.class, 289410883, 0, Integer.valueOf(0) },                     // EV_CHARGE_TIME_REMAINING (area=0)
+                        { Integer.class, 289410884, 0, Integer.valueOf(0) },                     // EV_REGENERATIVE_BRAKING_STATE (area=0)
+                        { Integer.class, 289410887, 0, Integer.valueOf(0) },                     // GENERAL_SAFETY_REGULATION_COMPLIANCE (area=0)
+
+                        /* Info arrays / integer-array-like (use Integer.class with default 0) */
+                        { Integer.class, 289472773, 0, Integer.valueOf(0) },                     // INFO_FUEL_TYPE (area=0)
+                        { Integer.class, 289472775, 0, Integer.valueOf(0) },                     // INFO_EV_CONNECTOR_TYPE (area=0)
+                        { Integer.class, 289472779, 0, Integer.valueOf(0) },                     // INFO_EXTERIOR_DIMENSIONS (area=0)
+                        { Integer.class, 289472780, 0, Integer.valueOf(0) },                     // INFO_MULTI_EV_PORT_LOCATIONS (area=0)
+
+                        /* Long (WHEEL_TICK uses long values) */
+                        { Long.class,    290521862, 0, Long.valueOf(15L) },                      // WHEEL_TICK (area=0) (first config value 15)
+
+                        /* Floats */
+                        { Float.class, 291504388, 0, Float.valueOf(0.0f) },                       // INFO_FUEL_CAPACITY (area=0)
+                        { Float.class, 291504390, 0, Float.valueOf(0.0f) },                       // INFO_EV_BATTERY_CAPACITY (area=0)
+                        { Float.class, 291504647, 0, Float.valueOf(0.0f) },                       // PERF_VEHICLE_SPEED (area=0)
+                        { Float.class, 291504648, 0, Float.valueOf(0.0f) },                       // PERF_VEHICLE_SPEED_DISPLAY (area=0)
+                        { Float.class, 291504903, 0, Float.valueOf(0.0f) },                       // FUEL_LEVEL (area=0)
+                        { Float.class, 291504904, 0, Float.valueOf(0.0f) },                       // RANGE_REMAINING (area=0)
+                        { Float.class, 291504905, 0, Float.valueOf(0.0f) },                       // EV_BATTERY_LEVEL (area=0)
+                        { Float.class, 291504908, 0, Float.valueOf(0.0f) },                       // EV_BATTERY_INSTANTANEOUS_CHARGE_RATE (area=0)
+                        { Float.class, 291504909, 0, Float.valueOf(0.0f) },                       // EV_CURRENT_BATTERY_CAPACITY (area=0)
+                        { Float.class, 291505923, 0, Float.valueOf(0.0f) },                       // ENV_OUTSIDE_TEMPERATURE (area=0)
+                        { Float.class, 291508031, 0, Float.valueOf(20.0f) },                      // EV_CHARGE_CURRENT_DRAW_LIMIT (area=0) (20 from config)
+                        { Float.class, 291508032, 0, Float.valueOf(20.0f) },                      // EV_CHARGE_PERCENT_LIMIT (area=0) (first config 20)
+
+                        /* Area-specific info (driver seat has areaType=3 but areaIdConfigs shows area=0) */
+                        { Integer.class, 356516106, 0, Integer.valueOf(0) },                     // INFO_DRIVER_SEAT (area=0)
+                };
 
 
 
@@ -8093,7 +8166,7 @@ public class CarDataScreen extends Screen {
                     }
                 }
 
-                System.out.println("Finished attempting setProperty for the requested 35 properties.");
+                System.out.println("Finished attempting setProperty for the requested " + props.length + " properties.");
             } catch (Throwable outer) {
                 System.err.println("Fatal reflection error in exercise method: " + outer.getClass().getName() + ": " + outer.getMessage());
                 outer.printStackTrace();
@@ -8240,6 +8313,389 @@ public class CarDataScreen extends Screen {
             }
         }).start();
     }
+
+
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static java.util.List<?> exercise_CarPropertyManager_Base() {
+        final String LOCAL_TAG = "exercise_CarPropertyManager_Base";
+        try {
+            // --- 1) get a Context via ActivityThread.currentApplication() ---
+            Object context = null;
+            try {
+                Class<?> activityThread = Class.forName("android.app.ActivityThread");
+                java.lang.reflect.Method mCurrentApp = activityThread.getDeclaredMethod("currentApplication");
+                mCurrentApp.setAccessible(true);
+                context = mCurrentApp.invoke(null);
+                android.util.Log.d(LOCAL_TAG, "Obtained Application context via ActivityThread.currentApplication(): " + context);
+            } catch (Exception e) {
+                android.util.Log.w(LOCAL_TAG, "Unable to get context via ActivityThread.currentApplication(): " + e);
+            }
+
+            if (context == null) {
+                android.util.Log.e(LOCAL_TAG, "No Context available; cannot obtain Car instance");
+                return new java.util.ArrayList<>();
+            }
+
+            // --- 2) obtain android.car.Car class and attempt to create/get Car instance ---
+            Object carObj = null;
+            Class<?> carClass = null;
+            try {
+                carClass = Class.forName("android.car.Car");
+            } catch (ClassNotFoundException e) {
+                android.util.Log.e(LOCAL_TAG, "android.car.Car class not found", e);
+                return new java.util.ArrayList<>();
+            }
+
+            // try static createCar(Context)
+            try {
+                for (java.lang.reflect.Method m : carClass.getDeclaredMethods()) {
+                    if (m.getName().equals("createCar") && java.lang.reflect.Modifier.isStatic(m.getModifiers())
+                            && m.getParameterTypes().length == 1) {
+                        // try invoking with our context if parameter is assignable
+                        Class<?> p = m.getParameterTypes()[0];
+                        if (p.isAssignableFrom(context.getClass()) || p.getName().equals("android.content.Context")) {
+                            m.setAccessible(true);
+                            carObj = m.invoke(null, context);
+                            android.util.Log.d(LOCAL_TAG, "Invoked Car.createCar(context) -> " + carObj);
+                            break;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                android.util.Log.w(LOCAL_TAG, "createCar(context) invocation failed: " + e);
+                carObj = null;
+            }
+
+            // fallback: try constructor Car(Context)
+            if (carObj == null) {
+                try {
+                    for (java.lang.reflect.Constructor ctor : carClass.getDeclaredConstructors()) {
+                        Class[] params = ctor.getParameterTypes();
+                        if (params.length == 1 && (params[0].getName().equals("android.content.Context") || params[0].isAssignableFrom(context.getClass()))) {
+                            ctor.setAccessible(true);
+                            carObj = ctor.newInstance(context);
+                            android.util.Log.d(LOCAL_TAG, "Constructed Car via constructor -> " + carObj);
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    android.util.Log.w(LOCAL_TAG, "Car(Context) constructor attempt failed: " + e);
+                    carObj = null;
+                }
+            }
+
+            if (carObj == null) {
+                android.util.Log.e(LOCAL_TAG, "Failed to obtain Car instance");
+                return new java.util.ArrayList<>();
+            }
+
+            // --- 3) obtain the PROPERTY_SERVICE constant (if present) and call getCarManager(...) to get CarPropertyManager ---
+            Object carPropertyManagerInstance = null;
+            String propertyServiceName = null;
+            try {
+                try {
+                    java.lang.reflect.Field f = carClass.getField("PROPERTY_SERVICE");
+                    f.setAccessible(true);
+                    Object val = f.get(null);
+                    if (val != null) propertyServiceName = val.toString();
+                    android.util.Log.d(LOCAL_TAG, "Car.PROPERTY_SERVICE = " + propertyServiceName);
+                } catch (NoSuchFieldException nsf) {
+                    android.util.Log.w(LOCAL_TAG, "Car.PROPERTY_SERVICE field not found: " + nsf);
+                }
+
+                // Try getCarManager(String)
+                boolean gotManager = false;
+                for (java.lang.reflect.Method m : carClass.getMethods()) {
+                    if (m.getName().equals("getCarManager") && m.getParameterTypes().length == 1) {
+                        Class<?> p = m.getParameterTypes()[0];
+                        try {
+                            m.setAccessible(true);
+                            if (p == String.class && propertyServiceName != null) {
+                                carPropertyManagerInstance = m.invoke(carObj, propertyServiceName);
+                                android.util.Log.d(LOCAL_TAG, "Called getCarManager(String) -> " + carPropertyManagerInstance);
+                                gotManager = true;
+                                break;
+                            } else if (p == Class.class) {
+                                // try to provide the CarPropertyManager class object if available
+                                try {
+                                    Class<?> target = Class.forName("android.car.hardware.property.CarPropertyManager");
+                                    carPropertyManagerInstance = m.invoke(carObj, target);
+                                    android.util.Log.d(LOCAL_TAG, "Called getCarManager(Class) -> " + carPropertyManagerInstance);
+                                    gotManager = true;
+                                    break;
+                                } catch (ClassNotFoundException cnfe) {
+                                    // ignore
+                                }
+                            } else if (p.getName().contains("String")) {
+                                // last resort: attempt with propertyServiceName even if the parameter type is not exactly java.lang.String
+                                if (propertyServiceName != null) {
+                                    carPropertyManagerInstance = m.invoke(carObj, propertyServiceName);
+                                    android.util.Log.d(LOCAL_TAG, "Called getCarManager(...) fallback -> " + carPropertyManagerInstance);
+                                    gotManager = true;
+                                    break;
+                                }
+                            }
+                        } catch (Exception e) {
+                            android.util.Log.w(LOCAL_TAG, "Attempt to call getCarManager failed for method " + m + " : " + e);
+                        }
+                    }
+                }
+
+                // Additional fallback: search methods that return a type whose name contains "CarPropertyManager"
+                if (!gotManager || carPropertyManagerInstance == null) {
+                    for (java.lang.reflect.Method m : carClass.getMethods()) {
+                        if (m.getParameterTypes().length == 0) {
+                            Class<?> ret = m.getReturnType();
+                            if (ret != null && ret.getName().toLowerCase().contains("carpropertymanager")) {
+                                try {
+                                    m.setAccessible(true);
+                                    carPropertyManagerInstance = m.invoke(carObj);
+                                    android.util.Log.d(LOCAL_TAG, "Called no-arg method returning CarPropertyManager -> " + carPropertyManagerInstance);
+                                    break;
+                                } catch (Exception e) {
+                                    android.util.Log.w(LOCAL_TAG, "Failed invoking possible manager-returning method " + m + ": " + e);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(LOCAL_TAG, "Exception while obtaining CarPropertyManager: " + t);
+            }
+
+            if (carPropertyManagerInstance == null) {
+                android.util.Log.e(LOCAL_TAG, "Could not obtain CarPropertyManager instance reflectively");
+                return new java.util.ArrayList<>();
+            }
+
+            // --- 4) Mirror the getPropertyList() implementation via reflection on the CarPropertyManager instance ---
+            Class<?> cpmClass = carPropertyManagerInstance.getClass();
+
+            // reflect DBG (boolean) ---
+            boolean DBG = false;
+            try {
+                java.lang.reflect.Field fDBG = null;
+                try {
+                    fDBG = cpmClass.getDeclaredField("DBG");
+                } catch (NoSuchFieldException nsf) {
+                    // try public field
+                    try { fDBG = cpmClass.getField("DBG"); } catch (Exception ignored) {}
+                }
+                if (fDBG != null) {
+                    fDBG.setAccessible(true);
+                    Object dbgVal = fDBG.get(carPropertyManagerInstance);
+                    if (dbgVal instanceof Boolean) DBG = (Boolean) dbgVal;
+                } else {
+                    android.util.Log.w(LOCAL_TAG, "DBG field not found on CarPropertyManager; default false");
+                }
+            } catch (Exception e) {
+                android.util.Log.w(LOCAL_TAG, "Error reading DBG field: " + e);
+            }
+
+            // reflect TAG (String) ---
+            String TAG = "CarPropertyManager";
+            try {
+                java.lang.reflect.Field fTAG = null;
+                try {
+                    fTAG = cpmClass.getDeclaredField("TAG");
+                } catch (NoSuchFieldException nsf) {
+                    try { fTAG = cpmClass.getField("TAG"); } catch (Exception ignored) {}
+                }
+                if (fTAG != null) {
+                    fTAG.setAccessible(true);
+                    Object tagVal = fTAG.get(carPropertyManagerInstance);
+                    if (tagVal != null) TAG = tagVal.toString();
+                } else {
+                    android.util.Log.w(LOCAL_TAG, "TAG field not found on CarPropertyManager; using fallback \"" + TAG + "\"");
+                }
+            } catch (Exception e) {
+                android.util.Log.w(LOCAL_TAG, "Error reading TAG field: " + e);
+            }
+
+            // initial logging per original method
+            if (DBG) {
+                android.util.Log.d(TAG, "getPropertyList");
+            } else {
+                android.util.Log.v(LOCAL_TAG, "DBG is false: skipping initial Log.d(TAG, \"getPropertyList\")");
+            }
+
+            java.util.List<?> configs = null;
+
+            // reflect mService field on CarPropertyManager
+            Object mService = null;
+            try {
+                java.lang.reflect.Field fService = null;
+                try {
+                    fService = cpmClass.getDeclaredField("mService");
+                } catch (NoSuchFieldException nsf) {
+                    try { fService = cpmClass.getField("mService"); } catch (Exception ignored) {}
+                }
+                if (fService != null) {
+                    fService.setAccessible(true);
+                    mService = fService.get(carPropertyManagerInstance);
+                    android.util.Log.d(LOCAL_TAG, "mService retrieved: " + String.valueOf(mService));
+                } else {
+                    android.util.Log.w(LOCAL_TAG, "mService field not found on CarPropertyManager");
+                }
+            } catch (Exception e) {
+                android.util.Log.w(LOCAL_TAG, "Error accessing mService field: " + e);
+            }
+
+            if (mService == null) {
+                android.util.Log.w(TAG, "mService is null; cannot call getPropertyList()");
+                return new java.util.ArrayList<>();
+            }
+
+            // call mService.getPropertyList()
+            Object propertyListObj = null;
+            try {
+                java.lang.reflect.Method mGetPropertyList = null;
+                try {
+                    mGetPropertyList = mService.getClass().getMethod("getPropertyList");
+                } catch (NoSuchMethodException nsme) {
+                    // try declared
+                    try { mGetPropertyList = mService.getClass().getDeclaredMethod("getPropertyList"); } catch (Exception ignored) {}
+                }
+                if (mGetPropertyList != null) {
+                    mGetPropertyList.setAccessible(true);
+                    propertyListObj = mGetPropertyList.invoke(mService);
+                    android.util.Log.d(LOCAL_TAG, "mService.getPropertyList() invoked -> " + String.valueOf(propertyListObj));
+                } else {
+                    android.util.Log.e(LOCAL_TAG, "getPropertyList() method not found on mService");
+                    return new java.util.ArrayList<>();
+                }
+            } catch (java.lang.reflect.InvocationTargetException ite) {
+                Throwable cause = ite.getCause();
+                if (cause != null && cause.getClass().getName().equals("android.os.RemoteException")) {
+                    android.util.Log.e(TAG, "getPropertyList exception (RemoteException)", cause);
+                    // call handleRemoteExceptionFromCarService(cause, new ArrayList<>()) reflectively
+                    try {
+                        java.lang.reflect.Method found = null;
+                        for (java.lang.reflect.Method mm : cpmClass.getDeclaredMethods()) {
+                            if (mm.getName().equals("handleRemoteExceptionFromCarService") && mm.getParameterTypes().length == 2) {
+                                found = mm;
+                                break;
+                            }
+                        }
+                        if (found != null) {
+                            found.setAccessible(true);
+                            Object ret = found.invoke(carPropertyManagerInstance, cause, new java.util.ArrayList<>());
+                            if (ret instanceof java.util.List) {
+                                return (java.util.List<?>) ret;
+                            } else {
+                                return new java.util.ArrayList<>();
+                            }
+                        } else {
+                            android.util.Log.e(LOCAL_TAG, "handleRemoteExceptionFromCarService method not found; returning empty list");
+                            return new java.util.ArrayList<>();
+                        }
+                    } catch (Exception e) {
+                        android.util.Log.e(LOCAL_TAG, "Failed to call handleRemoteExceptionFromCarService reflectively", e);
+                        return new java.util.ArrayList<>();
+                    }
+                } else {
+                    android.util.Log.e(LOCAL_TAG, "InvocationTargetException calling getPropertyList", ite);
+                    return new java.util.ArrayList<>();
+                }
+            } catch (Exception e) {
+                android.util.Log.e(LOCAL_TAG, "Exception invoking getPropertyList()", e);
+                return new java.util.ArrayList<>();
+            }
+
+            // call propertyListObj.getConfigs()
+            try {
+                if (propertyListObj == null) {
+                    android.util.Log.w(LOCAL_TAG, "propertyListObj is null; cannot call getConfigs()");
+                    configs = new java.util.ArrayList<>();
+                } else {
+                    java.lang.reflect.Method mGetConfigs = null;
+                    try {
+                        mGetConfigs = propertyListObj.getClass().getMethod("getConfigs");
+                    } catch (NoSuchMethodException nsme) {
+                        try { mGetConfigs = propertyListObj.getClass().getDeclaredMethod("getConfigs"); } catch (Exception ignored) {}
+                    }
+                    if (mGetConfigs != null) {
+                        mGetConfigs.setAccessible(true);
+                        Object configsObj = mGetConfigs.invoke(propertyListObj);
+                        android.util.Log.d(LOCAL_TAG, "propertyListObj.getConfigs() invoked -> ");
+                        //android.util.Log.d(LOCAL_TAG, String.valueOf(configsObj));
+                        if (configsObj instanceof java.util.List) {
+                            configs = (java.util.List<?>) configsObj;
+                            for(int i = 0; i<configs.size(); i++){
+                                Log.d(TAG, configs.get(i).toString());
+                            }
+                            android.util.Log.d(LOCAL_TAG, "propertyListObj.getConfigs() returned -> "+configs.size()+" configs");
+
+                        } else {
+                            android.util.Log.w(LOCAL_TAG, "getConfigs() did not return a List; using empty list");
+                            configs = new java.util.ArrayList<>();
+                        }
+                    } else {
+                        android.util.Log.e(LOCAL_TAG, "getConfigs() method not found on propertyListObj");
+                        configs = new java.util.ArrayList<>();
+                    }
+                }
+            } catch (java.lang.reflect.InvocationTargetException ite) {
+                Throwable cause = ite.getCause();
+                if (cause != null && cause.getClass().getName().equals("android.os.RemoteException")) {
+                    android.util.Log.e(TAG, "getConfigs exception (RemoteException)", cause);
+                    try {
+                        java.lang.reflect.Method found = null;
+                        for (java.lang.reflect.Method mm : cpmClass.getDeclaredMethods()) {
+                            if (mm.getName().equals("handleRemoteExceptionFromCarService") && mm.getParameterTypes().length == 2) {
+                                found = mm;
+                                break;
+                            }
+                        }
+                        if (found != null) {
+                            found.setAccessible(true);
+                            Object ret = found.invoke(carPropertyManagerInstance, cause, new java.util.ArrayList<>());
+                            if (ret instanceof java.util.List) {
+                                return (java.util.List<?>) ret;
+                            } else {
+                                return new java.util.ArrayList<>();
+                            }
+                        } else {
+                            android.util.Log.e(LOCAL_TAG, "handleRemoteExceptionFromCarService method not found; returning empty list");
+                            return new java.util.ArrayList<>();
+                        }
+                    } catch (Exception e) {
+                        android.util.Log.e(LOCAL_TAG, "Failed to call handleRemoteExceptionFromCarService reflectively", e);
+                        return new java.util.ArrayList<>();
+                    }
+                } else {
+                    android.util.Log.e(LOCAL_TAG, "InvocationTargetException calling getConfigs", ite);
+                    return new java.util.ArrayList<>();
+                }
+            } catch (Exception e) {
+                android.util.Log.e(LOCAL_TAG, "Exception invoking getConfigs()", e);
+                return new java.util.ArrayList<>();
+            }
+
+            // final DBG logging and return
+            if (configs == null) configs = new java.util.ArrayList<>();
+            if (DBG) {
+                try {
+                    android.util.Log.d(TAG, "getPropertyList returns " + configs.size() + " configs");
+                    for (int i = 0; i < configs.size(); i++) {
+                        android.util.Log.v(TAG, i + ": " + configs.get(i));
+                    }
+                } catch (Exception e) {
+                    android.util.Log.w(LOCAL_TAG, "Error while logging configs", e);
+                }
+            } else {
+                android.util.Log.v(LOCAL_TAG, "DBG is false: skipping final detailed logs");
+            }
+
+            return configs;
+        } catch (Throwable t) {
+            android.util.Log.e("exercise_CarPropertyManager_Base", "Unexpected exception", t);
+            return new java.util.ArrayList<>();
+        }
+    }
+
+
 
 
 // -------------------------------------------------------Access system service test---------------------------------------------------------
