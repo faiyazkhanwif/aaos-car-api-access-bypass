@@ -4,6 +4,7 @@ import static com.google.common.reflect.Reflection.getPackageName;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.Application;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -12,6 +13,7 @@ import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -19,16 +21,27 @@ import android.content.pm.Signature;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
+import android.hardware.Sensor;
+import android.hardware.SensorManager;
 import android.net.Uri;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
+import android.os.BatteryManager;
 import android.os.Build;
+import android.os.Environment;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
+import android.os.PowerManager;
 import android.os.RemoteException;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.SparseArray;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.Display;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 
@@ -146,6 +159,7 @@ import android.car.drivingstate.CarUxRestrictions;
 import android.car.drivingstate.CarUxRestrictionsManager;
 import android.car.drivingstate.CarUxRestrictionsManager;
 import android.car.hardware.property.CarPropertyManager;
+import android.view.WindowManager;
 //Reflection Imports
 
 import java.io.InputStream;
@@ -221,7 +235,21 @@ public class CarDataScreen extends Screen {
 
             //exerciseBaseCarAppActivityReflection();
 
-            exercise_CarPropertyManager_Base();
+            //exercise_CarPropertyManager_Base();
+
+            //exercise_logAllSensorProperties();
+
+            //exercise_aggressiveSensorProbe_v2();
+
+            new Thread(() -> {
+                Map m = exercise_aggressiveSensorProbe_v2();
+                Log.i("RESULT", "Probe map size=" + m.size());
+            }).start();
+
+            //exercise_collectHardwareInfo();
+
+            //exerciseAutomotiveCarSensors();
+
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
             Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
@@ -8695,6 +8723,1894 @@ Android 14 - Valid 49 configs
         }
     }
 
+
+    public static java.util.Map<String, Object> exercise_collectHardwareInfo() {
+        final String TAG = "exercise_collectHardwareInfo";
+        java.util.Map<String, Object> info = new java.util.HashMap<>();
+
+        try {
+            // 0) Obtain an Application Context reflectively (works even if called from non-Activity code)
+            Object appContext = null;
+            try {
+                Class<?> activityThread = Class.forName("android.app.ActivityThread");
+                java.lang.reflect.Method mCurrentApp = activityThread.getDeclaredMethod("currentApplication");
+                mCurrentApp.setAccessible(true);
+                appContext = mCurrentApp.invoke(null);
+                android.util.Log.d(TAG, "got context via ActivityThread.currentApplication(): " + appContext);
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Unable to get Application context reflectively: " + t);
+            }
+
+            Context context = null;
+            if (appContext instanceof Context) {
+                context = (Context) appContext;
+            } else {
+                try {
+                    // fallback: if running in a component you can also use other means; but here we bail gracefully
+                    android.util.Log.w(TAG, "No Context available; some subsystems will be skipped");
+                } catch (Throwable ignored) {}
+            }
+
+            // 1) Basic Build + Version info
+            try {
+                java.util.Map<String,Object> build = new java.util.HashMap<>();
+                build.put("MODEL", android.os.Build.MODEL);
+                build.put("MANUFACTURER", android.os.Build.MANUFACTURER);
+                build.put("BRAND", android.os.Build.BRAND);
+                build.put("DEVICE", android.os.Build.DEVICE);
+                build.put("PRODUCT", android.os.Build.PRODUCT);
+                build.put("BOARD", android.os.Build.BOARD);
+                build.put("HARDWARE", android.os.Build.HARDWARE);
+                build.put("BOOTLOADER", android.os.Build.BOOTLOADER);
+                build.put("FINGERPRINT", android.os.Build.FINGERPRINT);
+                build.put("HOST", android.os.Build.HOST);
+                build.put("TAGS", android.os.Build.TAGS);
+                build.put("TYPE", android.os.Build.TYPE);
+                build.put("USER", android.os.Build.USER);
+                build.put("ID", android.os.Build.ID);
+                //build.put("SERIAL", android os - Build.getSerial()); // may throw SecurityException on some devices
+                java.util.Map<String,Object> version = new java.util.HashMap<>();
+                version.put("SDK_INT", android.os.Build.VERSION.SDK_INT);
+                version.put("RELEASE", android.os.Build.VERSION.RELEASE);
+                version.put("SECURITY_PATCH", android.os.Build.VERSION.SECURITY_PATCH);
+                build.put("VERSION", version);
+                info.put("Build", build);
+                android.util.Log.d(TAG, "Build info collected");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed collecting Build info: " + t);
+            }
+
+            // 2) SystemProperties (reflectively) - many keys
+            try {
+                @SuppressLint("PrivateApi") Class<?> sp = Class.forName("android.os.SystemProperties");
+                java.lang.reflect.Method mGet = sp.getMethod("get", String.class);
+                String[] keys = new String[] {
+                        "ro.build.fingerprint","ro.product.model","ro.product.manufacturer","ro.product.device",
+                        "ro.product.board","ro.hardware","ro.boot.serialno","ro.serialno",
+                        "ro.board.platform","ro.product.cpu.abi","ro.product.cpu.abilist",
+                        "ro.build.version.release","ro.build.version.sdk","ro.product.name"
+                };
+                java.util.Map<String,String> props = new java.util.HashMap<>();
+                for (String k : keys) {
+                    try {
+                        Object v = mGet.invoke(null, k);
+                        props.put(k, v == null ? null : v.toString());
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "SystemProperties.get(" + k + ") failed: " + t);
+                    }
+                }
+                info.put("SystemProperties", props);
+                android.util.Log.d(TAG, "SystemProperties collected");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "SystemProperties not available reflectively: " + t);
+            }
+
+            // 3) /proc files: cpuinfo, meminfo, version
+            try {
+                java.util.Map<String,String> proc = new java.util.HashMap<>();
+                try {
+                    java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader("/proc/cpuinfo"));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) { sb.append(line).append('\n'); }
+                    br.close();
+                    proc.put("cpuinfo", sb.toString());
+                } catch (Throwable t) {
+                    android.util.Log.w(TAG, "Cannot read /proc/cpuinfo: " + t);
+                }
+                try {
+                    java.io.BufferedReader br2 = new java.io.BufferedReader(new java.io.FileReader("/proc/meminfo"));
+                    StringBuilder sb2 = new StringBuilder();
+                    String line;
+                    while ((line = br2.readLine()) != null) { sb2.append(line).append('\n'); }
+                    br2.close();
+                    proc.put("meminfo", sb2.toString());
+                } catch (Throwable t) {
+                    android.util.Log.w(TAG, "Cannot read /proc/meminfo: " + t);
+                }
+                try {
+                    java.io.BufferedReader br3 = new java.io.BufferedReader(new java.io.FileReader("/proc/version"));
+                    StringBuilder sb3 = new StringBuilder();
+                    String line;
+                    while ((line = br3.readLine()) != null) { sb3.append(line).append('\n'); }
+                    br3.close();
+                    proc.put("version", sb3.toString());
+                } catch (Throwable t) {
+                    android.util.Log.w(TAG, "Cannot read /proc/version: " + t);
+                }
+                info.put("proc", proc);
+                android.util.Log.d(TAG, "/proc data collected");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Error while collecting /proc data: " + t);
+            }
+
+            // 4) CPU cores count
+            try {
+                int cores = Runtime.getRuntime().availableProcessors();
+                info.put("cpu_cores", cores);
+                android.util.Log.d(TAG, "CPU cores: " + cores);
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to get CPU cores: " + t);
+            }
+
+            // 5) Memory info (ActivityManager) and /proc parsed MemTotal fallback
+            try {
+                if (context != null) {
+                    ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+                    ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
+                    if (am != null) {
+                        am.getMemoryInfo(mi);
+                        java.util.Map<String,Object> mem = new java.util.HashMap<>();
+                        mem.put("availMem", mi.availMem);
+                        mem.put("totalMem", mi.totalMem);
+                        mem.put("lowMemory", mi.lowMemory);
+                        mem.put("threshold", mi.threshold);
+                        info.put("Memory", mem);
+                        android.util.Log.d(TAG, "ActivityManager.MemoryInfo collected");
+                    }
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to collect ActivityManager.MemoryInfo: " + t);
+            }
+
+            // 6) Storage stats (internal & external) via StatFs
+            try {
+                java.util.Map<String,Object> storage = new java.util.HashMap<>();
+                try {
+                    android.os.StatFs s = new android.os.StatFs(Environment.getDataDirectory().getAbsolutePath());
+                    long blockSize = s.getBlockSizeLong();
+                    long blocks = s.getBlockCountLong();
+                    long avail = s.getAvailableBlocksLong();
+                    storage.put("data_total_bytes", blockSize * blocks);
+                    storage.put("data_available_bytes", blockSize * avail);
+                } catch (Throwable t) {
+                    android.util.Log.w(TAG, "Internal storage StatFs failed: " + t);
+                }
+                try {
+                    if (Environment.getExternalStorageState() != null) {
+                        android.os.StatFs s2 = new android.os.StatFs(Environment.getExternalStorageDirectory().getAbsolutePath());
+                        long blockSize = s2.getBlockSizeLong();
+                        long blocks = s2.getBlockCountLong();
+                        long avail = s2.getAvailableBlocksLong();
+                        storage.put("external_total_bytes", blockSize * blocks);
+                        storage.put("external_available_bytes", blockSize * avail);
+                    }
+                } catch (Throwable t) {
+                    android.util.Log.w(TAG, "External storage StatFs failed: " + t);
+                }
+                info.put("Storage", storage);
+                android.util.Log.d(TAG, "Storage stats collected");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to collect storage stats: " + t);
+            }
+
+            // 7) Display metrics
+            try {
+                if (context != null) {
+                    WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+                    if (wm != null) {
+                        Display display = wm.getDefaultDisplay();
+                        DisplayMetrics dm = new DisplayMetrics();
+                        display.getMetrics(dm);
+                        java.util.Map<String,Object> d = new java.util.HashMap<>();
+                        d.put("widthPixels", dm.widthPixels);
+                        d.put("heightPixels", dm.heightPixels);
+                        d.put("density", dm.density);
+                        d.put("scaledDensity", dm.scaledDensity);
+                        d.put("xdpi", dm.xdpi);
+                        d.put("ydpi", dm.ydpi);
+                        info.put("DisplayMetrics", d);
+                        android.util.Log.d(TAG, "Display metrics collected");
+                    }
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to collect display metrics: " + t);
+            }
+
+            // 8) Sensors list
+            try {
+                if (context != null) {
+                    SensorManager sm = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+                    if (sm != null) {
+                        java.util.List<Sensor> sensors = sm.getSensorList(Sensor.TYPE_ALL);
+                        java.util.List<java.util.Map<String,Object>> sensorList = new java.util.ArrayList<>();
+                        for (Sensor s : sensors) {
+                            try {
+                                java.util.Map<String,Object> sinfo = new java.util.HashMap<>();
+                                sinfo.put("name", s.getName());
+                                sinfo.put("type", s.getType());
+                                sinfo.put("vendor", s.getVendor());
+                                sinfo.put("version", s.getVersion());
+                                sinfo.put("maxRange", s.getMaximumRange());
+                                sinfo.put("power_mA", s.getPower());
+                                sensorList.add(sinfo);
+                            } catch (Throwable t) {
+                                android.util.Log.w(TAG, "Failed to read a sensor: " + t);
+                            }
+                        }
+                        info.put("Sensors", sensorList);
+                        android.util.Log.d(TAG, "Sensors collected: " + sensorList.size());
+                    }
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Error collecting sensors: " + t);
+            }
+
+            // 9) Camera IDs (Camera2)
+            try {
+                if (context != null) {
+                    Object camMgrObj = context.getSystemService(Context.CAMERA_SERVICE);
+                    if (camMgrObj != null) {
+                        try {
+                            java.lang.reflect.Method mGetIds = camMgrObj.getClass().getMethod("getCameraIdList");
+                            mGetIds.setAccessible(true);
+                            Object idsObj = mGetIds.invoke(camMgrObj);
+                            if (idsObj instanceof String[]) {
+                                String[] ids = (String[]) idsObj;
+                                info.put("CameraIds", java.util.Arrays.asList(ids));
+                                android.util.Log.d(TAG, "Camera IDs collected: " + ids.length);
+                            } else if (idsObj instanceof java.util.List) {
+                                info.put("CameraIds", idsObj);
+                                android.util.Log.d(TAG, "Camera IDs collected (list)");
+                            } else {
+                                android.util.Log.d(TAG, "Camera.getCameraIdList returned: " + idsObj);
+                            }
+                        } catch (NoSuchMethodException nsme) {
+                            android.util.Log.w(TAG, "getCameraIdList not found on CameraManager: " + nsme);
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to collect Camera IDs: " + t);
+            }
+
+            // 10) Bluetooth info
+            try {
+                try {
+                    android.bluetooth.BluetoothAdapter bt = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+                    if (bt != null) {
+                        java.util.Map<String,Object> btinfo = new java.util.HashMap<>();
+                        btinfo.put("isEnabled", bt.isEnabled());
+                        try { btinfo.put("name", bt.getName()); } catch (Throwable ignored) {}
+                        try { btinfo.put("address", bt.getAddress()); } catch (Throwable ignored) {}
+                        info.put("Bluetooth", btinfo);
+                        android.util.Log.d(TAG, "Bluetooth info collected");
+                    }
+                } catch (Throwable t) {
+                    android.util.Log.w(TAG, "BluetoothAdapter failed: " + t);
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Error collecting Bluetooth info: " + t);
+            }
+
+            // 11) Wi-Fi info (may require permission to see SSID/MAC)
+            try {
+                if (context != null) {
+                    WifiManager wmgr = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+                    if (wmgr != null) {
+                        try {
+                            WifiInfo wi = wmgr.getConnectionInfo();
+                            java.util.Map<String,Object> w = new java.util.HashMap<>();
+                            if (wi != null) {
+                                try { w.put("ssid", wi.getSSID()); } catch (Throwable ignored) {}
+                                try { w.put("bssid", wi.getBSSID()); } catch (Throwable ignored) {}
+                                try { w.put("mac", wi.getMacAddress()); } catch (Throwable ignored) {}
+                                try { w.put("rssi", wi.getRssi()); } catch (Throwable ignored) {}
+                                try { w.put("linkSpeed", wi.getLinkSpeed()); } catch (Throwable ignored) {}
+                            }
+                            w.put("isWifiEnabled", wmgr.isWifiEnabled());
+                            info.put("WiFi", w);
+                            android.util.Log.d(TAG, "WiFi info collected");
+                        } catch (Throwable t) {
+                            android.util.Log.w(TAG, "WifiManager.getConnectionInfo failed: " + t);
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Error collecting WiFi info: " + t);
+            }
+
+            // 12) Telephony info
+            try {
+                if (context != null) {
+                    TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+                    if (tm != null) {
+                        java.util.Map<String,Object> tinfo = new java.util.HashMap<>();
+                        try { tinfo.put("phoneType", tm.getPhoneType()); } catch (Throwable ignored) {}
+                        try { tinfo.put("networkOperator", tm.getNetworkOperator()); } catch (Throwable ignored) {}
+                        try { tinfo.put("networkOperatorName", tm.getNetworkOperatorName()); } catch (Throwable ignored) {}
+                        try { tinfo.put("simState", tm.getSimState()); } catch (Throwable ignored) {}
+                        try { tinfo.put("isNetworkRoaming", tm.isNetworkRoaming()); } catch (Throwable ignored) {}
+                        // IMEI/getDeviceId may require READ_PHONE_STATE - wrap it
+                        try {
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                String imei = null;
+                                try { imei = tm.getImei(); } catch (Throwable ignored) {}
+                                tinfo.put("imei", imei);
+                            } else {
+                                String deviceId = null;
+                                try { deviceId = tm.getDeviceId(); } catch (Throwable ignored) {}
+                                tinfo.put("deviceId", deviceId);
+                            }
+                        } catch (Throwable ignored) {}
+                        info.put("Telephony", tinfo);
+                        android.util.Log.d(TAG, "Telephony info collected");
+                    }
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Error collecting Telephony info: " + t);
+            }
+
+            // 13) Battery info (via sticky Intent and BatteryManager)
+            try {
+                java.util.Map<String,Object> batt = new java.util.HashMap<>();
+                if (context != null) {
+                    IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+                    Intent batteryStatus = context.registerReceiver(null, ifilter);
+                    if (batteryStatus != null) {
+                        int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                        int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                        int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+                        int plugged = batteryStatus.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1);
+                        int voltage = batteryStatus.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1);
+                        int temp = batteryStatus.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1);
+                        batt.put("level", level);
+                        batt.put("scale", scale);
+                        batt.put("status", status);
+                        batt.put("plugged", plugged);
+                        batt.put("voltage", voltage);
+                        batt.put("temperature", temp);
+                    }
+                    BatteryManager bm = (BatteryManager) (context.getSystemService(Context.BATTERY_SERVICE));
+                    if (bm != null) {
+                        try { batt.put("capacity_percent", bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)); } catch (Throwable ignored) {}
+                        try { batt.put("charge_counter", bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)); } catch (Throwable ignored) {}
+                    }
+                }
+                info.put("Battery", batt);
+                android.util.Log.d(TAG, "Battery info collected");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Error collecting battery info: " + t);
+            }
+
+            // 14) PackageManager features & available features
+            try {
+                if (context != null) {
+                    PackageManager pm = context.getPackageManager();
+                    android.content.pm.FeatureInfo[] feats = pm.getSystemAvailableFeatures();
+                    java.util.List<String> features = new java.util.ArrayList<>();
+                    if (feats != null) {
+                        for (android.content.pm.FeatureInfo f : feats) {
+                            String name = f.name;
+                            if (name == null) { // some entries are null and describe GL ES version
+                                if (f.reqGlEsVersion != 0) {
+                                    features.add("glEsVersion:" + f.reqGlEsVersion);
+                                }
+                            } else {
+                                features.add(name);
+                            }
+                        }
+                    }
+                    info.put("PackageManagerFeatures", features);
+                    android.util.Log.d(TAG, "PackageManager features collected: " + features.size());
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to collect PackageManager features: " + t);
+            }
+
+            // 15) Power & thermal info (PowerManager + optional APIs)
+            try {
+                if (context != null) {
+                    PowerManager pmgr = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+                    java.util.Map<String,Object> pinfo = new java.util.HashMap<>();
+                    if (pmgr != null) {
+                        try { pinfo.put("isInteractive", pmgr.isInteractive()); } catch (Throwable ignored) {}
+                        try { pinfo.put("isPowerSaveMode", pmgr.isPowerSaveMode()); } catch (Throwable ignored) {}
+                    }
+                    info.put("Power", pinfo);
+                    android.util.Log.d(TAG, "PowerManager info collected");
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to collect PowerManager info: " + t);
+            }
+
+            // 16) Uptime / elapsed realtime
+            try {
+                java.util.Map<String,Object> times = new java.util.HashMap<>();
+                times.put("uptime_ms", android.os.SystemClock.uptimeMillis());
+                times.put("elapsedRealtime_ms", android.os.SystemClock.elapsedRealtime());
+                info.put("Uptime", times);
+                android.util.Log.d(TAG, "Uptime collected");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to collect uptime: " + t);
+            }
+
+            // 17) SELinux enabled / enforcing
+            try {
+                boolean selEnabled = false;
+                boolean selEnforcing = false;
+                try {
+                    Class<?> selClass = Class.forName("android.os.SELinux");
+                    java.lang.reflect.Method mEn = selClass.getMethod("isSELinuxEnabled");
+                    java.lang.reflect.Method mEnf = selClass.getMethod("isSELinuxEnforced");
+                    Object eRes = mEn.invoke(null);
+                    Object fRes = mEnf.invoke(null);
+                    if (eRes instanceof Boolean) selEnabled = (Boolean) eRes;
+                    if (fRes instanceof Boolean) selEnforcing = (Boolean) fRes;
+                } catch (Throwable t) {
+                    // fallback: read /selinux/enforce
+                    try {
+                        java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader("/sys/fs/selinux/enforce"));
+                        String r = br.readLine();
+                        br.close();
+                        selEnabled = true;
+                        selEnforcing = "1".equals(r);
+                    } catch (Throwable ignored) {}
+                }
+                java.util.Map<String,Object> sel = new java.util.HashMap<>();
+                sel.put("enabled", selEnabled);
+                sel.put("enforcing", selEnforcing);
+                info.put("SELinux", sel);
+                android.util.Log.d(TAG, "SELinux info collected");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to collect SELinux info: " + t);
+            }
+
+            // 18) Environment / boot properties
+            try {
+                java.util.Map<String,Object> env = new java.util.HashMap<>();
+                env.put("isEmulator", (android.os.Build.FINGERPRINT != null && android.os.Build.FINGERPRINT.contains("generic")) || android.os.Build.MODEL != null && android.os.Build.MODEL.contains("Emulator"));
+                env.put("isRooted", new java.io.File("/system/app/Superuser.apk").exists() || new java.io.File("/system/xbin/su").exists() || new java.io.File("/system/bin/su").exists());
+                info.put("Environment", env);
+                android.util.Log.d(TAG, "Environment heuristics collected");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Error collecting environment heuristics: " + t);
+            }
+
+            // 19) Package / app signature info (this app)
+            try {
+                if (context != null) {
+                    PackageManager pm = context.getPackageManager();
+                    String pkg = context.getPackageName();
+                    java.util.Map<String,Object> myapp = new java.util.HashMap<>();
+                    myapp.put("packageName", pkg);
+                    try {
+                        PackageInfo pi = pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES);
+                        myapp.put("versionName", pi.versionName);
+                        myapp.put("versionCode", pi.getLongVersionCode());
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "Cannot get package info: " + t);
+                    }
+                    info.put("ThisApp", myapp);
+                    android.util.Log.d(TAG, "This app info collected");
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to collect this app info: " + t);
+            }
+
+            // Final logging summary and return
+            try {
+                android.util.Log.i(TAG, "Hardware info collection finished; keys: " + info.keySet());
+            } catch (Throwable ignored) {}
+
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "Unexpected failure in exercise_collectHardwareInfo: " + t);
+        }
+
+        return info;
+    }
+
+
+
+    //-------------------------------------------------------------------------------------------- gets 15 sensors aaos - goldfish - but comes with weird dictionary
+
+/*
+    @SuppressWarnings({"unchecked","rawtypes"})
+    public static java.util.List<java.util.Map<String,Object>> exercise_collectAllSensorDetails() {
+        final String TAG = "exercise_collectAllSensorDetails";
+        final java.util.List<java.util.Map<String,Object>> results = new java.util.ArrayList<>();
+
+        try {
+            // 1) Obtain Application Context reflectively (works even if called from non-Activity code)
+            Object appContextObj = null;
+            try {
+                Class<?> activityThread = Class.forName("android.app.ActivityThread");
+                java.lang.reflect.Method mCurrentApp = activityThread.getDeclaredMethod("currentApplication");
+                mCurrentApp.setAccessible(true);
+                appContextObj = mCurrentApp.invoke(null);
+                android.util.Log.d(TAG, "got context via ActivityThread.currentApplication(): " + appContextObj);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "Unable to get Application context reflectively", t);
+            }
+
+            if (!(appContextObj instanceof android.content.Context)) {
+                android.util.Log.e(TAG, "No Context available; aborting sensor enumeration");
+                return results;
+            }
+            android.content.Context context = (android.content.Context) appContextObj;
+
+            // 2) Get SensorManager and sensor list
+            android.hardware.SensorManager sm = (android.hardware.SensorManager) context.getSystemService(android.content.Context.SENSOR_SERVICE);
+            if (sm == null) {
+                android.util.Log.e(TAG, "SensorManager not available");
+                return results;
+            }
+
+            java.util.List<android.hardware.Sensor> sensors = sm.getSensorList(android.hardware.Sensor.TYPE_ALL);
+            android.util.Log.i(TAG, "Found sensors: " + (sensors == null ? 0 : sensors.size()));
+
+            if (sensors == null || sensors.isEmpty()) return results;
+
+            // We'll attempt to capture one sample per sensor. Use a small timeout so this method finishes.
+            final int SAMPLE_TIMEOUT_MS = 800;
+
+            for (final android.hardware.Sensor s : sensors) {
+                try {
+                    java.util.Map<String,Object> sinfo = new java.util.HashMap<>();
+                    sinfo.put("name", s.getName());
+                    sinfo.put("vendor", s.getVendor());
+                    sinfo.put("type", s.getType());
+                    sinfo.put("typeName", getSensorTypeNameSafe(s)); // helper below
+                    sinfo.put("version", safeInvokeInt(s, "getVersion"));
+                    sinfo.put("maxRange", safeInvokeFloat(s, "getMaximumRange"));
+                    sinfo.put("resolution", safeInvokeFloat(s, "getResolution"));
+                    sinfo.put("power_mA", safeInvokeFloat(s, "getPower"));
+                    sinfo.put("minDelay_us", safeInvokeInt(s, "getMinDelay")); // microseconds
+                    // Try getMaxDelay (API >= 9?  or later)
+                    Object maxDelay = safeInvokeMaybeLongOrIntOrNull(s, "getMaxDelay");
+                    if (maxDelay != null) sinfo.put("maxDelay_us", maxDelay);
+                    // string type (may be null on old APIs)
+                    try {
+                        String st = s.getStringType();
+                        if (st != null) sinfo.put("stringType", st);
+                    } catch (Throwable ignored) {}
+                    // isWakeUpSensor (API 21+)
+                    try {
+                        java.lang.reflect.Method mIsWake = android.hardware.Sensor.class.getMethod("isWakeUpSensor");
+                        Object wake = mIsWake.invoke(s);
+                        if (wake instanceof Boolean) sinfo.put("isWakeUpSensor", wake);
+                    } catch (Throwable ignored) {}
+                    // FIFO counts (API 19+ maybe later)
+                    try {
+                        java.lang.reflect.Method mFifoMax = android.hardware.Sensor.class.getMethod("getFifoMaxEventCount");
+                        java.lang.reflect.Method mFifoRes = android.hardware.Sensor.class.getMethod("getFifoReservedEventCount");
+                        Object fm = mFifoMax.invoke(s);
+                        Object fr = mFifoRes.invoke(s);
+                        if (fm != null) sinfo.put("fifoMaxEventCount", fm);
+                        if (fr != null) sinfo.put("fifoReservedEventCount", fr);
+                    } catch (Throwable ignored) {}
+
+                    // Sensor ID (if available reflectively)
+                    try {
+                        java.lang.reflect.Method mid = android.hardware.Sensor.class.getMethod("getId");
+                        Object idv = mid.invoke(s);
+                        if (idv != null) sinfo.put("id", idv);
+                    } catch (Throwable ignored) {}
+
+                    // Additional introspection via declared methods (catch all other readable methods)
+                    try {
+                        java.lang.reflect.Method[] methods = android.hardware.Sensor.class.getDeclaredMethods();
+                        for (java.lang.reflect.Method m : methods) {
+                            String name = m.getName();
+                            if ((name.startsWith("get") || name.startsWith("is")) && m.getParameterTypes().length == 0) {
+                                // we've already invoked many; skip those to avoid duplicates
+                                if (name.equals("getName") || name.equals("getVendor") || name.equals("getType")
+                                        || name.equals("getVersion") || name.equals("getMaximumRange") || name.equals("getResolution")
+                                        || name.equals("getPower") || name.equals("getMinDelay") || name.equals("getMaxDelay")
+                                        || name.equals("getStringType") || name.equals("isWakeUpSensor") || name.equals("getFifoMaxEventCount")
+                                        || name.equals("getFifoReservedEventCount") || name.equals("getId")) {
+                                    continue;
+                                }
+                                try {
+                                    Object val = null;
+                                    m.setAccessible(true);
+                                    val = m.invoke(s);
+                                    if (val != null) sinfo.put(name, val);
+                                } catch (Throwable ignored) {}
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+
+                    // 3) Attempt to collect one live sample (if the sensor actually generates events)
+                    final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+                    final java.util.Map<String,Object> sampleMap = new java.util.HashMap<>();
+                    final android.hardware.SensorEventListener listener = new android.hardware.SensorEventListener() {
+                        @Override
+                        public void onSensorChanged(android.hardware.SensorEvent event) {
+                            try {
+                                sampleMap.put("timestamp_ns", event.timestamp);
+                                sampleMap.put("accuracy", event.accuracy);
+                                // store values as list of numbers
+                                java.util.List<Number> vals = new java.util.ArrayList<>();
+                                if (event.values != null) {
+                                    for (float f : event.values) vals.add(f);
+                                }
+                                sampleMap.put("values", vals);
+                            } catch (Throwable t) {
+                                android.util.Log.w(TAG, "Error reading sensor event for " + s.getName(), t);
+                            } finally {
+                                latch.countDown();
+                            }
+                        }
+                        @Override
+                        public void onAccuracyChanged(android.hardware.Sensor sensor, int accuracy) {
+                            // ignore
+                        }
+                    };
+
+                    boolean registered = false;
+                    try {
+                        // Use SENSOR_DELAY_NORMAL (no constant import) - integer value is available: use SensorManager constant
+                        registered = sm.registerListener(listener, s, android.hardware.SensorManager.SENSOR_DELAY_NORMAL);
+                        sinfo.put("listener_registered", registered);
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "Failed to register listener for sensor " + s.getName() + " : " + t);
+                        sinfo.put("listener_registered", false);
+                    }
+
+                    if (registered) {
+                        try {
+                            boolean got = latch.await(SAMPLE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+                            if (got && !sampleMap.isEmpty()) {
+                                sinfo.put("live_sample", sampleMap);
+                                android.util.Log.d(TAG, "Sampled sensor " + s.getName() + " -> " + sampleMap);
+                            } else {
+                                sinfo.put("live_sample_timeout_ms", SAMPLE_TIMEOUT_MS);
+                                android.util.Log.d(TAG, "No sample within timeout for sensor " + s.getName());
+                            }
+                        } catch (InterruptedException ie) {
+                            sinfo.put("live_sample_interrupted", true);
+                            android.util.Log.w(TAG, "Interrupted waiting for sensor sample for " + s.getName(), ie);
+                        } finally {
+                            try { sm.unregisterListener(listener, s); } catch (Throwable ignored) {}
+                        }
+                    }
+
+                    // Add some helpful derived fields
+                    try {
+                        // approx. number of axes from resolution of values if live_sample present
+                        if (sinfo.containsKey("live_sample")) {
+                            Object liveObj = sinfo.get("live_sample");
+                            if (liveObj instanceof java.util.Map) {
+                                Object vals = ((java.util.Map) liveObj).get("values");
+                                if (vals instanceof java.util.List) sinfo.put("value_count", ((java.util.List) vals).size());
+                            }
+                        } else {
+                            // fallback: use known sensor type mapping
+                            sinfo.put("expected_value_count", expectedValuesForSensorType(s.getType()));
+                        }
+                    } catch (Throwable ignored) {}
+
+                    // append to results and log
+                    results.add(sinfo);
+                    android.util.Log.i(TAG, "Collected sensor info: name=\"" + s.getName() + "\" type=" + s.getType() + " vendor=" + s.getVendor() + " details keys=" + sinfo.keySet());
+
+                } catch (Throwable se) {
+                    android.util.Log.w(TAG, "Failed to collect info for sensor: " + s, se);
+                }
+            }
+
+            android.util.Log.i(TAG, "Finished collecting detailed info for sensors, count=" + results.size());
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "Unexpected error in exercise_collectAllSensorDetails", t);
+        }
+
+        return results;
+    }
+
+    // Helper: try calling an int-returning method reflectively on Sensor and return int or -1
+    private static int safeInvokeInt(android.hardware.Sensor s, String methodName) {
+        try {
+            java.lang.reflect.Method m = android.hardware.Sensor.class.getMethod(methodName);
+            Object r = m.invoke(s);
+            if (r instanceof Integer) return (Integer) r;
+            if (r instanceof Number) return ((Number) r).intValue();
+        } catch (Throwable ignored) {}
+        return -1;
+    }
+    // Helper: try calling a float-returning method reflectively on Sensor and return float or -1f
+    private static float safeInvokeFloat(android.hardware.Sensor s, String methodName) {
+        try {
+            java.lang.reflect.Method m = android.hardware.Sensor.class.getMethod(methodName);
+            Object r = m.invoke(s);
+            if (r instanceof Float) return (Float) r;
+            if (r instanceof Number) return ((Number) r).floatValue();
+        } catch (Throwable ignored) {}
+        return -1f;
+    }
+    // Helper: call method that might return long/int/Integer/Long or not exist - returns boxed Number or null
+    private static Object safeInvokeMaybeLongOrIntOrNull(android.hardware.Sensor s, String methodName) {
+        try {
+            java.lang.reflect.Method m = android.hardware.Sensor.class.getMethod(methodName);
+            Object r = m.invoke(s);
+            if (r instanceof Number) return (Number) r;
+            return r;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+    // Helper: return human readable sensor type name when available
+    private static String getSensorTypeNameSafe(android.hardware.Sensor s) {
+        try {
+            // Sensor.getStringType() is better when available
+            String st = null;
+            try { st = s.getStringType(); } catch (Throwable ignored) {}
+            if (st != null) return st;
+        } catch (Throwable ignored) {}
+        // fallback mapping for common types
+        return sensorTypeToNameFallback(s.getType());
+    }
+    private static String sensorTypeToNameFallback(int type) {
+        switch (type) {
+            case android.hardware.Sensor.TYPE_ACCELEROMETER: return "ACCELEROMETER";
+            case android.hardware.Sensor.TYPE_GYROSCOPE: return "GYROSCOPE";
+            case android.hardware.Sensor.TYPE_MAGNETIC_FIELD: return "MAGNETIC_FIELD";
+            case android.hardware.Sensor.TYPE_LIGHT: return "LIGHT";
+            case android.hardware.Sensor.TYPE_PROXIMITY: return "PROXIMITY";
+            case android.hardware.Sensor.TYPE_PRESSURE: return "PRESSURE";
+            case android.hardware.Sensor.TYPE_GRAVITY: return "GRAVITY";
+            case android.hardware.Sensor.TYPE_LINEAR_ACCELERATION: return "LINEAR_ACCELERATION";
+            case android.hardware.Sensor.TYPE_ROTATION_VECTOR: return "ROTATION_VECTOR";
+            case android.hardware.Sensor.TYPE_ORIENTATION: return "ORIENTATION";
+            case android.hardware.Sensor.TYPE_AMBIENT_TEMPERATURE: return "AMBIENT_TEMPERATURE";
+            case android.hardware.Sensor.TYPE_RELATIVE_HUMIDITY: return "RELATIVE_HUMIDITY";
+            case android.hardware.Sensor.TYPE_HEART_RATE: return "HEART_RATE";
+            case android.hardware.Sensor.TYPE_STEP_COUNTER: return "STEP_COUNTER";
+            default: return "TYPE_" + type;
+        }
+    }
+    // Helper: expected value counts for common sensor types (heuristic)
+    private static int expectedValuesForSensorType(int t) {
+        switch (t) {
+            case android.hardware.Sensor.TYPE_ACCELEROMETER: return 3;
+            case android.hardware.Sensor.TYPE_GYROSCOPE: return 3;
+            case android.hardware.Sensor.TYPE_MAGNETIC_FIELD: return 3;
+            case android.hardware.Sensor.TYPE_ROTATION_VECTOR: return 4; // usually 4 (x,y,z,scalar)
+            case android.hardware.Sensor.TYPE_GRAVITY: return 3;
+            case android.hardware.Sensor.TYPE_LINEAR_ACCELERATION: return 3;
+            case android.hardware.Sensor.TYPE_LIGHT: return 1;
+            case android.hardware.Sensor.TYPE_PROXIMITY: return 1;
+            case android.hardware.Sensor.TYPE_PRESSURE: return 1;
+            default: return -1;
+        }
+    }
+
+*/
+
+
+    //------------------------------------------------------------------------------ gets 15 sensors - registers them - but no values
+
+    public static java.util.List<java.util.Map<String,Object>> exercise_detectAndSampleSensors() {
+        final String TAG = "exercise_detectAndSampleSensors";
+        final java.util.List<java.util.Map<String,Object>> out = new java.util.ArrayList<>();
+
+        // How long to wait while collecting samples (milliseconds)
+        final int SAMPLE_WINDOW_MS = 1500;
+
+        try {
+            // --- 1) get Application context reflectively ---
+            Object appCtxObj = null;
+            try {
+                Class<?> activityThread = Class.forName("android.app.ActivityThread");
+                java.lang.reflect.Method m = activityThread.getDeclaredMethod("currentApplication");
+                m.setAccessible(true);
+                appCtxObj = m.invoke(null);
+                android.util.Log.d(TAG, "got context via ActivityThread.currentApplication(): " + appCtxObj);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "Unable to get Application context reflectively", t);
+            }
+
+            if (!(appCtxObj instanceof android.content.Context)) {
+                android.util.Log.e(TAG, "No Context available; aborting sensor detection");
+                return out;
+            }
+            final android.content.Context context = (android.content.Context) appCtxObj;
+
+            // --- 2) get SensorManager and full sensor list ---
+            final android.hardware.SensorManager sm = (android.hardware.SensorManager) context.getSystemService(android.content.Context.SENSOR_SERVICE);
+            if (sm == null) {
+                android.util.Log.e(TAG, "SensorManager not available");
+                return out;
+            }
+            final java.util.List<android.hardware.Sensor> sensors = sm.getSensorList(android.hardware.Sensor.TYPE_ALL);
+            android.util.Log.i(TAG, "Found sensors: " + (sensors == null ? 0 : sensors.size()));
+            if (sensors == null || sensors.isEmpty()) return out;
+
+            // --- 3) prepare container for samples ---
+            // key = unique sensor key (type + name + optional id), value = sample map
+            final java.util.concurrent.ConcurrentHashMap<String, java.util.Map<String,Object>> samples = new java.util.concurrent.ConcurrentHashMap<>();
+            final java.util.concurrent.ConcurrentHashMap<String, Long> sampleTimestamps = new java.util.concurrent.ConcurrentHashMap<>();
+
+            // helper to make a unique key per sensor
+            java.util.function.Function<android.hardware.Sensor, String> sensorKey = (s) -> {
+                String id = null;
+                try {
+                    java.lang.reflect.Method mid = android.hardware.Sensor.class.getMethod("getId");
+                    Object ov = mid.invoke(s);
+                    if (ov != null) id = String.valueOf(ov);
+                } catch (Throwable ignored) {}
+                // fallback to type+name
+                if (id != null) return s.getType() + "::" + id + "::" + s.getName();
+                return s.getType() + "::" + s.getName();
+            };
+
+            // --- 4) single listener for all sensors that stores the latest event per sensor key ---
+            final android.hardware.SensorEventListener listener = new android.hardware.SensorEventListener() {
+                @Override
+                public void onSensorChanged(android.hardware.SensorEvent event) {
+                    try {
+                        if (event == null || event.sensor == null) return;
+                        String key = sensorKey.apply(event.sensor);
+                        java.util.Map<String,Object> smap = new java.util.HashMap<>();
+                        smap.put("timestamp_ns", event.timestamp);
+                        smap.put("accuracy", event.accuracy);
+                        // copy values to a list for easier serialization/logging
+                        java.util.List<Number> vals = new java.util.ArrayList<>();
+                        if (event.values != null) {
+                            for (float f : event.values) vals.add(f);
+                        }
+                        smap.put("values", vals);
+                        // store only the first sample per sensor (or you may choose last by removing check)
+                        // here we store the first sample if none exists, otherwise update only if newer
+                        Long prevTs = sampleTimestamps.get(key);
+                        if (prevTs == null || event.timestamp > prevTs) {
+                            samples.put(key, smap);
+                            sampleTimestamps.put(key, event.timestamp);
+                            android.util.Log.d(TAG, "Sampled sensor key=" + key + " values=" + vals);
+                        }
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "Error in onSensorChanged", t);
+                    }
+                }
+                @Override
+                public void onAccuracyChanged(android.hardware.Sensor sensor, int accuracy) {
+                    // we ignore
+                }
+            };
+
+            // --- 5) register listener for all sensors ---
+            int registeredCount = 0;
+            for (android.hardware.Sensor s : sensors) {
+                try {
+                    // use SENSOR_DELAY_FASTEST to maximize chance of getting a sample
+                    boolean reg = sm.registerListener(listener, s, SensorManager.SENSOR_DELAY_NORMAL);
+                    if (reg) registeredCount++;
+                    // small quiet log
+                    android.util.Log.v(TAG, "registerListener for sensor: " + s.getName() + " => " + reg);
+                } catch (Throwable t) {
+                    android.util.Log.w(TAG, "Failed to register listener for sensor " + s.getName() + ": " + t);
+                }
+            }
+            android.util.Log.i(TAG, "Registered listener for " + registeredCount + " / " + sensors.size() + " sensors");
+
+            // --- 6) wait SAMPLE_WINDOW_MS to collect samples ---
+            try {
+                Thread.sleep(SAMPLE_WINDOW_MS);
+            } catch (InterruptedException ie) {
+                android.util.Log.w(TAG, "Sampling sleep interrupted", ie);
+                Thread.currentThread().interrupt();
+            }
+
+            // --- 7) unregister listener ---
+            try {
+                sm.unregisterListener(listener);
+                android.util.Log.d(TAG, "Unregistered listener for all sensors");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to unregister listener", t);
+            }
+
+            // --- 8) build detailed results for each sensor: properties + sample (if present) ---
+            for (android.hardware.Sensor s : sensors) {
+                try {
+                    java.util.Map<String,Object> entry = new java.util.HashMap<>();
+                    // static sensor properties
+                    java.util.Map<String,Object> props = new java.util.HashMap<>();
+                    props.put("name", s.getName());
+                    props.put("vendor", s.getVendor());
+                    props.put("type", s.getType());
+                    props.put("typeName", safeGetStringType(s));
+                    props.put("version", safeInvokeInt(s, "getVersion"));
+                    props.put("maxRange", safeInvokeFloat(s, "getMaximumRange"));
+                    props.put("resolution", safeInvokeFloat(s, "getResolution"));
+                    props.put("power_mA", safeInvokeFloat(s, "getPower"));
+                    props.put("minDelay_us", safeInvokeInt(s, "getMinDelay")); // microseconds
+                    Object maxDelayObj = safeInvokeMaybeLongOrIntOrNull(s, "getMaxDelay");
+                    if (maxDelayObj != null) props.put("maxDelay_us", maxDelayObj);
+                    // reflect optional APIs
+                    try {
+                        java.lang.reflect.Method mid = android.hardware.Sensor.class.getMethod("getId");
+                        Object idv = mid.invoke(s);
+                        if (idv != null) props.put("id", idv);
+                    } catch (Throwable ignored) {}
+                    try {
+                        java.lang.reflect.Method mIsWake = android.hardware.Sensor.class.getMethod("isWakeUpSensor");
+                        Object wake = mIsWake.invoke(s);
+                        if (wake != null) props.put("isWakeUpSensor", wake);
+                    } catch (Throwable ignored) {}
+                    // include raw method-based extras to help debugging
+                    try {
+                        java.lang.reflect.Method[] methods = android.hardware.Sensor.class.getDeclaredMethods();
+                        for (java.lang.reflect.Method m : methods) {
+                            String name = m.getName();
+                            if ((name.startsWith("get") || name.startsWith("is")) && m.getParameterTypes().length == 0) {
+                                if (name.equals("getName") || name.equals("getVendor") || name.equals("getType")
+                                        || name.equals("getVersion") || name.equals("getMaximumRange")
+                                        || name.equals("getResolution") || name.equals("getPower") || name.equals("getMinDelay")
+                                        || name.equals("getMaxDelay") || name.equals("getStringType") || name.equals("isWakeUpSensor")
+                                        || name.equals("getId")) {
+                                    continue; // already handled
+                                }
+                                try {
+                                    m.setAccessible(true);
+                                    Object rv = m.invoke(s);
+                                    if (rv != null) props.put(name, rv);
+                                } catch (Throwable ignored) {}
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+
+                    entry.put("properties", props);
+
+                    // sample key
+                    String key = sensorKey.apply(s);
+                    if (samples.containsKey(key)) {
+                        entry.put("sampled", true);
+                        entry.put("sample", samples.get(key));
+                    } else {
+                        entry.put("sampled", false);
+                        entry.put("sample", null);
+                    }
+
+                    out.add(entry);
+                } catch (Throwable t) {
+                    android.util.Log.w(TAG, "Failed to build result for sensor " + s, t);
+                }
+            }
+
+            android.util.Log.i(TAG, "Finished sampling sensors; results count=" + out.size());
+
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "Unexpected failure in exercise_detectAndSampleSensors", t);
+        }
+
+        return out;
+    }
+
+    // ---------- helper methods (reuse from earlier) ----------
+    private static int safeInvokeInt(android.hardware.Sensor s, String methodName) {
+        try {
+            java.lang.reflect.Method m = android.hardware.Sensor.class.getMethod(methodName);
+            Object r = m.invoke(s);
+            if (r instanceof Integer) return (Integer) r;
+            if (r instanceof Number) return ((Number) r).intValue();
+        } catch (Throwable ignored) {}
+        return -1;
+    }
+    private static float safeInvokeFloat(android.hardware.Sensor s, String methodName) {
+        try {
+            java.lang.reflect.Method m = android.hardware.Sensor.class.getMethod(methodName);
+            Object r = m.invoke(s);
+            if (r instanceof Float) return (Float) r;
+            if (r instanceof Number) return ((Number) r).floatValue();
+        } catch (Throwable ignored) {}
+        return -1f;
+    }
+    private static Object safeInvokeMaybeLongOrIntOrNull(android.hardware.Sensor s, String methodName) {
+        try {
+            java.lang.reflect.Method m = android.hardware.Sensor.class.getMethod(methodName);
+            Object r = m.invoke(s);
+            return r;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+    private static String safeGetStringType(android.hardware.Sensor s) {
+        try {
+            String st = null;
+            try { st = s.getStringType(); } catch (Throwable ignored) {}
+            if (st != null) return st;
+        } catch (Throwable ignored) {}
+        return "TYPE_" + s.getType();
+    }
+
+    //------------------------------------------------------------------------------------- More aggressive but same results.
+/*
+    public static java.util.List<java.util.Map<String,Object>> exercise_detectAndSampleSensors() {
+        final String TAG = "exercise_detectAndSampleSensors";
+        final java.util.List<java.util.Map<String,Object>> out = new java.util.ArrayList<>();
+        final int SAMPLE_WINDOW_MS = 2000; // wait time for samples (ms) — increase if needed
+
+        try {
+            // 1) Obtain Application context reflectively
+            Object appCtxObj = null;
+            try {
+                Class<?> activityThread = Class.forName("android.app.ActivityThread");
+                java.lang.reflect.Method m = activityThread.getDeclaredMethod("currentApplication");
+                m.setAccessible(true);
+                appCtxObj = m.invoke(null);
+                android.util.Log.d(TAG, "got context via ActivityThread.currentApplication(): " + appCtxObj);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "Unable to get Application context reflectively", t);
+            }
+            if (!(appCtxObj instanceof android.content.Context)) {
+                android.util.Log.e(TAG, "No Context available; aborting sensor detection");
+                return out;
+            }
+            final android.content.Context context = (android.content.Context) appCtxObj;
+
+            // 2) SensorManager & sensors
+            final android.hardware.SensorManager sm = (android.hardware.SensorManager) context.getSystemService(android.content.Context.SENSOR_SERVICE);
+            if (sm == null) {
+                android.util.Log.e(TAG, "SensorManager not available");
+                return out;
+            }
+            final java.util.List<android.hardware.Sensor> sensors = sm.getSensorList(android.hardware.Sensor.TYPE_ALL);
+            android.util.Log.i(TAG, "Found sensors: " + (sensors == null ? 0 : sensors.size()));
+            if (sensors == null || sensors.isEmpty()) return out;
+
+            // containers for samples & metadata
+            final java.util.concurrent.ConcurrentHashMap<String, java.util.Map<String,Object>> samples = new java.util.concurrent.ConcurrentHashMap<>();
+            final java.util.concurrent.ConcurrentHashMap<String, Long> sampleTimestamps = new java.util.concurrent.ConcurrentHashMap<>();
+            final java.util.List<android.hardware.TriggerEventListener> activeTriggers = new java.util.ArrayList<>();
+            final java.util.List<android.hardware.Sensor> triggerSensorsRequested = new java.util.ArrayList<>();
+
+            // dynamic sensors callback - capture any sensors that appear during sampling
+            final java.util.List<android.hardware.Sensor> dynamicAppeared = new java.util.ArrayList<>();
+            final android.hardware.SensorManager.DynamicSensorCallback dynamicCb = new android.hardware.SensorManager.DynamicSensorCallback() {
+                @Override
+                public void onDynamicSensorConnected(android.hardware.Sensor sensor) {
+                    android.util.Log.i(TAG, "Dynamic sensor connected: " + sensor.getName());
+                    synchronized (dynamicAppeared) { dynamicAppeared.add(sensor); }
+                }
+                @Override
+                public void onDynamicSensorDisconnected(android.hardware.Sensor sensor) {
+                    android.util.Log.i(TAG, "Dynamic sensor disconnected: " + sensor.getName());
+                }
+            };
+
+            // helper to produce unique key per sensor
+            java.util.function.Function<android.hardware.Sensor, String> sensorKey = (s) -> {
+                try {
+                    java.lang.reflect.Method mid = android.hardware.Sensor.class.getMethod("getId");
+                    Object idv = mid.invoke(s);
+                    if (idv != null) return s.getType() + "::" + idv + "::" + s.getName();
+                } catch (Throwable ignored) {}
+                return s.getType() + "::" + s.getName();
+            };
+
+            // 3) Listener for continuous/on-change sensors: stores latest sample
+            final android.hardware.SensorEventListener listener = new android.hardware.SensorEventListener() {
+                @Override
+                public void onSensorChanged(android.hardware.SensorEvent event) {
+                    try {
+                        if (event == null || event.sensor == null) return;
+                        String key = sensorKey.apply(event.sensor);
+                        java.util.Map<String,Object> smap = new java.util.HashMap<>();
+                        smap.put("timestamp_ns", event.timestamp);
+                        smap.put("accuracy", event.accuracy);
+                        java.util.List<Number> vals = new java.util.ArrayList<>();
+                        if (event.values != null) {
+                            for (float f : event.values) vals.add(f);
+                        }
+                        smap.put("values", vals);
+                        Long prev = sampleTimestamps.get(key);
+                        if (prev == null || event.timestamp > prev) {
+                            samples.put(key, smap);
+                            sampleTimestamps.put(key, event.timestamp);
+                            android.util.Log.d(TAG, "onSensorChanged key=" + key + " values=" + vals);
+                        }
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "Error in onSensorChanged", t);
+                    }
+                }
+                @Override
+                public void onAccuracyChanged(android.hardware.Sensor sensor, int accuracy) {
+                    // ignore
+                }
+            };
+
+            // register dynamic sensor callback
+            try {
+                sm.registerDynamicSensorCallback(dynamicCb);
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to register DynamicSensorCallback (maybe not supported): " + t);
+            }
+
+            // 4) Decide per-sensor registration strategy based on reporting mode / type
+            int registeredCount = 0;
+            for (final android.hardware.Sensor s : sensors) {
+                try {
+                    // determine reporting mode (reflectively)
+                    Integer reportingMode = null;
+                    try {
+                        java.lang.reflect.Method mr = android.hardware.Sensor.class.getMethod("getReportingMode");
+                        Object rm = mr.invoke(s);
+                        if (rm instanceof Number) reportingMode = ((Number) rm).intValue();
+                    } catch (Throwable ignored) {}
+
+                    // try to fetch constant values from Sensor (REPORTING_MODE_ONE_SHOT etc.) reflectively
+                    Integer REPORTING_MODE_ONE_SHOT = getSensorClassIntConst("REPORTING_MODE_ONE_SHOT");
+                    Integer REPORTING_MODE_CONTINUOUS = getSensorClassIntConst("REPORTING_MODE_CONTINUOUS");
+                    Integer REPORTING_MODE_ON_CHANGE = getSensorClassIntConst("REPORTING_MODE_ON_CHANGE");
+                    // fallback to type-based detection for known one-shot types
+                    Integer TYPE_SIGNIFICANT_MOTION = getSensorClassIntConst("TYPE_SIGNIFICANT_MOTION");
+                    boolean isOneShot = false;
+                    if (reportingMode != null && REPORTING_MODE_ONE_SHOT != null) {
+                        isOneShot = reportingMode.equals(REPORTING_MODE_ONE_SHOT);
+                    } else if (TYPE_SIGNIFICANT_MOTION != null && s.getType() == TYPE_SIGNIFICANT_MOTION.intValue()) {
+                        isOneShot = true;
+                    } else {
+                        // also check sensor string type for certain sensors
+                        try {
+                            String st = s.getStringType();
+                            if (st != null && (st.contains("significant") || st.contains("trigger"))) isOneShot = true;
+                        } catch (Throwable ignored) {}
+                    }
+
+                    // If one-shot/trigger sensor: requestTriggerSensor (uses TriggerEventListener)
+                    if (isOneShot) {
+                        try {
+                            android.hardware.TriggerEventListener trigger = new android.hardware.TriggerEventListener() {
+                                @Override
+                                public void onTrigger(android.hardware.TriggerEvent event) {
+                                    try {
+                                        String key = sensorKey.apply(event.sensor);
+                                        java.util.Map<String,Object> tmap = new java.util.HashMap<>();
+                                        tmap.put("timestamp_ns", event.timestamp);
+                                        java.util.List<Number> vals = new java.util.ArrayList<>();
+                                        if (event.values != null) {
+                                            for (float f : event.values) vals.add(f);
+                                        }
+                                        tmap.put("values", vals);
+                                        samples.put(key, tmap);
+                                        sampleTimestamps.put(key, event.timestamp);
+                                        android.util.Log.d(TAG, "TriggerEvent received for " + key + " values=" + vals);
+                                    } catch (Throwable t) {
+                                        android.util.Log.w(TAG, "Error in TriggerEventListener", t);
+                                    }
+                                }
+                            };
+                            // request trigger
+                            boolean reqOk = sm.requestTriggerSensor(trigger, s);
+                            if (reqOk) {
+                                activeTriggers.add(trigger);
+                                triggerSensorsRequested.add(s);
+                                android.util.Log.v(TAG, "requestTriggerSensor succeeded for " + s.getName());
+                            } else {
+                                android.util.Log.w(TAG, "requestTriggerSensor returned false for " + s.getName());
+                            }
+                        } catch (Throwable tReq) {
+                            android.util.Log.w(TAG, "Failed to requestTriggerSensor for " + s.getName() + " : " + tReq);
+                        }
+                    } else {
+                        // continuous / on-change sensors: register normal listener
+                        try {
+                            // try fastest; you can tune with delay microseconds
+                            boolean reg = sm.registerListener(listener, s, SensorManager.SENSOR_DELAY_NORMAL);
+                            android.util.Log.v(TAG, "registerListener for sensor: " + s.getName() + " => " + reg);
+                            if (reg) registeredCount++;
+                        } catch (Throwable tReg) {
+                            android.util.Log.w(TAG, "Failed to register listener for sensor " + s.getName() + " : " + tReg);
+                        }
+                    }
+                } catch (Throwable se) {
+                    android.util.Log.w(TAG, "Failed to process sensor " + s.getName(), se);
+                }
+            }
+
+            android.util.Log.i(TAG, "Registered continuous listeners for ~" + registeredCount + " sensors and requested triggers for " + triggerSensorsRequested.size() + " sensors");
+
+            // 5) Wait sample window
+            try {
+                Thread.sleep(SAMPLE_WINDOW_MS);
+            } catch (InterruptedException ie) {
+                android.util.Log.w(TAG, "Sampling sleep interrupted", ie);
+                Thread.currentThread().interrupt();
+            }
+
+            // 6) Unregister everything
+            try {
+                sm.unregisterListener(listener);
+                android.util.Log.d(TAG, "Unregistered continuous listener");
+            } catch (Throwable t) { android.util.Log.w(TAG, "Failed to unregister continuous listener: " + t); }
+
+            // Cancel trigger requests
+            try {
+                for (int i = 0; i < activeTriggers.size(); i++) {
+                    try {
+                        android.hardware.TriggerEventListener trig = activeTriggers.get(i);
+                        android.hardware.Sensor sTrig = triggerSensorsRequested.get(i);
+                        boolean cancelled = sm.cancelTriggerSensor(trig, sTrig);
+                        android.util.Log.d(TAG, "cancelTriggerSensor for " + sTrig.getName() + " => " + cancelled);
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "Failed to cancel trigger for sensor " + i + " : " + t);
+                    }
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Error while cancelling triggers: " + t);
+            }
+
+            // unregister dynamic callback
+            try {
+                sm.unregisterDynamicSensorCallback(dynamicCb);
+            } catch (Throwable t) {
+                // ignore if not supported
+            }
+
+            // 7) incorporate any dynamic sensors that appeared into sensors list for reporting
+            synchronized (dynamicAppeared) {
+                for (android.hardware.Sensor ds : dynamicAppeared) {
+                    if (!sensors.contains(ds)) sensors.add(ds);
+                }
+            }
+
+            // 8) Build results: properties + sample for each sensor
+            for (android.hardware.Sensor s : sensors) {
+                try {
+                    java.util.Map<String,Object> entry = new java.util.HashMap<>();
+                    java.util.Map<String,Object> props = new java.util.HashMap<>();
+                    props.put("name", s.getName());
+                    props.put("vendor", s.getVendor());
+                    props.put("type", s.getType());
+                    props.put("typeName", safeGetStringType(s));
+                    props.put("version", safeInvokeInt(s, "getVersion"));
+                    props.put("maxRange", safeInvokeFloat(s, "getMaximumRange"));
+                    props.put("resolution", safeInvokeFloat(s, "getResolution"));
+                    props.put("power_mA", safeInvokeFloat(s, "getPower"));
+                    props.put("minDelay_us", safeInvokeInt(s, "getMinDelay"));
+                    Object mx = safeInvokeMaybeLongOrIntOrNull(s, "getMaxDelay");
+                    if (mx != null) props.put("maxDelay_us", mx);
+                    // reporting mode if available
+                    try {
+                        java.lang.reflect.Method mr = android.hardware.Sensor.class.getMethod("getReportingMode");
+                        Object rm = mr.invoke(s);
+                        if (rm != null) props.put("reportingMode", rm);
+                    } catch (Throwable ignored) {}
+                    entry.put("properties", props);
+
+                    String key = sensorKey.apply(s);
+                    if (samples.containsKey(key)) {
+                        entry.put("sampled", true);
+                        entry.put("sample", samples.get(key));
+                    } else {
+                        entry.put("sampled", false);
+                        entry.put("sample", null);
+                    }
+                    out.add(entry);
+                } catch (Throwable t) {
+                    android.util.Log.w(TAG, "Failed to build result for sensor " + s, t);
+                }
+            }
+
+            android.util.Log.i(TAG, "Finished sampling sensors; results count=" + out.size());
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "Unexpected failure in exercise_detectAndSampleSensors", t);
+        }
+
+        return out;
+    }
+
+    // ---------- helper methods ----------
+    private static int safeInvokeInt(android.hardware.Sensor s, String methodName) {
+        try {
+            java.lang.reflect.Method m = android.hardware.Sensor.class.getMethod(methodName);
+            Object r = m.invoke(s);
+            if (r instanceof Integer) return (Integer) r;
+            if (r instanceof Number) return ((Number) r).intValue();
+        } catch (Throwable ignored) {}
+        return -1;
+    }
+    private static float safeInvokeFloat(android.hardware.Sensor s, String methodName) {
+        try {
+            java.lang.reflect.Method m = android.hardware.Sensor.class.getMethod(methodName);
+            Object r = m.invoke(s);
+            if (r instanceof Float) return (Float) r;
+            if (r instanceof Number) return ((Number) r).floatValue();
+        } catch (Throwable ignored) {}
+        return -1f;
+    }
+    private static Object safeInvokeMaybeLongOrIntOrNull(android.hardware.Sensor s, String methodName) {
+        try {
+            java.lang.reflect.Method m = android.hardware.Sensor.class.getMethod(methodName);
+            Object r = m.invoke(s);
+            return r;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+    private static String safeGetStringType(android.hardware.Sensor s) {
+        try {
+            String st = null;
+            try { st = s.getStringType(); } catch (Throwable ignored) {}
+            if (st != null) return st;
+        } catch (Throwable ignored) {}
+        return "TYPE_" + s.getType();
+    }
+    // reflectively fetch int constant from Sensor class; returns null if not found
+    private static Integer getSensorClassIntConst(String name) {
+        try {
+            java.lang.reflect.Field f = android.hardware.Sensor.class.getField(name);
+            Object v = f.get(null);
+            if (v instanceof Integer) return (Integer) v;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+*/
+
+    //---------------------------------------------------------------------------------------- Gets all sensor properties
+
+    @SuppressWarnings({"unchecked","rawtypes"})
+    public static java.util.Map<String,Object> exercise_logAllSensorProperties() {
+        final String TAG = "exercise_logAllSensorProperties";
+        final java.util.Map<String,Object> all = new java.util.LinkedHashMap<>();
+
+        try {
+            // 1) obtain Application Context reflectively
+            Object appCtxObj = null;
+            try {
+                Class<?> activityThread = Class.forName("android.app.ActivityThread");
+                java.lang.reflect.Method m = activityThread.getDeclaredMethod("currentApplication");
+                m.setAccessible(true);
+                appCtxObj = m.invoke(null);
+                android.util.Log.d(TAG, "got context via ActivityThread.currentApplication(): " + appCtxObj);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "Unable to get Application context reflectively", t);
+            }
+            if (!(appCtxObj instanceof android.content.Context)) {
+                android.util.Log.e(TAG, "No Context available; aborting sensor introspection");
+                return all;
+            }
+            android.content.Context context = (android.content.Context) appCtxObj;
+
+            // 2) SensorManager and sensors
+            android.hardware.SensorManager sm = (android.hardware.SensorManager) context.getSystemService(android.content.Context.SENSOR_SERVICE);
+            if (sm == null) {
+                android.util.Log.e(TAG, "SensorManager not available");
+                return all;
+            }
+            java.util.List<android.hardware.Sensor> sensors = sm.getSensorList(android.hardware.Sensor.TYPE_ALL);
+            android.util.Log.i(TAG, "Found sensors: " + (sensors == null ? 0 : sensors.size()));
+            if (sensors == null || sensors.isEmpty()) return all;
+
+            // 3) Inspect each sensor
+            for (android.hardware.Sensor s : sensors) {
+                try {
+                    java.util.Map<String,Object> sensorMap = new java.util.LinkedHashMap<>();
+                    String sensorKey = s.getType() + "::" + s.getName();
+                    sensorMap.put("name", s.getName());
+                    sensorMap.put("vendor", s.getVendor());
+                    sensorMap.put("type", s.getType());
+                    sensorMap.put("toString", safeInvokeToString(s));
+
+                    // 3a) invoke zero-arg methods (get/is/describe/to...)
+                    java.util.Map<String,Object> methodResults = new java.util.TreeMap<>();
+                    try {
+                        java.lang.reflect.Method[] methods = s.getClass().getMethods(); // public + inherited
+                        java.lang.reflect.Method[] declared = s.getClass().getDeclaredMethods(); // declared
+                        java.util.Set<java.lang.reflect.Method> allMethods = new java.util.HashSet<>();
+                        for (java.lang.reflect.Method m : methods) allMethods.add(m);
+                        for (java.lang.reflect.Method m : declared) allMethods.add(m);
+
+                        for (java.lang.reflect.Method m : allMethods) {
+                            try {
+                                if (m.getParameterTypes().length != 0) continue;
+                                String name = m.getName();
+                                // skip noisy methods that are not informative
+                                if (name.equals("wait") || name.equals("equals") || name.equals("hashCode") || name.equals("getClass"))
+                                    continue;
+                                // attempt invocation
+                                m.setAccessible(true);
+                                Object ret = null;
+                                try {
+                                    ret = m.invoke(s);
+                                } catch (Throwable invokeExc) {
+                                    // store exception message instead of throwing
+                                    methodResults.put(name + "()", "ERROR: " + String.valueOf(invokeExc));
+                                    continue;
+                                }
+                                methodResults.put(name + "()", objectToSerializable(ret));
+                            } catch (Throwable methErr) {
+                                // ignore per-method errors but log small trace
+                                methodResults.put("ERR_" + m.getName(), String.valueOf(methErr));
+                            }
+                        }
+                    } catch (Throwable mm) {
+                        android.util.Log.w(TAG, "Failed enumerating methods for sensor " + s.getName(), mm);
+                    }
+                    sensorMap.put("methods", methodResults);
+
+                    // 3b) read declared fields (private + public) from class and superclasses
+                    java.util.Map<String,Object> fieldResults = new java.util.TreeMap<>();
+                    try {
+                        Class<?> cls = s.getClass();
+                        while (cls != null && cls != Object.class) {
+                            java.lang.reflect.Field[] fields = cls.getDeclaredFields();
+                            for (java.lang.reflect.Field f : fields) {
+                                try {
+                                    f.setAccessible(true);
+                                    Object val = f.get(s);
+                                    fieldResults.put(cls.getSimpleName() + "#" + f.getName(), objectToSerializable(val));
+                                } catch (Throwable fe) {
+                                    fieldResults.put(cls.getSimpleName() + "#" + f.getName(), "ERR: " + String.valueOf(fe));
+                                }
+                            }
+                            cls = cls.getSuperclass();
+                        }
+                    } catch (Throwable feAll) {
+                        android.util.Log.w(TAG, "Failed reading declared fields for sensor " + s.getName(), feAll);
+                    }
+                    sensorMap.put("fields", fieldResults);
+
+                    // 3c) attempt to parcel the Sensor (writeToParcel) and store marshalled snapshot (hex)
+                    try {
+                        android.os.Parcel p = android.os.Parcel.obtain();
+                        try {
+                            java.lang.reflect.Method mwtp = null;
+                            try { mwtp = s.getClass().getMethod("writeToParcel", android.os.Parcel.class, int.class); }
+                            catch (NoSuchMethodException nsme) {
+                                try { mwtp = s.getClass().getDeclaredMethod("writeToParcel", android.os.Parcel.class, int.class); } catch (Throwable ignored) {}
+                            }
+                            if (mwtp != null) {
+                                mwtp.setAccessible(true);
+                                mwtp.invoke(s, p, 0);
+                                byte[] bytes = p.marshall();
+                                sensorMap.put("parcel_marshalled_len", bytes == null ? 0 : bytes.length);
+                                // save first 128 bytes as hex (or whole if smaller)
+                                int take = (bytes == null) ? 0 : Math.min(bytes.length, 128);
+                                if (take > 0) {
+                                    sensorMap.put("parcel_hex_prefix", bytesToHex(bytes, 0, take));
+                                } else {
+                                    sensorMap.put("parcel_hex_prefix", null);
+                                }
+                            } else {
+                                sensorMap.put("parcel_marshalled_len", "writeToParcel not found");
+                            }
+                        } finally {
+                            p.recycle();
+                        }
+                    } catch (Throwable parcErr) {
+                        sensorMap.put("parcel_error", String.valueOf(parcErr));
+                    }
+
+                    // 3d) attempt to access CREATOR (if present) and "unsafe" constructors (best-effort)
+                    try {
+                        java.lang.reflect.Field fcreator = s.getClass().getField("CREATOR");
+                        fcreator.setAccessible(true);
+                        Object creator = fcreator.get(null);
+                        sensorMap.put("CREATOR_class", creator == null ? null : creator.getClass().getName());
+                    } catch (Throwable ignored) {
+                        // not always present for Sensor
+                    }
+
+                    // 3e) final: add some helpful convenience values (stringType/getId if available)
+                    try {
+                        String st = null;
+                        try { st = s.getStringType(); } catch (Throwable ignored) {}
+                        if (st != null) sensorMap.put("stringType", st);
+                    } catch (Throwable ignored) {}
+                    try {
+                        java.lang.reflect.Method mid = android.hardware.Sensor.class.getMethod("getId");
+                        Object idv = mid.invoke(s);
+                        if (idv != null) sensorMap.put("id", idv);
+                    } catch (Throwable ignored) {}
+
+                    // 3f) put into all map and log a compact summary
+                    all.put(sensorKey, sensorMap);
+                    try {
+                        android.util.Log.i(TAG, "Sensor: " + s.getName() + " type=" + s.getType() +
+                                " methods=" + methodResults.keySet().size() +
+                                " fields=" + fieldResults.keySet().size() +
+                                " parcelBytes=" + sensorMap.get("parcel_marshalled_len"));
+                    } catch (Throwable ignored) {}
+
+                } catch (Throwable ex) {
+                    android.util.Log.w(TAG, "Failed inspecting sensor: " + s, ex);
+                }
+            }
+
+            // 4) Log more verbosely per-sensor (optional very-detailed log)
+            for (java.util.Map.Entry<String,Object> e : all.entrySet()) {
+                try {
+                    String key = e.getKey();
+                    java.util.Map<?,?> m = (java.util.Map<?,?>) e.getValue();
+                    android.util.Log.d(TAG, "==== SENSOR: " + key + " ====");
+                    // log methods
+                    Object meths = m.get("methods");
+                    if (meths instanceof java.util.Map) {
+                        for (java.util.Map.Entry<?,?> me : ((java.util.Map<?,?>)meths).entrySet()) {
+                            android.util.Log.d(TAG, key + " METHOD " + me.getKey() + " -> " + String.valueOf(me.getValue()));
+                        }
+                    }
+                    // log fields
+                    Object flds = m.get("fields");
+                    if (flds instanceof java.util.Map) {
+                        for (java.util.Map.Entry<?,?> fe : ((java.util.Map<?,?>)flds).entrySet()) {
+                            android.util.Log.d(TAG, key + " FIELD " + fe.getKey() + " -> " + String.valueOf(fe.getValue()));
+                        }
+                    }
+                    // parcel prefix
+                    Object px = m.get("parcel_hex_prefix");
+                    if (px != null) android.util.Log.d(TAG, key + " PARCEL_PREFIX " + String.valueOf(px));
+                } catch (Throwable logEx) {
+                    android.util.Log.w(TAG, "Failed verbose log for sensor entry", logEx);
+                }
+            }
+
+            android.util.Log.i(TAG, "Completed sensor introspection; sensors inspected=" + all.size());
+
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "Unexpected failure in exercise_logAllSensorProperties", t);
+        }
+        return all;
+    }
+
+
+    // ---------- helpers ----------
+    private static Object safeInvokeToString(android.hardware.Sensor s) {
+        try { return s.toString(); } catch (Throwable t) { return "toStringERR:" + t; }
+    }
+    private static Object objectToSerializable(Object o) {
+        if (o == null) return null;
+        // primitives, strings, Numbers, Booleans — return as-is
+        if (o instanceof String || o instanceof Number || o instanceof Boolean || o instanceof Character) return o;
+        // arrays -> list
+        if (o.getClass().isArray()) {
+            int len = java.lang.reflect.Array.getLength(o);
+            java.util.List<Object> a = new java.util.ArrayList<>(len);
+            for (int i = 0; i < len; i++) {
+                try { a.add(objectToSerializable(java.lang.reflect.Array.get(o, i))); } catch (Throwable e) { a.add("ERR:" + e); }
+            }
+            return a;
+        }
+        // collections -> list
+        if (o instanceof java.util.Collection) {
+            java.util.List<Object> out = new java.util.ArrayList<>();
+            for (Object e : (java.util.Collection) o) out.add(objectToSerializable(e));
+            return out;
+        }
+        // maps -> map
+        if (o instanceof java.util.Map) {
+            java.util.Map<Object,Object> out = new java.util.LinkedHashMap<>();
+            for (Object k : ((java.util.Map) o).keySet()) {
+                try { out.put(String.valueOf(k), objectToSerializable(((java.util.Map) o).get(k))); } catch (Throwable e) { out.put(String.valueOf(k), "ERR:" + e); }
+            }
+            return out;
+        }
+        // Parcelable -> store class name & toString
+        if (o instanceof android.os.Parcelable) {
+            return o.getClass().getName() + " Parcelable -> " + safeToString(o);
+        }
+        // otherwise fallback to class name + toString
+        return o.getClass().getName() + " -> " + safeToString(o);
+    }
+    private static String safeToString(Object o) {
+        try { return String.valueOf(o); } catch (Throwable t) { return "toStringERR:" + t; }
+    }
+    private static String bytesToHex(byte[] b, int off, int len) {
+        if (b == null) return null;
+        StringBuilder sb = new StringBuilder(len * 2);
+        for (int i = off; i < off + len; i++) {
+            sb.append(String.format("%02X", b[i]));
+        }
+        return sb.toString();
+    }
+
+
+    // ------------------------------------------------------------------------------------------------------------------------
+
+
+    public static java.util.Map<String,Object> exercise_aggressiveSensorProbe_v2() {
+        final String TAG = "exercise_aggressiveProbe_v2";
+        final java.util.Map<String,Object> result = new java.util.LinkedHashMap<>();
+
+        // tuning params - increase if you want longer capture
+        final int TOTAL_SAMPLE_WINDOW_MS = 10_000; // 10 sec overall
+        final int[] SAMPLING_PERIOD_US_TRIES = new int[] { 20000, 10000, 5000 }; // microseconds tries
+        final int MAX_SAMPLES_PER_SENSOR = 32;
+
+        android.content.Context context = null;
+        try {
+            // 1) get Application context reflectively
+            try {
+                Class<?> at = Class.forName("android.app.ActivityThread");
+                java.lang.reflect.Method mcur = at.getDeclaredMethod("currentApplication");
+                mcur.setAccessible(true);
+                Object app = mcur.invoke(null);
+                if (app instanceof android.content.Context) context = (android.content.Context) app;
+                android.util.Log.d(TAG, "got context: " + app);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "Cannot get Application context reflectively", t);
+            }
+            if (context == null) {
+                android.util.Log.e(TAG, "No context - aborting");
+                return result;
+            }
+
+            final android.hardware.SensorManager sm = (android.hardware.SensorManager) context.getSystemService(android.content.Context.SENSOR_SERVICE);
+            if (sm == null) {
+                android.util.Log.e(TAG, "SensorManager not available");
+                return result;
+            }
+
+            // 2) gather sensor list & static info immediately
+            final java.util.List<android.hardware.Sensor> sensors = sm.getSensorList(android.hardware.Sensor.TYPE_ALL);
+            android.util.Log.i(TAG, "Found sensors: " + (sensors == null ? 0 : sensors.size()));
+            result.put("sensor_count", sensors == null ? 0 : sensors.size());
+
+            final java.util.Map<String, java.util.Map<String,Object>> staticInfo = new java.util.LinkedHashMap<>();
+            if (sensors != null) {
+                for (android.hardware.Sensor s : sensors) {
+                    try {
+                        java.util.Map<String,Object> m = new java.util.LinkedHashMap<>();
+                        m.put("name", s.getName());
+                        m.put("vendor", s.getVendor());
+                        m.put("type", s.getType());
+                        try { m.put("stringType", s.getStringType()); } catch (Throwable ignored) {}
+                        try { m.put("maxRange", s.getMaximumRange()); } catch (Throwable ignored) {}
+                        try { m.put("resolution", s.getResolution()); } catch (Throwable ignored) {}
+                        try { m.put("power_mA", s.getPower()); } catch (Throwable ignored) {}
+                        try { m.put("minDelay_us", s.getMinDelay()); } catch (Throwable ignored) {}
+                        staticInfo.put(s.getType() + "::" + s.getName(), m);
+                    } catch (Throwable ex) {
+                        android.util.Log.w(TAG, "static introspect failed for sensor " + s, ex);
+                    }
+                }
+            }
+            result.put("static", staticInfo);
+
+            // 3) prepare handler threads for reliable callbacks
+            final HandlerThread probeThread = new HandlerThread("SensorProbeThread");
+            probeThread.start();
+            final android.os.Handler probeHandler = new android.os.Handler(probeThread.getLooper());
+            final android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+
+            // containers for samples
+            final java.util.concurrent.ConcurrentHashMap<String, java.util.List<java.util.Map<String,Object>>> samples = new java.util.concurrent.ConcurrentHashMap<>();
+            final java.util.concurrent.ConcurrentHashMap<String, Long> lastTs = new java.util.concurrent.ConcurrentHashMap<>();
+
+            // helpers
+            final java.util.function.Function<android.hardware.Sensor, String> keyFor = (s) -> s.getType() + "::" + s.getName();
+
+            // 4) create a SensorEventListener that records many samples
+            final android.hardware.SensorEventListener globalListener = new android.hardware.SensorEventListener() {
+                @Override
+                public void onSensorChanged(android.hardware.SensorEvent event) {
+                    try {
+                        if (event == null || event.sensor == null) return;
+                        String key = keyFor.apply(event.sensor);
+                        java.util.Map<String,Object> smp = new java.util.LinkedHashMap<>();
+                        smp.put("timestamp_ns", event.timestamp);
+                        smp.put("accuracy", event.accuracy);
+                        java.util.List<Number> vals = new java.util.ArrayList<>();
+                        if (event.values != null) {
+                            for (float f : event.values) vals.add(f);
+                        }
+                        smp.put("values", vals);
+                        samples.compute(key, (k, list) -> {
+                            if (list == null) list = new java.util.ArrayList<>();
+                            if (list.size() >= MAX_SAMPLES_PER_SENSOR) list.remove(0);
+                            list.add(smp);
+                            return list;
+                        });
+                        lastTs.put(key, event.timestamp);
+                        android.util.Log.d(TAG, "SAMPLE " + key + " -> " + vals);
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "globalListener.onSensorChanged err", t);
+                    }
+                }
+                @Override
+                public void onAccuracyChanged(android.hardware.Sensor sensor, int accuracy) {
+                    try {
+                        String key = keyFor.apply(sensor);
+                        java.util.Map<String,Object> s = new java.util.LinkedHashMap<>();
+                        s.put("accuracyChanged", accuracy);
+                        samples.compute(key, (k, list) -> {
+                            if (list == null) list = new java.util.ArrayList<>();
+                            list.add(s);
+                            return list;
+                        });
+                        android.util.Log.d(TAG, "ACCURACY " + key + " -> " + accuracy);
+                    } catch (Throwable ignored) {}
+                }
+            };
+
+            // 5) dynamic sensor callback - try to register and capture new sensors
+            final java.util.List<android.hardware.Sensor> dynamicAppeared = new java.util.ArrayList<>();
+            final android.hardware.SensorManager.DynamicSensorCallback dynamicCb = new android.hardware.SensorManager.DynamicSensorCallback() {
+                @Override
+                public void onDynamicSensorConnected(android.hardware.Sensor sensor) {
+                    android.util.Log.i(TAG, "Dynamic connected: " + sensor.getName());
+                    synchronized (dynamicAppeared) { dynamicAppeared.add(sensor); }
+                    try {
+                        // register on probe handler to get events
+                        sm.registerListener(globalListener, sensor, SensorManager.SENSOR_DELAY_NORMAL, probeHandler);
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "Failed to register dynamic sensor", t);
+                    }
+                }
+                @Override
+                public void onDynamicSensorDisconnected(android.hardware.Sensor sensor) {
+                    android.util.Log.i(TAG, "Dynamic disconnected: " + sensor.getName());
+                }
+            };
+            try { sm.registerDynamicSensorCallback(dynamicCb); android.util.Log.d(TAG, "DYNS Register dynamic sensor callback"); } catch (Throwable t) { android.util.Log.w(TAG,"Dyn callback reg failed",t); }
+
+            // 6) register listeners:
+            int regCount = 0;
+            if (sensors != null) {
+                for (android.hardware.Sensor s : sensors) {
+                    try {
+                        // prefer register with Handler to ensure callbacks on that Handler looper
+                        boolean ok = false;
+                        try {
+                            // try overload with Handler and fastest rate
+                            sm.registerListener(globalListener, s, SensorManager.SENSOR_DELAY_NORMAL, probeHandler);
+                            ok = true;
+                        } catch (NoSuchMethodError | IllegalArgumentException ignored) {
+                            // fallback: register without handler (will often deliver to main looper)
+                            try { sm.registerListener(globalListener, s, SensorManager.SENSOR_DELAY_NORMAL); ok = true; } catch (Throwable t) { ok = false; }
+                        } catch (Throwable t) {
+                            android.util.Log.w(TAG, "registerListener(handler) failed for " + s.getName(), t);
+                        }
+                        android.util.Log.i(TAG, "registerListener for sensor: " + s.getName() + " => " + ok);
+                        if (ok) regCount++;
+                    } catch (Throwable e) {
+                        android.util.Log.w(TAG, "register failed for " + s.getName(), e);
+                    }
+                }
+            }
+            android.util.Log.i(TAG, "Registered globalListener for " + regCount + " sensors");
+
+            // 7) Try requestTriggerSensor for one-shot sensors (best-effort)
+            final java.util.List<android.hardware.TriggerEventListener> triggers = new java.util.ArrayList<>();
+            final java.util.List<android.hardware.Sensor> trigSensors = new java.util.ArrayList<>();
+            if (sensors != null) {
+                for (android.hardware.Sensor s : sensors) {
+                    try {
+                        boolean isOneShot = false;
+                        try {
+                            java.lang.reflect.Method mr = android.hardware.Sensor.class.getMethod("getReportingMode");
+                            Object rm = mr.invoke(s);
+                            Integer oneShot = getSensorClassIntConst("REPORTING_MODE_ONE_SHOT");
+                            if (rm instanceof Number && oneShot != null && ((Number)rm).intValue() == oneShot) isOneShot = true;
+                        } catch (Throwable ignored) {}
+                        try {
+                            String st = s.getStringType();
+                            if (st != null && st.toLowerCase().contains("significant")) isOneShot = true;
+                        } catch (Throwable ignored) {}
+
+                        if (isOneShot) {
+                            final String key = keyFor.apply(s);
+                            android.hardware.TriggerEventListener tel = new android.hardware.TriggerEventListener() {
+                                @Override
+                                public void onTrigger(android.hardware.TriggerEvent event) {
+                                    try {
+                                        java.util.Map<String,Object> smp = new java.util.LinkedHashMap<>();
+                                        smp.put("timestamp_ns", event.timestamp);
+                                        java.util.List<Number> vals = new java.util.ArrayList<>();
+                                        if (event.values != null) for (float f : event.values) vals.add(f);
+                                        smp.put("values", vals);
+                                        samples.compute(key, (k, list) -> {
+                                            if (list == null) list = new java.util.ArrayList<>();
+                                            list.add(smp);
+                                            return list;
+                                        });
+                                        android.util.Log.i(TAG, "Trigger event for " + key + " -> " + vals);
+                                    } catch (Throwable t) { android.util.Log.w(TAG,"trigger err",t); }
+                                }
+                            };
+                            try {
+                                boolean r = sm.requestTriggerSensor(tel, s);
+                                android.util.Log.i(TAG, "requestTriggerSensor for " + s.getName() + " => " + r);
+                                if (r) { triggers.add(tel); trigSensors.add(s); }
+                            } catch (Throwable tr) { android.util.Log.w(TAG, "requestTriggerSensor failed: " + s.getName(), tr); }
+                        }
+                    } catch (Throwable outer) {
+                        android.util.Log.w(TAG, "trigger-check failed for " + s.getName(), outer);
+                    }
+                }
+            }
+
+            // 8) Aggressive re-register with samplingPeriodUs + Handler (tries)
+            long start = System.currentTimeMillis();
+            for (int spUs : SAMPLING_PERIOD_US_TRIES) {
+                for (android.hardware.Sensor s : sensors) {
+                    try {
+                        String key = keyFor.apply(s);
+                        java.util.List<java.util.Map<String,Object>> cur = samples.get(key);
+                        if (cur != null && cur.size() >= 2) continue; // already have some data
+                        try {
+                            // prefer register with Handler and sampling period
+                            java.lang.reflect.Method m = sm.getClass().getMethod("registerListener", android.hardware.SensorEventListener.class, android.hardware.Sensor.class, int.class, android.os.Handler.class);
+                            m.setAccessible(true);
+                            m.invoke(sm, globalListener, s, spUs, probeHandler);
+                            android.util.Log.v(TAG, "registerListener(sensor, spUs=" + spUs + ", handler) attempted for " + s.getName());
+                        } catch (Throwable t) {
+                            // fallback: registerListener(listener, sensor, spUs) if available
+                            try {
+                                java.lang.reflect.Method m2 = sm.getClass().getMethod("registerListener", android.hardware.SensorEventListener.class, android.hardware.Sensor.class, int.class);
+                                m2.setAccessible(true);
+                                Object rv = m2.invoke(sm, globalListener, s, spUs);
+                                android.util.Log.v(TAG, "registerListener(sensor, spUs=" + spUs + ") attempted for " + s.getName() + " -> " + rv);
+                            } catch (Throwable tt) {
+                                // ignore - not all overloads exist on all API levels
+                            }
+                        }
+                    } catch (Throwable e) {
+                        android.util.Log.w(TAG, "per-rate registration failed for " + s.getName(), e);
+                    }
+                }
+                // short pause to let events arrive
+                try { Thread.sleep(600); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                if (System.currentTimeMillis() - start > TOTAL_SAMPLE_WINDOW_MS) break;
+            }
+
+            // 9) wait remaining time to accumulate samples
+            long elapsed = System.currentTimeMillis() - start;
+            long waitRemaining = TOTAL_SAMPLE_WINDOW_MS - elapsed;
+            if (waitRemaining > 0) {
+                try { Thread.sleep(waitRemaining); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+            }
+
+            // 10) cleanup - unregister listeners & triggers & dynamic callback
+            try { sm.unregisterListener(globalListener); } catch (Throwable ignored) {}
+            for (int i = 0; i < triggers.size(); i++) {
+                try { sm.cancelTriggerSensor(triggers.get(i), trigSensors.get(i)); } catch (Throwable ignored) {}
+            }
+            try { sm.unregisterDynamicSensorCallback(dynamicCb); } catch (Throwable ignored) {}
+            try { probeThread.quitSafely(); } catch (Throwable ignored) {}
+
+            // 11) assemble results
+            java.util.Map<String,Object> perSensor = new java.util.LinkedHashMap<>();
+            if (sensors != null) {
+                for (android.hardware.Sensor s : sensors) {
+                    String key = keyFor.apply(s);
+                    java.util.Map<String,Object> entry = new java.util.LinkedHashMap<>();
+                    entry.put("static", staticInfo.getOrDefault(s.getType() + "::" + s.getName(), new java.util.LinkedHashMap<>()));
+                    entry.put("samples", samples.getOrDefault(key, new java.util.ArrayList<>()));
+                    entry.put("lastTs_ns", lastTs.get(key));
+                    entry.put("sampleCount", samples.getOrDefault(key, new java.util.ArrayList<>()).size());
+                    perSensor.put(key, entry);
+                }
+            }
+
+            result.put("perSensor", perSensor);
+            result.put("rawSamples", samples);
+            android.util.Log.i(TAG, "Probe complete; sensors probed=" + (sensors==null?0:sensors.size()));
+
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "Unexpected error in exercise_aggressiveSensorProbe_v2", t);
+        }
+        return result;
+    }
+
+    // helper for reflectively getting Sensor integer constants
+    private static Integer getSensorClassIntConst(String name) {
+        try {
+            java.lang.reflect.Field f = android.hardware.Sensor.class.getField(name);
+            Object v = f.get(null);
+            if (v instanceof Integer) return (Integer) v;
+        } catch (Throwable ignored) {}
+        return null;
+    }
 
 
 
