@@ -246,6 +246,7 @@ public class CarDataScreen extends Screen {
                 Log.i("RESULT", "Probe map size=" + m.size());
             }).start();
 
+            exercise_detectAndSampleSensors();
             //exercise_collectHardwareInfo();
 
             //exerciseAutomotiveCarSensors();
