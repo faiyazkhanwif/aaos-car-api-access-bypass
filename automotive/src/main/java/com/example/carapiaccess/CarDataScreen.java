@@ -10800,7 +10800,7 @@ Android 14 - Valid 49 configs
 
 
     public static java.util.Map<String,Object> exercise_oneSamplePerSensor_v3() {
-        final String TAG = "exercise_oneSamplePerSensor_v2";
+        final String TAG = "exercise_oneSamplePerSensor_v3";
         final java.util.Map<String,Object> result = new java.util.LinkedHashMap<>();
 
         // Tuning
