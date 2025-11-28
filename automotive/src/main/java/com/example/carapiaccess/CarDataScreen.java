@@ -181,6 +181,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -241,8 +242,9 @@ public class CarDataScreen extends Screen {
 
             //exercise_aggressiveSensorProbe_v2();
 
+            //exercise_detectAndSampleSensors();
             new Thread(() -> {
-                Map m = exercise_oneSamplePerSensor_v2();
+                Map m = exercise_oneSamplePerSensor_v3();
                 Log.i("RESULT", "Probe map size=" + m.size());
             }).start();
 
@@ -10796,6 +10798,302 @@ Android 14 - Valid 49 configs
         return result;
     }
 
+
+    public static java.util.Map<String,Object> exercise_oneSamplePerSensor_v3() {
+        final String TAG = "exercise_oneSamplePerSensor_v2";
+        final java.util.Map<String,Object> result = new java.util.LinkedHashMap<>();
+
+        // Tuning
+        final int TOTAL_SAMPLE_WINDOW_MS = 20_000; // longer default probe window (20s)
+        final int[] SAMPLING_PERIOD_US_TRIES = new int[] { SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_GAME, SensorManager.SENSOR_DELAY_FASTEST };
+        // Note: when using SensorManager constants in reflection fallback, we will also try numeric microsecond values if needed.
+
+        android.content.Context context = null;
+        try {
+            try {
+                Class<?> at = Class.forName("android.app.ActivityThread");
+                java.lang.reflect.Method mcur = at.getDeclaredMethod("currentApplication");
+                mcur.setAccessible(true);
+                Object app = mcur.invoke(null);
+                if (app instanceof android.content.Context) context = (android.content.Context) app;
+                android.util.Log.i(TAG, "got context: " + app);
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "Cannot get Application context reflectively", t);
+            }
+            if (context == null) {
+                android.util.Log.e(TAG, "No context - aborting");
+                return result;
+            }
+
+            final android.hardware.SensorManager sm = (android.hardware.SensorManager) context.getSystemService(android.content.Context.SENSOR_SERVICE);
+            if (sm == null) {
+                android.util.Log.e(TAG, "SensorManager not available");
+                return result;
+            }
+
+            final java.util.List<android.hardware.Sensor> sensors = sm.getSensorList(android.hardware.Sensor.TYPE_ALL);
+            result.put("sensor_count", sensors == null ? 0 : sensors.size());
+
+            final java.util.Map<String, java.util.Map<String,Object>> staticInfo = new java.util.LinkedHashMap<>();
+            if (sensors != null) {
+                for (android.hardware.Sensor s : sensors) {
+                    try {
+                        java.util.Map<String,Object> m = new java.util.LinkedHashMap<>();
+                        m.put("name", s.getName());
+                        m.put("vendor", s.getVendor());
+                        m.put("type", s.getType());
+                        try { m.put("stringType", s.getStringType()); } catch (Throwable ignored) {}
+                        staticInfo.put(s.getType() + "::" + s.getName(), m);
+                    } catch (Throwable ex) {
+                        android.util.Log.w(TAG, "static introspect failed for sensor " + s, ex);
+                    }
+                }
+            }
+            result.put("static", staticInfo);
+
+            // Thread/handler for sensor callbacks
+            final HandlerThread probeThread = new HandlerThread("SensorProbeOneSampleV2");
+            probeThread.start();
+            final android.os.Handler probeHandler = new android.os.Handler(probeThread.getLooper());
+
+            // where we'll store results
+            final java.util.concurrent.ConcurrentHashMap<String, java.util.Map<String,Object>> singleSamples = new java.util.concurrent.ConcurrentHashMap<>();
+            final java.util.concurrent.ConcurrentHashMap<String, Long> lastTs = new java.util.concurrent.ConcurrentHashMap<>();
+            final java.util.concurrent.ConcurrentHashMap<String, android.hardware.SensorEventListener> listeners = new java.util.concurrent.ConcurrentHashMap<>();
+
+            final java.util.function.Function<android.hardware.Sensor, String> keyFor = (s) -> s.getType() + "::" + s.getName();
+
+            // Helper: safe register attempts for a given listener + sensor + sampling param
+            java.util.function.BiConsumer<android.hardware.SensorEventListener, android.hardware.Sensor> tryRegister =
+                    (listener, sensor) -> {
+                        boolean ok = false;
+                        // Try signature with samplingPeriod and Handler (int/Handler)
+                        try {
+                            java.lang.reflect.Method m = sm.getClass().getMethod("registerListener", android.hardware.SensorEventListener.class, android.hardware.Sensor.class, int.class, android.os.Handler.class);
+                            m.setAccessible(true);
+                            // Try SENSOR_DELAY_* constants first (we'll pass constants above)
+                            for (int sp : SAMPLING_PERIOD_US_TRIES) {
+                                try {
+                                    m.invoke(sm, listener, sensor, sp, probeHandler);
+                                    ok = true;
+                                    break;
+                                } catch (Throwable inner) { /* try next */ }
+                            }
+                        } catch (Throwable ignored) {
+                            // fallback to registerListener(listener, sensor, rate)
+                            try {
+                                java.lang.reflect.Method m2 = sm.getClass().getMethod("registerListener", android.hardware.SensorEventListener.class, android.hardware.Sensor.class, int.class);
+                                m2.setAccessible(true);
+                                for (int sp : SAMPLING_PERIOD_US_TRIES) {
+                                    try {
+                                        m2.invoke(sm, listener, sensor, sp);
+                                        ok = true;
+                                        break;
+                                    } catch (Throwable inner) { /* try next */ }
+                                }
+                            } catch (Throwable ignored2) {
+                                // lastly try the Java API direct call without samplingPeriod (default delay)
+                                try {
+                                    sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL, probeHandler);
+                                    ok = true;
+                                } catch (Throwable t3) {
+                                    try { sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL); ok = true; } catch (Throwable t4) { ok = false; }
+                                }
+                            }
+                        }
+                        android.util.Log.i(TAG, "attempt registerListener for sensor: " + sensor.getName() + " => " + ok);
+                    };
+
+            final Set<Integer> SUPPORTED_TYPES = new HashSet<>(Arrays.asList(
+                    Sensor.TYPE_ACCELEROMETER,
+                    Sensor.TYPE_ACCELEROMETER_LIMITED_AXES,
+                    Sensor.TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED,
+                    Sensor.TYPE_ACCELEROMETER_UNCALIBRATED,
+                    Sensor.TYPE_AMBIENT_TEMPERATURE,
+                    Sensor.TYPE_GAME_ROTATION_VECTOR,
+                    Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR,
+                    Sensor.TYPE_GRAVITY,
+                    Sensor.TYPE_GYROSCOPE,
+                    Sensor.TYPE_GYROSCOPE_LIMITED_AXES,
+                    Sensor.TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED,
+                    Sensor.TYPE_GYROSCOPE_UNCALIBRATED,
+                    Sensor.TYPE_HEADING,
+                    Sensor.TYPE_HEAD_TRACKER,
+                    Sensor.TYPE_HEART_BEAT,
+                    Sensor.TYPE_HEART_RATE,
+                    Sensor.TYPE_HINGE_ANGLE,
+                    Sensor.TYPE_LIGHT,
+                    Sensor.TYPE_LINEAR_ACCELERATION,
+                    Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT,
+                    Sensor.TYPE_MAGNETIC_FIELD,
+                    Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED,
+                    Sensor.TYPE_MOTION_DETECT,
+                    Sensor.TYPE_ORIENTATION,    // deprecated
+                    Sensor.TYPE_POSE_6DOF,
+                    Sensor.TYPE_PRESSURE,
+                    Sensor.TYPE_PROXIMITY,
+                    Sensor.TYPE_RELATIVE_HUMIDITY,
+                    Sensor.TYPE_ROTATION_VECTOR,
+                    Sensor.TYPE_SIGNIFICANT_MOTION,
+                    Sensor.TYPE_STATIONARY_DETECT,
+                    Sensor.TYPE_STEP_COUNTER,
+                    Sensor.TYPE_STEP_DETECTOR,
+                    Sensor.TYPE_TEMPERATURE      // deprecated
+            ));
+
+            // Classify sensors into primary (hardware) and others (derived/virtual)
+            final java.util.List<android.hardware.Sensor> primary = new java.util.ArrayList<>();
+            final java.util.List<android.hardware.Sensor> derived = new java.util.ArrayList<>();
+            if (sensors != null) {
+                for (android.hardware.Sensor s : sensors) {
+                    int t = s.getType();
+                    // treat the core hardware sensors as primary
+                    if (SUPPORTED_TYPES.contains(t)) {
+                        primary.add(s);
+                    } else {
+                        // everything else as derived/secondary
+                        derived.add(s);
+                    }
+                }
+            }
+
+            // Function to create per-sensor listener
+            java.util.function.Function<android.hardware.Sensor, android.hardware.SensorEventListener> makeListener =
+                    (sensorRef) -> new android.hardware.SensorEventListener() {
+                        @Override
+                        public void onSensorChanged(android.hardware.SensorEvent event) {
+                            if (event == null || event.sensor == null) return;
+                            String key = keyFor.apply(event.sensor);
+                            java.util.Map<String,Object> smp = new java.util.LinkedHashMap<>();
+                            smp.put("timestamp_ns", event.timestamp);
+                            smp.put("accuracy", event.accuracy);
+                            java.util.List<Number> vals = new java.util.ArrayList<>();
+                            if (event.values != null) for (float f : event.values) vals.add(f);
+                            smp.put("values", vals);
+
+                            java.util.Map<String,Object> prev = singleSamples.putIfAbsent(key, smp);
+                            if (prev == null) {
+                                lastTs.put(key, event.timestamp);
+                                android.util.Log.i(TAG, "ONE-SAMPLE " + key + " -> " + vals);
+                                // unregister this sensor/listener only
+                                try { sm.unregisterListener(this, sensorRef); } catch (Throwable ignored) {}
+                            }
+                        }
+                        @Override
+                        public void onAccuracyChanged(android.hardware.Sensor sensor, int accuracy) { /* no-op */ }
+                    };
+
+            // Register a list of sensors (creating per-sensor listeners and storing them)
+            java.util.function.Consumer<java.util.List<android.hardware.Sensor>> registerList = (list) -> {
+                for (android.hardware.Sensor s : list) {
+                    try {
+                        final android.hardware.Sensor sensorRef = s;
+                        final android.hardware.SensorEventListener perSensorListener = makeListener.apply(sensorRef);
+                        String key = keyFor.apply(sensorRef);
+                        listeners.put(key, perSensorListener);
+                        // perform registration attempts (with the helper)
+                        tryRegister.accept(perSensorListener, sensorRef);
+                    } catch (Throwable e) {
+                        android.util.Log.w(TAG, "register failed for " + s.getName(), e);
+                    }
+                }
+            };
+
+            // PHASE 1: register primary sensors first, allow them to start
+            registerList.accept(primary);
+            try { Thread.sleep(1000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+
+            // PHASE 2: register derived sensors
+            registerList.accept(derived);
+
+            // Aggressive re-register loop to try faster sampling for sensors that haven't produced a sample yet.
+            long start = System.currentTimeMillis();
+            for (int spTry = 0; spTry < SAMPLING_PERIOD_US_TRIES.length; spTry++) {
+                if (sensors == null) break;
+                for (android.hardware.Sensor s : sensors) {
+                    String key = keyFor.apply(s);
+                    // skip if we already got a sample
+                    if (singleSamples.containsKey(key)) continue;
+                    android.hardware.SensorEventListener listener = listeners.get(key);
+                    if (listener == null) continue;
+                    // Attempt re-register with specific sampling constant
+                    int sp = SAMPLING_PERIOD_US_TRIES[spTry];
+                    try {
+                        // try reflection first
+                        try {
+                            java.lang.reflect.Method m = sm.getClass().getMethod("registerListener", android.hardware.SensorEventListener.class, android.hardware.Sensor.class, int.class, android.os.Handler.class);
+                            m.setAccessible(true);
+                            m.invoke(sm, listener, s, sp, probeHandler);
+                        } catch (Throwable t) {
+                            try {
+                                java.lang.reflect.Method m2 = sm.getClass().getMethod("registerListener", android.hardware.SensorEventListener.class, android.hardware.Sensor.class, int.class);
+                                m2.setAccessible(true);
+                                m2.invoke(sm, listener, s, sp);
+                            } catch (Throwable tt) {
+                                // fallback to direct call
+                                try { sm.registerListener(listener, s, sp, probeHandler); } catch (Throwable t3) { try { sm.registerListener(listener, s, sp); } catch (Throwable ignored) {} }
+                            }
+                        }
+                    } catch (Throwable e) {
+                        android.util.Log.w(TAG, "re-register failed for " + s.getName(), e);
+                    }
+                }
+                // brief pause to let sensors emit
+                try { Thread.sleep(400); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                if (singleSamples.size() >= (sensors==null?0:sensors.size())) break;
+                if (System.currentTimeMillis() - start > TOTAL_SAMPLE_WINDOW_MS) break;
+            }
+
+            // Final wait for remainder of the window
+            long elapsed = System.currentTimeMillis() - start;
+            long waitRemaining = TOTAL_SAMPLE_WINDOW_MS - elapsed;
+            if (waitRemaining > 0) {
+                try { Thread.sleep(waitRemaining); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+            }
+
+            // Cleanup: unregister any remaining listeners
+            try {
+                for (java.util.Map.Entry<String, android.hardware.SensorEventListener> en : listeners.entrySet()) {
+                    try { sm.unregisterListener(en.getValue()); } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+
+            try { probeThread.quitSafely(); } catch (Throwable ignored) {}
+
+            // Assemble result per sensor and missing list
+            java.util.Map<String,Object> perSensor = new java.util.LinkedHashMap<>();
+            java.util.List<String> missing = new java.util.ArrayList<>();
+            if (sensors != null) {
+                for (android.hardware.Sensor s : sensors) {
+                    String key = keyFor.apply(s);
+                    java.util.Map<String,Object> entry = new java.util.LinkedHashMap<>();
+                    entry.put("static", staticInfo.getOrDefault(key, new java.util.LinkedHashMap<>()));
+                    java.util.Map<String,Object> smp = singleSamples.get(key);
+                    if (smp != null) {
+                        entry.put("sample", smp);
+                        entry.put("sampleCount", 1);
+                    } else {
+                        entry.put("sample", new java.util.LinkedHashMap<>());
+                        entry.put("sampleCount", 0);
+                        missing.add(key);
+                    }
+                    entry.put("lastTs_ns", lastTs.get(key));
+                    perSensor.put(key, entry);
+                }
+            }
+
+            result.put("perSensor", perSensor);
+            result.put("singleSamples", singleSamples);
+            result.put("missingSensors", missing);
+            result.put("capturedCount", singleSamples.size());
+            result.put("timeout_ms", TOTAL_SAMPLE_WINDOW_MS);
+            android.util.Log.i(TAG, "One-sample v3 probe complete; captured=" + singleSamples.size() + " / " + (sensors==null?0:sensors.size()));
+
+        } catch (Throwable t) {
+            android.util.Log.e("exercise_oneSamplePerSensor_v3", "Unexpected error in probe", t);
+        }
+        return result;
+    }
 
 
 
