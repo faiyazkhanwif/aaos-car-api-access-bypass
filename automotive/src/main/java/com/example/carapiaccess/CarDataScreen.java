@@ -243,10 +243,17 @@ public class CarDataScreen extends Screen {
             //exercise_aggressiveSensorProbe_v2();
 
             //exercise_detectAndSampleSensors();
+
+
+            // Will work with methods that are static and returns java.util.Map
+  /*
             new Thread(() -> {
                 Map m = exercise_oneSamplePerSensor_v3();
                 Log.i("RESULT", "Probe map size=" + m.size());
             }).start();
+*/
+
+            exercise_oneSamplePerSensor_v3();
 
 //            exercise_detectAndSampleSensors();
 /*
@@ -10799,7 +10806,7 @@ Android 14 - Valid 49 configs
     }
 
 
-    public static java.util.Map<String,Object> exercise_oneSamplePerSensor_v3() {
+    public void exercise_oneSamplePerSensor_v3() {
         final String TAG = "exercise_oneSamplePerSensor_v3";
         final java.util.Map<String,Object> result = new java.util.LinkedHashMap<>();
 
@@ -10822,13 +10829,13 @@ Android 14 - Valid 49 configs
             }
             if (context == null) {
                 android.util.Log.e(TAG, "No context - aborting");
-                return result;
+                //return result;
             }
 
             final android.hardware.SensorManager sm = (android.hardware.SensorManager) context.getSystemService(android.content.Context.SENSOR_SERVICE);
             if (sm == null) {
                 android.util.Log.e(TAG, "SensorManager not available");
-                return result;
+                //return result;
             }
 
             final java.util.List<android.hardware.Sensor> sensors = sm.getSensorList(android.hardware.Sensor.TYPE_ALL);
@@ -10852,7 +10859,7 @@ Android 14 - Valid 49 configs
             result.put("static", staticInfo);
 
             // Thread/handler for sensor callbacks
-            final HandlerThread probeThread = new HandlerThread("SensorProbeOneSampleV2");
+            final HandlerThread probeThread = new HandlerThread("SensorProbeOneSampleV3");
             probeThread.start();
             final android.os.Handler probeHandler = new android.os.Handler(probeThread.getLooper());
 
@@ -10975,6 +10982,12 @@ Android 14 - Valid 49 configs
                             if (prev == null) {
                                 lastTs.put(key, event.timestamp);
                                 android.util.Log.i(TAG, "ONE-SAMPLE " + key + " -> " + vals);
+
+                                String keyForUiRender = "Sensor: " + key;
+                                //UI render
+                                addDynamicRow(keyForUiRender, keyForUiRender + " -> " + vals);
+
+
                                 // unregister this sensor/listener only
                                 try { sm.unregisterListener(this, sensorRef); } catch (Throwable ignored) {}
                             }
@@ -11089,10 +11102,13 @@ Android 14 - Valid 49 configs
             result.put("timeout_ms", TOTAL_SAMPLE_WINDOW_MS);
             android.util.Log.i(TAG, "One-sample v3 probe complete; captured=" + singleSamples.size() + " / " + (sensors==null?0:sensors.size()));
 
+            //UI render
+            addDynamicRow("Sensors_Accessed", "Sensors_Accessed: " + singleSamples.size() + " / " + (sensors==null?0:sensors.size()));
+
         } catch (Throwable t) {
             android.util.Log.e("exercise_oneSamplePerSensor_v3", "Unexpected error in probe", t);
         }
-        return result;
+        //return result;
     }
 
 
