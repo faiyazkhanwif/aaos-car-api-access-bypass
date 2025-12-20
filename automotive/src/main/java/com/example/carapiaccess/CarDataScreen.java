@@ -164,6 +164,8 @@ import android.view.WindowManager;
 //Reflection Imports
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -272,7 +274,9 @@ public class CarDataScreen extends Screen {
             //exerciseAutomotiveCarSensors();
 
 
-            dumpSystemPropertiesAndFeatures();
+            //dumpSystemPropertiesAndFeatures();
+
+            dumpAllDiagnostics();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -9330,7 +9334,299 @@ Android 14 - Valid 49 configs
         });
     }
 
+    /** Single no-arg entry point. Context is obtained inline inside this method. */
+    public static void dumpAllDiagnostics() {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            // ----- obtain Context inline (try several reflection strategies) -----
+            Context ctx = null;
+            try {
+                Class<?> at = Class.forName("android.app.ActivityThread");
+                Method currentApplication = at.getMethod("currentApplication");
+                Object app = currentApplication.invoke(null);
+                if (app instanceof Application) {
+                    ctx = ((Application) app).getApplicationContext();
+                }
+            } catch (Throwable ignored) { }
 
+            if (ctx == null) {
+                try {
+                    Class<?> ag = Class.forName("android.app.AppGlobals");
+                    Method getInit = ag.getMethod("getInitialApplication");
+                    Object app = getInit.invoke(null);
+                    if (app instanceof Application) {
+                        ctx = ((Application) app).getApplicationContext();
+                    }
+                } catch (Throwable ignored) { }
+            }
+
+            if (ctx == null) {
+                Log.e(TAG, "Could not obtain application Context. Aborting diagnostics.");
+                return;
+            }
+
+            // ---------- 1) system properties via `getprop` ----------
+            try {
+                Process proc = new ProcessBuilder().command("getprop").redirectErrorStream(true).start();
+                BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+                String line;
+                Pattern p = Pattern.compile("^\\[(.*?)]:\\s*\\[(.*?)]$");
+                Log.i(TAG, "=== system properties (getprop) ===");
+                while ((line = br.readLine()) != null) {
+                    Matcher m = p.matcher(line);
+                    if (m.find()) {
+                        String key = m.group(1);
+                        String value = m.group(2);
+                        Log.i(TAG, key + " = " + value);
+                    } else {
+                        Log.i(TAG, line);
+                    }
+                }
+                br.close();
+                proc.waitFor();
+            } catch (Throwable t) {
+                Log.w(TAG, "getprop failed or unavailable", t);
+            }
+
+            // ---------- 2) PackageManager features ----------
+            try {
+                PackageManager pm = ctx.getPackageManager();
+                FeatureInfo[] features = pm.getSystemAvailableFeatures();
+                Log.i(TAG, "=== PackageManager features ===");
+                if (features == null || features.length == 0) {
+                    Log.i(TAG, "No features returned (null/empty).");
+                } else {
+                    for (FeatureInfo fi : features) {
+                        if (fi == null) continue;
+                        if (fi.name != null) {
+                            Log.i(TAG, "feature: " + fi.name);
+                        } else {
+                            int glEs = fi.reqGlEsVersion;
+                            int major = (glEs >> 16) & 0xffff;
+                            int minor = glEs & 0xffff;
+                            String gl = String.format("glEsVersion: %d.%d (0x%08x)", major, minor, glEs);
+                            Log.i(TAG, "feature: " + gl);
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                Log.e(TAG, "Failed to query PackageManager features", t);
+            }
+
+            // ---------- 3) Accessible system services (dynamic via SystemServiceRegistry) ----------
+            boolean usedRegistry = false;
+            try {
+                Log.i(TAG, "=== Accessible system services (via SystemServiceRegistry) ===");
+                Class<?> ssr = Class.forName("android.app.SystemServiceRegistry");
+                Field fNames = ssr.getDeclaredField("SYSTEM_SERVICE_NAMES");
+                fNames.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                Map<Class<?>, String> systemServiceNames = (Map<Class<?>, String>) fNames.get(null);
+
+                if (systemServiceNames != null && !systemServiceNames.isEmpty()) {
+                    Method getSystemServiceByClass = null;
+                    try {
+                        getSystemServiceByClass = Context.class.getMethod("getSystemService", Class.class);
+                    } catch (NoSuchMethodException ignore) { }
+
+                    for (Map.Entry<Class<?>, String> e : systemServiceNames.entrySet()) {
+                        Class<?> svcClass = e.getKey();
+                        String svcName = e.getValue();
+                        Object svcInstance = null;
+                        try {
+                            if (getSystemServiceByClass != null && svcClass != null) {
+                                svcInstance = getSystemServiceByClass.invoke(ctx, svcClass);
+                            } else if (svcName != null) {
+                                svcInstance = ctx.getSystemService(svcName);
+                            }
+                        } catch (Throwable perSvcErr) {
+                            Log.w(TAG, "getSystemService threw for service class/name: "
+                                    + (svcClass != null ? svcClass.getName() : svcName), perSvcErr);
+                        }
+
+                        String svcDesc = (svcInstance == null) ? "null" : svcInstance.getClass().getName() + " instance";
+                        String className = (svcClass == null) ? "null" : svcClass.getName();
+                        Log.i(TAG, String.format("service-class=%s, service-name=%s -> %s", className, svcName, svcDesc));
+                    }
+                    usedRegistry = true;
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "Could not read SystemServiceRegistry (hidden API). Falling back to Context.*_SERVICE strings.", t);
+            }
+
+            // Fallback: iterate Context.*_SERVICE string constants if registry path failed
+            if (!usedRegistry) {
+                try {
+                    Log.i(TAG, "=== Accessible system services (fallback: Context.*_SERVICE strings) ===");
+                    Field[] fields = Context.class.getFields();
+                    Set<String> seen = new HashSet<>();
+                    for (Field f : fields) {
+                        try {
+                            String fname = f.getName();
+                            if (fname.endsWith("_SERVICE") && f.getType() == String.class) {
+                                String key = (String) f.get(null);
+                                if (key == null || seen.contains(key)) continue;
+                                seen.add(key);
+                                Object svc = null;
+                                try {
+                                    svc = ctx.getSystemService(key);
+                                } catch (Throwable perSvcErr) {
+                                    Log.w(TAG, "getSystemService threw for key=" + key, perSvcErr);
+                                }
+                                String svcDesc = (svc == null) ? "null" : svc.getClass().getName() + " instance";
+                                Log.i(TAG, String.format("service-key=%s -> %s", key, svcDesc));
+                            }
+                        } catch (IllegalAccessException iae) {
+                            // ignore inaccessible field
+                        }
+                    }
+                } catch (Throwable t) {
+                    Log.e(TAG, "Fallback enumeration of Context.*_SERVICE failed", t);
+                }
+            }
+
+
+            // ---------- 4) Kernel syscall symbols (aggressive, lab/emulator proof-of-concept) ----------
+            try {
+                Log.i(TAG, "=== Kernel syscall symbols (aggressive POC multiple strategies) ===");
+
+                // common direct file locations
+                String[] candidatePaths = new String[] {
+                        "/proc/kallsyms",
+                        "/proc/ksyms",
+                        "/dev/kallsyms",
+                        "/sys/kernel/debug/kallsyms",
+                        "/sys/kernel/kallsyms"
+                };
+
+                // regex to pick up common syscall symbol name patterns
+                Pattern syscallPattern = Pattern.compile(
+                        "\\b(__x64_sys_[A-Za-z0-9_]+|__arm64_sys_[A-Za-z0-9_]+|sys_[A-Za-z0-9_]+|SyS_[A-Za-z0-9_]+)\\b"
+                );
+
+                Set<String> syscalls = new HashSet<>();
+                boolean anyReadable = false;
+
+                // 1) try direct file reads first
+                for (String path : candidatePaths) {
+                    File f = new File(path);
+                    if (f.exists() && f.canRead()) {
+                        anyReadable = true;
+                        Log.i(TAG, "Reading kernel symbols from: " + path);
+                        BufferedReader br = null;
+                        try {
+                            br = new BufferedReader(new FileReader(f));
+                            String line;
+                            int linesProcessed = 0;
+                            while ((line = br.readLine()) != null && linesProcessed++ < 200000) { // safety cap
+                                Matcher m = syscallPattern.matcher(line);
+                                while (m.find()) {
+                                    syscalls.add(m.group(1));
+                                }
+                            }
+                        } catch (Throwable readErr) {
+                            Log.w(TAG, "Failed reading " + path, readErr);
+                        } finally {
+                            try { if (br != null) br.close(); } catch (Throwable ignore) {}
+                        }
+                    }
+                }
+
+                // 2) if direct files not sufficient, run a set of shell commands (first non-root, then root via su if available)
+                String[] shellCmds = new String[] {
+                        // try cats (some devices may have alternate paths)
+                        "cat /proc/kallsyms 2>/dev/null || true",
+                        "cat /proc/ksyms 2>/dev/null || true",
+                        "cat /proc/modules 2>/dev/null || true",
+                        // try dmesg (may reveal symbols on some kernels/emulators)
+                        "dmesg 2>/dev/null || true",
+                        // try reading any device named kallsyms
+                        "cat /dev/kallsyms 2>/dev/null || true",
+                        // try strings on suspected kernel-containing block devices (may be large)
+                        "for b in /dev/block/by-name/*; do strings \"$b\" 2>/dev/null | grep -E '(__x64_sys_|__arm64_sys_|sys_|SyS_)' || true; done",
+                        // try strings on boot partition(s)
+                        "for b in /dev/block/platform/*/by-name/*; do strings \"$b\" 2>/dev/null | grep -E '(__x64_sys_|__arm64_sys_|sys_|SyS_)' || true; done",
+                        // try to find module files (.ko) in system/vendor and strings them (may be heavy)
+                        "find /system /vendor -type f -name '*.ko' -maxdepth 5 -exec strings {} \\; 2>/dev/null | grep -E '(__x64_sys_|__arm64_sys_|sys_|SyS_)' || true"
+                };
+
+                // helper to execute a shell command (tries plain sh first; if empty output then tries su)
+                for (String cmd : shellCmds) {
+                    // run via sh -c first
+                    boolean usedSu = false;
+                    String[] runSh = new String[] {"sh", "-c", cmd};
+                    try {
+                        Process p = new ProcessBuilder(runSh).redirectErrorStream(true).start();
+                        BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                        String line;
+                        boolean anyLine = false;
+                        int lines = 0;
+                        while ((line = br.readLine()) != null && lines++ < 200000) {
+                            anyLine = true;
+                            Matcher m = syscallPattern.matcher(line);
+                            while (m.find()) syscalls.add(m.group(1));
+                        }
+                        try { p.waitFor(); } catch (Throwable ignore) {}
+                        try { br.close(); } catch (Throwable ignore) {}
+
+                        if (anyLine) {
+                            anyReadable = true;
+                            Log.i(TAG, "Command (sh) produced output: " + cmd);
+                            // keep going to collect more
+                            continue;
+                        }
+                    } catch (Throwable shErr) {
+                        Log.d(TAG, "sh -c failed for cmd: " + cmd + " : " + shErr.getMessage());
+                    }
+
+                    // if nothing from sh, try via su -c (root) — only for lab/emulator/rooted devices
+                    try {
+                        String[] runSu = new String[] {"su", "-c", cmd};
+                        Process psu = new ProcessBuilder(runSu).redirectErrorStream(true).start();
+                        BufferedReader brsu = new BufferedReader(new InputStreamReader(psu.getInputStream()));
+                        String line;
+                        boolean anyLine = false;
+                        int lines = 0;
+                        while ((line = brsu.readLine()) != null && lines++ < 500000) {
+                            anyLine = true;
+                            Matcher m = syscallPattern.matcher(line);
+                            while (m.find()) syscalls.add(m.group(1));
+                        }
+                        try { psu.waitFor(); } catch (Throwable ignore) {}
+                        try { brsu.close(); } catch (Throwable ignore) {}
+
+                        if (anyLine) {
+                            anyReadable = true;
+                            usedSu = true;
+                            Log.i(TAG, "Command (su) produced output: " + cmd);
+                        }
+                    } catch (Throwable suErr) {
+                        // su may not exist or permission denied — that's expected on non-rooted devices
+                        Log.d(TAG, "su -c failed/denied for cmd: " + cmd + " : " + suErr.getMessage());
+                    }
+                }
+
+                // Final reporting
+                if (!anyReadable) {
+                    Log.w(TAG, "None of the kernel symbol sources/commands produced readable output. This is expected on non-rooted production devices (SELinux enforced).");
+                }
+                if (syscalls.isEmpty()) {
+                    Log.i(TAG, "No syscall-like symbols were found by the aggressive strategies.");
+                } else {
+                    Log.i(TAG, "Found " + syscalls.size() + " syscall-like symbols. Showing a sampled list (capped at 500):");
+                    int count = 0;
+                    for (String s : syscalls) {
+                        Log.i(TAG, "kernel-syscall-symbol: " + s);
+                        if (++count >= 500) break;
+                    }
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "Aggressive syscall symbol collection failed", t);
+            }
+
+
+
+        });
+    }
     //-------------------------------------------------------------------------------------------- gets 15 sensors aaos - goldfish - but comes with weird dictionary
 
 /*
