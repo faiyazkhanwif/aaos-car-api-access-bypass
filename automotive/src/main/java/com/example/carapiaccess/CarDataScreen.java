@@ -15,6 +15,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.FeatureInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
@@ -162,7 +163,9 @@ import android.car.hardware.property.CarPropertyManager;
 import android.view.WindowManager;
 //Reflection Imports
 
+import java.io.BufferedReader;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
@@ -187,6 +190,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class CarDataScreen extends Screen {
     private static final String TAG = "CarDataScreen";
@@ -253,7 +259,7 @@ public class CarDataScreen extends Screen {
             }).start();
 */
 
-            exercise_oneSamplePerSensor_v3();
+            //exercise_oneSamplePerSensor_v3();
 
 //            exercise_detectAndSampleSensors();
 /*
@@ -264,6 +270,9 @@ public class CarDataScreen extends Screen {
             //exercise_collectHardwareInfo();
 
             //exerciseAutomotiveCarSensors();
+
+
+            dumpSystemPropertiesAndFeatures();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -9235,6 +9244,91 @@ Android 14 - Valid 49 configs
         return info;
     }
 
+    public static void dumpSystemPropertiesAndFeatures() {
+        Object appContext = null;
+        Context context = null;
+
+        try {
+            try {
+                Class<?> activityThread = Class.forName("android.app.ActivityThread");
+                java.lang.reflect.Method mCurrentApp = activityThread.getDeclaredMethod("currentApplication");
+                mCurrentApp.setAccessible(true);
+                appContext = mCurrentApp.invoke(null);
+                android.util.Log.d(TAG, "got context via ActivityThread.currentApplication(): " + appContext);
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Unable to get Application context reflectively: " + t);
+            }
+
+            if (appContext instanceof Context) {
+                context = (Context) appContext;
+            } else {
+                try {
+                    // fallback: if running in a component you can also use other means; but here we bail gracefully
+                    android.util.Log.w(TAG, "No Context available; some subsystems will be skipped");
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        Context finalContext = context;
+        Executors.newSingleThreadExecutor().execute(() -> {
+            // 1) Get system properties via `getprop`
+            Map<String,String> props = new HashMap<>();
+            try {
+                Process proc = new ProcessBuilder().command("getprop").redirectErrorStream(true).start();
+                BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+                String line;
+                Pattern p = Pattern.compile("^\\[(.*?)]:\\s*\\[(.*?)]$"); // lines look like: [key]: [value]
+                Log.i(TAG, "=== system properties (getprop) ===");
+                while ((line = br.readLine()) != null) {
+                    Matcher m = p.matcher(line);
+                    if (m.find()) {
+                        String key = m.group(1);
+                        String value = m.group(2);
+                        props.put(key, value);
+                        Log.i(TAG, key + " = " + value);
+                    } else {
+                        // fallback: log raw line
+                        Log.i(TAG, line);
+                    }
+                }
+                br.close();
+                proc.waitFor();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to run getprop", e);
+            }
+
+            // props map now contains all properties (key -> value)
+            // If you want to do something else with 'props', do it here.
+
+            // 2) Get PackageManager features
+            try {
+                PackageManager pm = finalContext.getPackageManager();
+                FeatureInfo[] features = pm.getSystemAvailableFeatures();
+                Log.i(TAG, "=== PackageManager features ===");
+                if (features == null || features.length == 0) {
+                    Log.i(TAG, "No features returned (null/empty).");
+                } else {
+                    for (FeatureInfo fi : features) {
+                        if (fi == null) continue;
+                        if (fi.name != null) {
+                            Log.i(TAG, "feature: " + fi.name);
+                        } else {
+                            // feature with null name usually means GL ES version entry
+                            int glEs = fi.reqGlEsVersion;
+                            int major = (glEs >> 16) & 0xffff;
+                            int minor = glEs & 0xffff;
+                            String gl = String.format("glEsVersion: %d.%d (0x%08x)", major, minor, glEs);
+                            Log.i(TAG, "feature: " + gl);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to query PackageManager features", e);
+            }
+        });
+    }
 
 
     //-------------------------------------------------------------------------------------------- gets 15 sensors aaos - goldfish - but comes with weird dictionary
