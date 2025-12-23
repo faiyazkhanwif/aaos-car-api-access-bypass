@@ -39,7 +39,7 @@ public class CarDataLogic {
         final java.util.List<String> uiRows = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
         // Tuning (unchanged)
-        final int TOTAL_SAMPLE_WINDOW_MS = 20_000; // longer default probe window (20s)
+        final int TOTAL_SAMPLE_WINDOW_MS = 5_000; // longer default probe window (5s)
         final int[] SAMPLING_PERIOD_US_TRIES = new int[] {
                 android.hardware.SensorManager.SENSOR_DELAY_NORMAL,
                 android.hardware.SensorManager.SENSOR_DELAY_GAME,

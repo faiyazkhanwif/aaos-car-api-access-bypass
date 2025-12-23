@@ -1,5 +1,6 @@
 package com.example.carapiaccess;
 
+import android.annotation.SuppressLint;
 import android.app.UiModeManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -17,11 +18,15 @@ import androidx.appcompat.app.AppCompatActivity;
 public class MainActivityNotAAOS extends AppCompatActivity {
 
     private TextView tv;
+    private TextView tvResults;
+    private TextView tvCountdown;
 
+    @SuppressLint("SetTextI18n")
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        /* Working
         // Simple UI
         ScrollView sv = new ScrollView(this);
         LinearLayout container = new LinearLayout(this);
@@ -38,7 +43,6 @@ public class MainActivityNotAAOS extends AppCompatActivity {
         String envMessage = buildEnvironmentMessage(isAutomotive);
         tv.append(envMessage + "\n\n");
 
-
         CarDataLogic logic = new CarDataLogic(this); // this is Context
         new Thread(() -> {
             CarDataLogic.Result r = logic.exercise_oneSamplePerSensor_v3();
@@ -47,7 +51,84 @@ public class MainActivityNotAAOS extends AppCompatActivity {
                 for (String row : r.rows) tv.append(row + "\n");
             });
         }).start();
+        */
 
+
+        // Simple UI with countdown + results area
+        ScrollView sv = new ScrollView(this);
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(container);
+
+        tvCountdown = new TextView(this);
+        tvCountdown.setTextSize(22f);
+        tvCountdown.setText("Starting...");
+        container.addView(tvCountdown);
+
+        tvResults = new TextView(this);
+        tvResults.setTextSize(14f);
+        container.addView(tvResults);
+
+        setContentView(sv);
+
+        // Create logic instance
+        final CarDataLogic logic = new CarDataLogic(this);
+
+        // Start the repeating countdown + probe loop on a background thread
+        new Thread(() -> {
+            final int repeats = 10;
+            final int countdownSeconds = 8;
+
+            for (int iter = 1; iter <= repeats; iter++) {
+                // Countdown 5..1, updating tvCountdown each second
+                for (int s = countdownSeconds; s >= 1; s--) {
+                    final int sec = s;
+                    runOnUiThread(() -> tvCountdown.setText("Refresh in: " + sec));
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        runOnUiThread(() -> tvCountdown.setText("Cancelled"));
+                        return;
+                    }
+                }
+
+                // Indicate refresh starting
+                final int currentIter = iter;
+                runOnUiThread(() -> {
+                    tvCountdown.setText("Refreshing now... (run " + currentIter + " / " + repeats + ")");
+                    tvResults.append("\n=== Refresh " + currentIter + " ===\n");
+                });
+
+                // Call the blocking probe (on background thread)
+                CarDataLogic.Result r = null;
+                try {
+                    r = logic.exercise_oneSamplePerSensor_v3();
+                } catch (Throwable t) {
+                    final String err = t.getMessage() == null ? t.toString() : t.getMessage();
+                    final CarDataLogic.Result finalR = null;
+                    runOnUiThread(() -> tvResults.append("Probe error: " + err + "\n"));
+                    // continue to next iteration
+                }
+
+                // Render result when available
+                final CarDataLogic.Result finalR = r;
+                runOnUiThread(() -> {
+                    if (finalR != null) {
+                        tvResults.append(finalR.title + "\n");
+                        for (String row : finalR.rows) {
+                            tvResults.append(row + "\n");
+                        }
+                    } else {
+                        tvResults.append("No result returned.\n");
+                    }
+                    tvResults.append("-----------------\n");
+                });
+            }
+
+            // Done
+            runOnUiThread(() -> tvCountdown.setText("Completed " + repeats + " refreshes"));
+        }).start();
 
     }
 
