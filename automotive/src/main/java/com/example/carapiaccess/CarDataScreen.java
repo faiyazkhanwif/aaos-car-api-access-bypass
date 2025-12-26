@@ -278,6 +278,8 @@ public class CarDataScreen extends Screen {
 
             dumpAllDiagnostics();
 
+            //exercise_logAllAccessiblePackageManagerFeatures();
+
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
             //Log.d(TAG, "dumpCarAppHierarchyAndroidX execution time: " + elapsed + " ms");
@@ -9627,6 +9629,129 @@ Android 14 - Valid 49 configs
 
         });
     }
+
+    //--------------------------------------------------------PackageManager Feature
+    public static java.util.Map<String, Object> exercise_logAllAccessiblePackageManagerFeatures() {
+        final String TAG = "exercise_logAllPMFeatures";
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+
+        try {
+            // 0) Obtain Application Context reflectively (works outside Activities)
+            Object appContext = null;
+            try {
+                Class<?> activityThread = Class.forName("android.app.ActivityThread");
+                java.lang.reflect.Method mCurrentApp = activityThread.getDeclaredMethod("currentApplication");
+                mCurrentApp.setAccessible(true);
+                appContext = mCurrentApp.invoke(null);
+                android.util.Log.d(TAG, "got context via ActivityThread.currentApplication(): " + appContext);
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Unable to get Application context reflectively: " + t);
+            }
+
+            Context context = null;
+            if (appContext instanceof Context) {
+                context = (Context) appContext;
+            } else {
+                android.util.Log.w(TAG, "No Context available; giving up on PackageManager feature logging");
+                result.put("PackageManagerFeatureDetails", new java.util.ArrayList<java.util.Map<String,Object>>());
+                result.put("count", 0);
+                return result;
+            }
+
+            PackageManager pm = context.getPackageManager();
+            java.util.List<java.util.Map<String,Object>> details = new java.util.ArrayList<>();
+            java.util.Set<String> seenNames = new java.util.HashSet<>();
+
+            // 1) Log system available FeatureInfo entries (includes GL ES entry where name == null)
+            try {
+                android.content.pm.FeatureInfo[] feats = pm.getSystemAvailableFeatures();
+                if (feats != null) {
+                    for (android.content.pm.FeatureInfo f : feats) {
+                        try {
+                            java.util.Map<String,Object> m = new java.util.HashMap<>();
+                            m.put("flags", f.flags);
+                            m.put("reqGlEsVersion", f.reqGlEsVersion);
+
+                            if (f.name == null) {
+                                // GL ES entry
+                                int ver = f.reqGlEsVersion;
+                                int major = (ver >> 16) & 0xffff;
+                                int minor = ver & 0xffff;
+                                String gl = major + "." + minor;
+                                m.put("entryType", "glEs");
+                                m.put("glEsVersionString", gl);
+                                android.util.Log.i(TAG, "Feature: glEsVersion => " + gl + " (raw: " + ver + ")");
+                            } else {
+                                m.put("entryType", "named");
+                                m.put("name", f.name);
+                                boolean has = false;
+                                try { has = pm.hasSystemFeature(f.name); } catch (Throwable ignored) {}
+                                m.put("hasFeature", has);
+                                seenNames.add(f.name);
+                                android.util.Log.i(TAG, "Feature: " + f.name + "  flags=" + f.flags + "  hasSystemFeature=" + has);
+                            }
+                            details.add(m);
+                        } catch (Throwable t) {
+                            android.util.Log.w(TAG, "Failed to process FeatureInfo entry: " + t);
+                        }
+                    }
+                } else {
+                    android.util.Log.i(TAG, "getSystemAvailableFeatures() returned null");
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Error while calling getSystemAvailableFeatures(): " + t);
+            }
+
+            // 2) Reflect over PackageManager.FEATURE_* constants and call hasSystemFeature on each
+            try {
+                java.lang.reflect.Field[] fields = PackageManager.class.getFields();
+                for (java.lang.reflect.Field fld : fields) {
+                    try {
+                        String fname = fld.getName();
+                        if (fname != null && fname.startsWith("FEATURE_") && fld.getType() == String.class) {
+                            String featureValue = null;
+                            try {
+                                featureValue = (String) fld.get(null); // static field
+                            } catch (Throwable t) {
+                                android.util.Log.w(TAG, "Unable to read field " + fname + ": " + t);
+                            }
+                            if (featureValue == null || featureValue.length() == 0) continue;
+
+                            boolean has = false;
+                            try { has = pm.hasSystemFeature(featureValue); } catch (Throwable ignored) {}
+                            android.util.Log.i(TAG, "PM constant: " + fname + " => \"" + featureValue + "\"  hasSystemFeature=" + has);
+
+                            // Only add to details if not already listed from getSystemAvailableFeatures()
+                            if (!seenNames.contains(featureValue)) {
+                                java.util.Map<String,Object> m = new java.util.HashMap<>();
+                                m.put("constant", fname);
+                                m.put("name", featureValue);
+                                m.put("hasFeature", has);
+                                m.put("entryType", "constant");
+                                details.add(m);
+                            }
+                        }
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "Failed while reflecting a PackageManager field: " + t);
+                    }
+                }
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Reflection over PackageManager constants failed: " + t);
+            }
+
+            // 3) Final summary
+            result.put("PackageManagerFeatureDetails", details);
+            result.put("count", details.size());
+            android.util.Log.i(TAG, "PackageManager feature logging complete; total entries (including constants): " + details.size());
+
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "Unexpected failure in exercise_logAllAccessiblePackageManagerFeatures: " + t);
+        }
+
+        return result;
+    }
+
+
     //-------------------------------------------------------------------------------------------- gets 15 sensors aaos - goldfish - but comes with weird dictionary
 
 /*
