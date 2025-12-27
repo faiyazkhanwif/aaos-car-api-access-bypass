@@ -5,11 +5,13 @@ import static com.google.common.reflect.Reflection.getPackageName;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.AlarmManager;
 import android.app.Application;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -276,9 +278,11 @@ public class CarDataScreen extends Screen {
 
             //dumpSystemPropertiesAndFeatures();
 
-            dumpAllDiagnostics();
+            //dumpAllDiagnostics();
 
             //exercise_logAllAccessiblePackageManagerFeatures();
+
+            scheduleAlarmToNotifyAndTryOpenApp();
 
             long elapsed = System.currentTimeMillis() - start;
             updateDynamicRow("STATUS", "Background task done in " + elapsed + " ms");
@@ -11625,6 +11629,722 @@ Android 14 - Valid 49 configs
         }
         //return result;
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//-------------------------------Alarm manager -------------------------------------
+
+    public void reflectExerciseAlarmManager() {
+        final String TAG = "ReflectAlarmMgr";
+
+        try {
+            // ---- 0) Get a Context without parameters (works in Activity/Service/AppCompat/etc.) ----
+            android.content.Context ctx;
+            try {
+                // If you’re inside a Car App Screen, this exists:
+                java.lang.reflect.Method m = getClass().getMethod("getCarContext");
+                ctx = (android.content.Context) m.invoke(this);
+            } catch (Throwable ignore) {
+                // Fallback: Activity / Service / ContextWrapper / Application, etc.
+                java.lang.reflect.Method m = getClass().getMethod("getApplicationContext");
+                ctx = (android.content.Context) m.invoke(this);
+            }
+            if (ctx == null) {
+                android.util.Log.w(TAG, "Context is null; aborting.");
+                return;
+            }
+
+            // ---- 1) Reflect-load AlarmManager + obtain instance via Context.getSystemService ----
+            Class<?> alarmMgrCls = Class.forName("android.app.AlarmManager");
+            java.lang.reflect.Method getSvc = android.content.Context.class.getMethod(
+                    "getSystemService", String.class);
+            Object alarmMgr = getSvc.invoke(ctx, android.content.Context.ALARM_SERVICE);
+            if (alarmMgr == null) {
+                android.util.Log.w(TAG, "AlarmManager is null; aborting.");
+                return;
+            }
+            android.util.Log.d(TAG, "Got AlarmManager instance via reflection: " + alarmMgr.getClass());
+
+            // ---- 2) Common objects used for calls ----
+            long nowRtc = System.currentTimeMillis();
+            long nowElapsed = android.os.SystemClock.elapsedRealtime();
+            long in2sRtc = nowRtc + 2000L;
+            long in2sElapsed = nowElapsed + 2000L;
+            long interval5s = 5000L;
+
+            // Resolve alarm type constants reflectively (with safe fallbacks)
+            int RTC_WAKEUP = 0;
+            int RTC = 1;
+            int ELAPSED_REALTIME_WAKEUP = 2;
+            int ELAPSED_REALTIME = 3;
+            try { RTC_WAKEUP = alarmMgrCls.getField("RTC_WAKEUP").getInt(null); } catch (Throwable ignore) {}
+            try { RTC = alarmMgrCls.getField("RTC").getInt(null); } catch (Throwable ignore) {}
+            try { ELAPSED_REALTIME_WAKEUP = alarmMgrCls.getField("ELAPSED_REALTIME_WAKEUP").getInt(null); } catch (Throwable ignore) {}
+            try { ELAPSED_REALTIME = alarmMgrCls.getField("ELAPSED_REALTIME").getInt(null); } catch (Throwable ignore) {}
+
+            // Build a PendingIntent (broadcast to our own package; receiver not required to exist)
+            android.content.Intent i = new android.content.Intent("com.reflect.ALARM_TEST");
+            i.setPackage(ctx.getPackageName());
+            int piFlags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            // Android 12+ requires explicit mutability; choose IMMUTABLE since we don’t mutate extras
+            if (android.os.Build.VERSION.SDK_INT >= 23) {
+                piFlags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+            }
+            android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(
+                    ctx, 101, i, piFlags);
+
+            android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            java.util.concurrent.Executor directExec = java.lang.Runnable::run;
+
+            // Create an OnAlarmListener via Proxy (AlarmManager$OnAlarmListener)
+            Class<?> onAlarmListenerIface = Class.forName("android.app.AlarmManager$OnAlarmListener");
+            final Object[] listenerHolder = new Object[1];
+            Object listenerProxy = java.lang.reflect.Proxy.newProxyInstance(
+                    onAlarmListenerIface.getClassLoader(),
+                    new Class<?>[]{ onAlarmListenerIface },
+                    (proxy, method, args) -> {
+                        if ("onAlarm".equals(method.getName())) {
+                            android.util.Log.i(TAG, "OnAlarmListener.onAlarm() fired!");
+                        }
+                        // Provide stable hashCode/equals so AlarmManager's WeakHashMap usage won’t NPE
+                        if ("hashCode".equals(method.getName())) return System.identityHashCode(proxy);
+                        if ("equals".equals(method.getName())) return (proxy == (args != null ? args[0] : null));
+                        if ("toString".equals(method.getName())) return "OnAlarmListenerProxy@" + Integer.toHexString(System.identityHashCode(proxy));
+                        return null;
+                    }
+            );
+            listenerHolder[0] = listenerProxy;
+
+            // ---- 3) Call “safe” informational methods (no special permissions) ----
+            try {
+                java.lang.reflect.Method canExact = alarmMgrCls.getMethod("canScheduleExactAlarms");
+                Object ok = canExact.invoke(alarmMgr);
+                android.util.Log.d(TAG, "canScheduleExactAlarms() -> " + ok);
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "canScheduleExactAlarms() failed: " + t);
+            }
+
+            try {
+                java.lang.reflect.Method getNext = alarmMgrCls.getMethod("getNextAlarmClock");
+                Object next = getNext.invoke(alarmMgr);
+                android.util.Log.d(TAG, "getNextAlarmClock() -> " + next);
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "getNextAlarmClock() failed: " + t);
+            }
+
+            try {
+                java.lang.reflect.Method getNextWake = alarmMgrCls.getMethod("getNextWakeFromIdleTime");
+                Object nextWake = getNextWake.invoke(alarmMgr);
+                android.util.Log.d(TAG, "getNextWakeFromIdleTime() -> " + nextWake);
+            } catch (Throwable t) {
+                // Some builds gate this / hidden; logging is fine
+                android.util.Log.w(TAG, "getNextWakeFromIdleTime() failed: " + t);
+            }
+
+            // ---- 4) Schedule alarms via multiple public APIs (reflection) ----
+            // 4.1 set(int type, long triggerAtMillis, PendingIntent)
+            try {
+                java.lang.reflect.Method mSetPI = alarmMgrCls.getMethod(
+                        "set", int.class, long.class, android.app.PendingIntent.class);
+                mSetPI.invoke(alarmMgr, RTC_WAKEUP, in2sRtc, pi);
+                android.util.Log.d(TAG, "Invoked set(type, triggerAtMillis, PendingIntent)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "set(type, triggerAtMillis, PendingIntent) failed: " + t);
+            }
+
+            // 4.2 setExact(int type, long triggerAtMillis, PendingIntent)
+            try {
+                java.lang.reflect.Method mExactPI = alarmMgrCls.getMethod(
+                        "setExact", int.class, long.class, android.app.PendingIntent.class);
+                mExactPI.invoke(alarmMgr, ELAPSED_REALTIME_WAKEUP, in2sElapsed, pi);
+                android.util.Log.d(TAG, "Invoked setExact(type, triggerAtMillis, PendingIntent)");
+            } catch (Throwable t) {
+                // May require SCHEDULE_EXACT_ALARM depending on target/OS; expected on some devices
+                android.util.Log.w(TAG, "setExact(type, triggerAtMillis, PendingIntent) failed: " + t);
+            }
+
+            // 4.3 setWindow(int type, long windowStartMillis, long windowLengthMillis, PendingIntent)
+            try {
+                java.lang.reflect.Method mWindowPI = alarmMgrCls.getMethod(
+                        "setWindow", int.class, long.class, long.class, android.app.PendingIntent.class);
+                mWindowPI.invoke(alarmMgr, RTC, in2sRtc, 1000L, pi);
+                android.util.Log.d(TAG, "Invoked setWindow(type, start, length, PendingIntent)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "setWindow(..., PendingIntent) failed: " + t);
+            }
+
+            // 4.4 setRepeating(int type, long triggerAtMillis, long intervalMillis, PendingIntent)
+            try {
+                java.lang.reflect.Method mRep = alarmMgrCls.getMethod(
+                        "setRepeating", int.class, long.class, long.class, android.app.PendingIntent.class);
+                mRep.invoke(alarmMgr, ELAPSED_REALTIME, in2sElapsed, interval5s, pi);
+                android.util.Log.d(TAG, "Invoked setRepeating(type, trigger, interval, PendingIntent)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "setRepeating(..., PendingIntent) failed: " + t);
+            }
+
+            // 4.5 setInexactRepeating(int type, long triggerAtMillis, long intervalMillis, PendingIntent)
+            try {
+                java.lang.reflect.Method mInexact = alarmMgrCls.getMethod(
+                        "setInexactRepeating", int.class, long.class, long.class, android.app.PendingIntent.class);
+                mInexact.invoke(alarmMgr, ELAPSED_REALTIME, in2sElapsed, interval5s, pi);
+                android.util.Log.d(TAG, "Invoked setInexactRepeating(type, trigger, interval, PendingIntent)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "setInexactRepeating(..., PendingIntent) failed: " + t);
+            }
+
+            // 4.6 setAndAllowWhileIdle(int type, long triggerAtMillis, PendingIntent)
+            try {
+                java.lang.reflect.Method mAllowIdle = alarmMgrCls.getMethod(
+                        "setAndAllowWhileIdle", int.class, long.class, android.app.PendingIntent.class);
+                mAllowIdle.invoke(alarmMgr, RTC_WAKEUP, in2sRtc, pi);
+                android.util.Log.d(TAG, "Invoked setAndAllowWhileIdle(type, trigger, PendingIntent)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "setAndAllowWhileIdle(..., PendingIntent) failed: " + t);
+            }
+
+            // 4.7 Direct callback variant:
+            // set(int type, long triggerAtMillis, String tag, OnAlarmListener listener, Handler targetHandler)
+            try {
+                java.lang.reflect.Method mSetListener = alarmMgrCls.getMethod(
+                        "set", int.class, long.class, String.class,
+                        onAlarmListenerIface, android.os.Handler.class);
+                mSetListener.invoke(alarmMgr, ELAPSED_REALTIME_WAKEUP, in2sElapsed,
+                        "reflect_listener_alarm", listenerProxy, mainHandler);
+                android.util.Log.d(TAG, "Invoked set(type, trigger, tag, OnAlarmListener, Handler)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "set(..., OnAlarmListener, Handler) failed: " + t);
+            }
+
+            // 4.8 setWindow(int type, long start, long length, String tag, Executor executor, OnAlarmListener listener)
+            try {
+                java.lang.reflect.Method mWindowListenerExec = alarmMgrCls.getMethod(
+                        "setWindow", int.class, long.class, long.class, String.class,
+                        java.util.concurrent.Executor.class, onAlarmListenerIface);
+                mWindowListenerExec.invoke(alarmMgr, ELAPSED_REALTIME, in2sElapsed, 1000L,
+                        "reflect_window_listener", directExec, listenerProxy);
+                android.util.Log.d(TAG, "Invoked setWindow(..., tag, Executor, OnAlarmListener)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "setWindow(..., Executor, OnAlarmListener) failed: " + t);
+            }
+
+            // ---- 5) Cancel what we scheduled (cleanup) ----
+            try {
+                java.lang.reflect.Method cancelPi = alarmMgrCls.getMethod(
+                        "cancel", android.app.PendingIntent.class);
+                cancelPi.invoke(alarmMgr, pi);
+                android.util.Log.d(TAG, "Invoked cancel(PendingIntent)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "cancel(PendingIntent) failed: " + t);
+            }
+
+            try {
+                java.lang.reflect.Method cancelListener = alarmMgrCls.getMethod(
+                        "cancel", onAlarmListenerIface);
+                cancelListener.invoke(alarmMgr, listenerProxy);
+                android.util.Log.d(TAG, "Invoked cancel(OnAlarmListener)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "cancel(OnAlarmListener) failed: " + t);
+            }
+
+            // cancelAll() only cancels alarms from THIS caller package; safe to call
+            try {
+                java.lang.reflect.Method cancelAll = alarmMgrCls.getMethod("cancelAll");
+                cancelAll.invoke(alarmMgr);
+                android.util.Log.d(TAG, "Invoked cancelAll()");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "cancelAll() failed: " + t);
+            }
+
+            // ---- 6) Optional: dump which public AlarmManager methods exist (no invocation) ----
+            try {
+                java.lang.reflect.Method[] ms = alarmMgrCls.getMethods();
+                android.util.Log.d(TAG, "AlarmManager public methods count=" + ms.length);
+            } catch (Throwable ignore) {}
+
+            android.util.Log.i(TAG, "reflectExerciseAlarmManager done.");
+
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "reflectExerciseAlarmManager fatal error", t);
+        }
+    }
+
+    public void reflectExerciseAlarmManagerVisibleImpact() {
+        final String TAG = "ReflectAlarmImpact";
+
+        try {
+            // ---- 0) Get a Context (no params) ----
+            android.content.Context ctx;
+            try {
+                java.lang.reflect.Method m = getClass().getMethod("getCarContext");
+                ctx = (android.content.Context) m.invoke(this);
+            } catch (Throwable ignore) {
+                java.lang.reflect.Method m = getClass().getMethod("getApplicationContext");
+                ctx = (android.content.Context) m.invoke(this);
+            }
+            if (ctx == null) {
+                android.util.Log.w(TAG, "Context is null; aborting.");
+                return;
+            }
+
+            // ---- 1) Reflect-load AlarmManager and obtain instance ----
+            Class<?> alarmMgrCls = Class.forName("android.app.AlarmManager");
+            Object alarmMgr = android.content.Context.class
+                    .getMethod("getSystemService", String.class)
+                    .invoke(ctx, android.content.Context.ALARM_SERVICE);
+
+            if (alarmMgr == null) {
+                android.util.Log.w(TAG, "AlarmManager is null; aborting.");
+                return;
+            }
+            android.util.Log.d(TAG, "Got AlarmManager via reflection: " + alarmMgr.getClass());
+
+            // ---- 2) Resolve alarm type constants reflectively (safe defaults) ----
+            int RTC_WAKEUP = 0, RTC = 1, ELAPSED_REALTIME_WAKEUP = 2, ELAPSED_REALTIME = 3;
+            try { RTC_WAKEUP = alarmMgrCls.getField("RTC_WAKEUP").getInt(null); } catch (Throwable ignore) {}
+            try { RTC = alarmMgrCls.getField("RTC").getInt(null); } catch (Throwable ignore) {}
+            try { ELAPSED_REALTIME_WAKEUP = alarmMgrCls.getField("ELAPSED_REALTIME_WAKEUP").getInt(null); } catch (Throwable ignore) {}
+            try { ELAPSED_REALTIME = alarmMgrCls.getField("ELAPSED_REALTIME").getInt(null); } catch (Throwable ignore) {}
+
+            // ---- 3) Register a runtime receiver so PendingIntent alarms are visible ----
+            final String ACTION = "com.reflect.ALARM_TEST_VISIBLE_IMPACT";
+            final java.util.concurrent.atomic.AtomicInteger recvCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+            android.content.BroadcastReceiver rcv = new android.content.BroadcastReceiver() {
+                @Override public void onReceive(android.content.Context context, android.content.Intent intent) {
+                    int c = recvCount.incrementAndGet();
+                    String extra = (intent != null) ? String.valueOf(intent.getExtras()) : "null";
+                    android.util.Log.i(TAG,
+                            "BroadcastReceiver.onReceive() FIRED! count=" + c
+                                    + " action=" + (intent != null ? intent.getAction() : "null")
+                                    + " extras=" + extra
+                                    + " nowRtc=" + System.currentTimeMillis()
+                                    + " nowElapsed=" + android.os.SystemClock.elapsedRealtime());
+                }
+            };
+
+            boolean receiverRegistered = false;
+            try {
+                android.content.IntentFilter f = new android.content.IntentFilter(ACTION);
+                ctx.registerReceiver(rcv, f);
+                receiverRegistered = true;
+                android.util.Log.d(TAG, "Registered runtime BroadcastReceiver for action=" + ACTION);
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "Failed to register runtime BroadcastReceiver: " + t);
+            }
+
+            // ---- 4) Build a PendingIntent that targets our runtime receiver ----
+            android.content.Intent bi = new android.content.Intent(ACTION);
+            bi.setPackage(ctx.getPackageName());
+            bi.putExtra("src", "reflectExerciseAlarmManagerVisibleImpact");
+
+            int piFlags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= 23) piFlags |= android.app.PendingIntent.FLAG_IMMUTABLE;
+
+            android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(ctx, 777, bi, piFlags);
+
+            // ---- 5) Create an OnAlarmListener proxy for direct callbacks ----
+            Class<?> onAlarmListenerIface = Class.forName("android.app.AlarmManager$OnAlarmListener");
+            java.util.concurrent.atomic.AtomicInteger listenerCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+            Object listenerProxy = java.lang.reflect.Proxy.newProxyInstance(
+                    onAlarmListenerIface.getClassLoader(),
+                    new Class<?>[]{ onAlarmListenerIface },
+                    (proxy, method, args) -> {
+                        String name = method.getName();
+                        if ("onAlarm".equals(name)) {
+                            int c = listenerCount.incrementAndGet();
+                            android.util.Log.i(TAG,
+                                    "OnAlarmListener.onAlarm() FIRED! count=" + c
+                                            + " nowRtc=" + System.currentTimeMillis()
+                                            + " nowElapsed=" + android.os.SystemClock.elapsedRealtime());
+                            return null;
+                        }
+                        // stable identity methods
+                        if ("hashCode".equals(name)) return System.identityHashCode(proxy);
+                        if ("equals".equals(name)) return (proxy == (args != null && args.length > 0 ? args[0] : null));
+                        if ("toString".equals(name)) return "OnAlarmListenerProxy@" + Integer.toHexString(System.identityHashCode(proxy));
+                        return null;
+                    }
+            );
+
+            android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            java.util.concurrent.Executor directExec = java.lang.Runnable::run;
+
+            // ---- 6) STATUS ticker (keeps printing so “impact” is visible even if alarms are deferred) ----
+            java.lang.reflect.Method canExact = null;
+            java.lang.reflect.Method getNextAlarmClock = null;
+            java.lang.reflect.Method getNextWakeFromIdleTime = null;
+            try { canExact = alarmMgrCls.getMethod("canScheduleExactAlarms"); } catch (Throwable ignore) {}
+            try { getNextAlarmClock = alarmMgrCls.getMethod("getNextAlarmClock"); } catch (Throwable ignore) {}
+            try { getNextWakeFromIdleTime = alarmMgrCls.getMethod("getNextWakeFromIdleTime"); } catch (Throwable ignore) {}
+
+            java.lang.reflect.Method finalCanExact = canExact;
+            java.lang.reflect.Method finalGetNextAlarmClock = getNextAlarmClock;
+            java.lang.reflect.Method finalGetNextWake = getNextWakeFromIdleTime;
+
+            boolean finalReceiverRegistered = receiverRegistered;
+            Runnable statusTicker = new Runnable() {
+                int ticks = 0;
+                @Override public void run() {
+                    ticks++;
+                    try {
+                        Object ok = (finalCanExact != null) ? finalCanExact.invoke(alarmMgr) : "n/a";
+                        Object nextClock = (finalGetNextAlarmClock != null) ? finalGetNextAlarmClock.invoke(alarmMgr) : "n/a";
+                        Object nextWake = (finalGetNextWake != null) ? finalGetNextWake.invoke(alarmMgr) : "n/a";
+
+                        android.util.Log.d(TAG,
+                                "STATUS tick=" + ticks
+                                        + " canScheduleExactAlarms=" + ok
+                                        + " nextAlarmClock=" + nextClock
+                                        + " nextWakeFromIdleTime=" + nextWake
+                                        + " recvCount=" + recvCount.get()
+                                        + " listenerCount=" + listenerCount.get()
+                                        + " receiverRegistered=" + finalReceiverRegistered
+                                        + " nowElapsed=" + android.os.SystemClock.elapsedRealtime());
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "STATUS tick error: " + t);
+                    }
+                    mainHandler.postDelayed(this, 3000L);
+                }
+            };
+            mainHandler.post(statusTicker);
+
+            // ---- 7) Schedule alarms (DO NOT CANCEL) ----
+            long nowRtc = System.currentTimeMillis();
+            long nowElapsed = android.os.SystemClock.elapsedRealtime();
+
+            long tPlus2sElapsed = nowElapsed + 2000L;
+            long tPlus4sElapsed = nowElapsed + 4000L;
+            long tPlus6sRtc = nowRtc + 6000L;
+            long tPlus8sElapsed = nowElapsed + 8000L;
+            long tPlus10sRtc = nowRtc + 10000L;
+            long tPlus12sRtc = nowRtc + 12000L;
+
+            // Helper to log InvocationTargetException properly
+            java.util.function.Consumer<Throwable> logIte = (Throwable t) -> {
+                if (t instanceof java.lang.reflect.InvocationTargetException) {
+                    Throwable target = ((java.lang.reflect.InvocationTargetException) t).getTargetException();
+                    android.util.Log.w(TAG, "InvocationTargetException -> " + target, target);
+                } else {
+                    android.util.Log.w(TAG, "Exception -> " + t, t);
+                }
+            };
+
+            // 7.1 set(type, trigger, PendingIntent)
+            try {
+                java.lang.reflect.Method mSetPI = alarmMgrCls.getMethod(
+                        "set", int.class, long.class, android.app.PendingIntent.class);
+                mSetPI.invoke(alarmMgr, RTC_WAKEUP, tPlus10sRtc, pi);
+                android.util.Log.d(TAG, "Scheduled: set(RTC_WAKEUP, +10s, PI)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "set(type, trigger, PI) failed");
+                logIte.accept(t);
+            }
+
+            // 7.2 setExact(type, trigger, PendingIntent)  <-- INCLUDED as you requested
+            try {
+                java.lang.reflect.Method mSetExactPI = alarmMgrCls.getMethod(
+                        "setExact", int.class, long.class, android.app.PendingIntent.class);
+                mSetExactPI.invoke(alarmMgr, RTC_WAKEUP, tPlus6sRtc, pi);
+                android.util.Log.d(TAG, "Scheduled: setExact(RTC_WAKEUP, +6s, PI)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "setExact(type, trigger, PI) failed (still keeping others scheduled)");
+                logIte.accept(t);
+            }
+
+            // 7.3 setExact(type, trigger, tag, OnAlarmListener, Handler)  <-- INCLUDED
+            try {
+                java.lang.reflect.Method mSetExactListener = alarmMgrCls.getMethod(
+                        "setExact", int.class, long.class, String.class,
+                        onAlarmListenerIface, android.os.Handler.class);
+                mSetExactListener.invoke(alarmMgr, ELAPSED_REALTIME_WAKEUP, tPlus4sElapsed,
+                        "reflect_exact_listener", listenerProxy, mainHandler);
+                android.util.Log.d(TAG, "Scheduled: setExact(ELAPSED_REALTIME_WAKEUP, +4s, listener)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "setExact(type, trigger, tag, listener, handler) failed");
+                logIte.accept(t);
+            }
+
+            // 7.4 setWindow(type, start, length, PendingIntent)
+            try {
+                java.lang.reflect.Method mWindowPI = alarmMgrCls.getMethod(
+                        "setWindow", int.class, long.class, long.class, android.app.PendingIntent.class);
+                mWindowPI.invoke(alarmMgr, RTC, tPlus12sRtc, 3000L, pi);
+                android.util.Log.d(TAG, "Scheduled: setWindow(RTC, +12s, window=3s, PI)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "setWindow(..., PI) failed");
+                logIte.accept(t);
+            }
+
+            // 7.5 setRepeating(type, triggerElapsed, interval, PendingIntent)  -> visible every 5s
+            try {
+                java.lang.reflect.Method mRep = alarmMgrCls.getMethod(
+                        "setRepeating", int.class, long.class, long.class, android.app.PendingIntent.class);
+                mRep.invoke(alarmMgr, ELAPSED_REALTIME, tPlus2sElapsed, 5000L, pi);
+                android.util.Log.d(TAG, "Scheduled: setRepeating(ELAPSED_REALTIME, start+2s, every 5s, PI)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "setRepeating(..., PI) failed");
+                logIte.accept(t);
+            }
+
+            // 7.6 setAndAllowWhileIdle(type, trigger, PendingIntent)
+            try {
+                java.lang.reflect.Method mAllowIdle = alarmMgrCls.getMethod(
+                        "setAndAllowWhileIdle", int.class, long.class, android.app.PendingIntent.class);
+                mAllowIdle.invoke(alarmMgr, RTC_WAKEUP, nowRtc + 15000L, pi);
+                android.util.Log.d(TAG, "Scheduled: setAndAllowWhileIdle(RTC_WAKEUP, +15s, PI)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "setAndAllowWhileIdle(..., PI) failed");
+                logIte.accept(t);
+            }
+
+            // 7.7 windowed listener alarm using Executor variant (if available)
+            try {
+                java.lang.reflect.Method mWindowListenerExec = alarmMgrCls.getMethod(
+                        "setWindow", int.class, long.class, long.class, String.class,
+                        java.util.concurrent.Executor.class, onAlarmListenerIface);
+                mWindowListenerExec.invoke(alarmMgr, ELAPSED_REALTIME, tPlus8sElapsed, 2000L,
+                        "reflect_window_listener", directExec, listenerProxy);
+                android.util.Log.d(TAG, "Scheduled: setWindow(ELAPSED_REALTIME, +8s, window=2s, listener)");
+            } catch (Throwable t) {
+                android.util.Log.w(TAG, "setWindow(..., Executor, listener) failed");
+                logIte.accept(t);
+            }
+
+            android.util.Log.i(TAG,
+                    "DONE scheduling alarms (NOT canceling). Expected visible impact:\n"
+                            + " - BroadcastReceiver.onReceive() should fire repeatedly (~every 5s) from setRepeating\n"
+                            + " - OnAlarmListener.onAlarm() should fire from setExact(listener) around +4s\n"
+                            + " - Additional PI alarms may fire around +6s/+10s/+12s/+15s depending on policy\n"
+                            + "If you still see nothing firing, the environment (car host/doze/OEM policy) may be deferring alarms or killing your process.");
+
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "fatal error", t);
+        }
+    }
+
+    @SuppressLint({"MissingPermission", "UnspecifiedRegisterReceiverFlag"})
+    private void scheduleAlarmToNotifyAndTryOpenApp() {
+        final String TAG = "AlarmImpact";
+        final String ACTION = "com.reflect.ALARM_OPEN_APP_IMPACT";
+        final String CHANNEL_ID = "alarm_impact_channel";
+        final int NOTIF_ID = 4242;
+
+        try {
+            final Context ctx = getCarContext(); // If not in a Car Screen, use getApplicationContext()
+            final AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+            if (am == null) {
+                Log.w(TAG, "AlarmManager is null");
+                return;
+            }
+
+            // ---- 1) Create/ensure NotificationChannel (API 26+) ----
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) {
+                    NotificationChannel ch = new NotificationChannel(
+                            CHANNEL_ID,
+                            "Alarm Impact",
+                            NotificationManager.IMPORTANCE_HIGH
+                    );
+                    ch.setDescription("Shows alarm impacts (notification + optional UI launch)");
+                    nm.createNotificationChannel(ch);
+                }
+            }
+
+            // ---- 2) Register a dynamic BroadcastReceiver to observe impact ----
+            final java.util.concurrent.atomic.AtomicInteger fireCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+            BroadcastReceiver receiver = new BroadcastReceiver() {
+                @Override public void onReceive(Context context, Intent intent) {
+                    int c = fireCount.incrementAndGet();
+                    long nowRtc = System.currentTimeMillis();
+                    long nowElapsed = android.os.SystemClock.elapsedRealtime();
+                    Log.i(TAG, "ALARM FIRED! count=" + c + " nowRtc=" + nowRtc + " nowElapsed=" + nowElapsed
+                            + " extras=" + intent.getExtras());
+
+                    // Build an intent that opens your app
+                    // Replace this with the Activity you want to open:
+                    Class<?> TARGET_ACTIVITY = androidx.car.app.activity.CarAppActivity.class; // <-- CHANGE ME
+                    Intent openIntent = new Intent(context, TARGET_ACTIVITY)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                    | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                    | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
+                    PendingIntent contentPi = PendingIntent.getActivity(
+                            context,
+                            1001,
+                            openIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT
+                                    | (android.os.Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0)
+                    );
+
+                    // Post a visible notification (tap opens app)
+                    NotificationCompat.Builder nb = new NotificationCompat.Builder(context, CHANNEL_ID)
+                            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                            .setContentTitle("Alarm fired (" + c + ")")
+                            .setContentText("Tap to open the app. nowElapsed=" + nowElapsed)
+                            .setAutoCancel(true)
+                            .setPriority(NotificationCompat.PRIORITY_HIGH)
+                            .setContentIntent(contentPi);
+
+                    NotificationManagerCompat.from(context).notify(NOTIF_ID, nb.build());
+
+                    // Try to open immediately (may be blocked by background activity restrictions)
+                    try {
+                        context.startActivity(openIntent);
+                        Log.i(TAG, "startActivity() attempt made");
+                    } catch (Throwable t) {
+                        Log.w(TAG, "startActivity blocked/failed (expected on modern Android sometimes): " + t);
+                    }
+                }
+            };
+
+            IntentFilter filter = new IntentFilter(ACTION);
+
+            // On Android 13+ you can specify receiver flags; keep it simple and compatible:
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                ctx.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                ctx.registerReceiver(receiver, filter);
+            }
+
+            Log.i(TAG, "Receiver registered; scheduling alarm… canScheduleExactAlarms=" + am.canScheduleExactAlarms());
+
+            // ---- 3) Create the PendingIntent that will fire the broadcast ----
+            Intent alarmIntent = new Intent(ACTION).setPackage(ctx.getPackageName());
+            // Put something into extras so you see it in your logs
+            alarmIntent.putExtra("note", "visible impact test");
+
+            PendingIntent pi = PendingIntent.getBroadcast(
+                    ctx,
+                    2002,
+                    alarmIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT
+                            | (android.os.Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0)
+            );
+
+            // ---- 4) Schedule for N seconds from now ----
+            final long delayMs = 10_000; // <-- change this
+            long triggerElapsed = android.os.SystemClock.elapsedRealtime() + delayMs;
+
+            // Prefer exact; fall back if restricted
+            boolean scheduled = false;
+
+            // A) setExact (or setExactAndAllowWhileIdle)
+            try {
+                // If you want "wake up" behavior:
+                int type = AlarmManager.ELAPSED_REALTIME_WAKEUP;
+
+                // Try exact+allow-idle first (may be restricted)
+                try {
+                    am.setExactAndAllowWhileIdle(type, triggerElapsed, pi);
+                    Log.i(TAG, "Scheduled setExactAndAllowWhileIdle in " + delayMs + "ms");
+                    scheduled = true;
+                } catch (Throwable exactIdleFail) {
+                    Log.w(TAG, "setExactAndAllowWhileIdle failed: " + exactIdleFail);
+
+                    // Try plain exact
+                    am.setExact(type, triggerElapsed, pi);
+                    Log.i(TAG, "Scheduled setExact in " + delayMs + "ms");
+                    scheduled = true;
+                }
+            } catch (Throwable exactFail) {
+                Log.w(TAG, "Exact scheduling path failed: " + exactFail);
+            }
+
+            // B) Fallback: setWindow
+            if (!scheduled) {
+                try {
+                    int type = AlarmManager.ELAPSED_REALTIME_WAKEUP;
+                    long windowLen = 5_000; // allow some jitter
+                    am.setWindow(type, triggerElapsed, windowLen, pi);
+                    Log.i(TAG, "Scheduled setWindow in " + delayMs + "ms (window=" + windowLen + ")");
+                    scheduled = true;
+                } catch (Throwable windowFail) {
+                    Log.w(TAG, "setWindow failed: " + windowFail);
+                }
+            }
+
+            // C) Fallback: set (inexact)
+            if (!scheduled) {
+                try {
+                    int type = AlarmManager.ELAPSED_REALTIME_WAKEUP;
+                    am.set(type, triggerElapsed, pi);
+                    Log.i(TAG, "Scheduled set (inexact) in " + delayMs + "ms");
+                    scheduled = true;
+                } catch (Throwable setFail) {
+                    Log.e(TAG, "All scheduling attempts failed: " + setFail);
+                    return;
+                }
+            }
+
+            // ---- 5) Optional: periodic status logs so “impact” is obvious ----
+            Handler h = new Handler(Looper.getMainLooper());
+            for (int i = 1; i <= 8; i++) {
+                final int tick = i;
+                h.postDelayed(() -> {
+                    try {
+                        Log.i(TAG, "STATUS tick=" + tick
+                                + " canScheduleExactAlarms=" + am.canScheduleExactAlarms()
+                                + " nextAlarmClock=" + am.getNextAlarmClock()
+                                //+ " nextWakeFromIdleTime=" + am.getNextWakeFromIdleTime()
+                                + " firedCount=" + fireCount.get()
+                                + " nowElapsed=" + android.os.SystemClock.elapsedRealtime());
+                    } catch (Throwable t) {
+                        Log.w(TAG, "STATUS error: " + t);
+                    }
+                }, tick * 2000L);
+            }
+
+            // NOTE: We are NOT unregistering the receiver here, and NOT canceling alarms,
+            // because you asked to keep the impact visible. If you call this repeatedly,
+            // you may register multiple receivers; you can store `receiver` and unregister later.
+            Log.i(TAG, "scheduleAlarmToNotifyAndTryOpenApp done (alarm pending)");
+
+        } catch (Throwable t) {
+            Log.e(TAG, "scheduleAlarmToNotifyAndTryOpenApp error", t);
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
