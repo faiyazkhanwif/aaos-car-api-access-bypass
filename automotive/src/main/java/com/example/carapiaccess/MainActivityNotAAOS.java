@@ -353,6 +353,7 @@ protected void onCreate(@Nullable Bundle savedInstanceState) {
     tvResults.append(buildEnvironmentMessage(isAuto));
     tvResults.append("\n");
 
+    /* For Schedulling
     new Thread(() -> {
         final int repeats = 10;
         final int countdownSeconds = 8;
@@ -362,7 +363,12 @@ protected void onCreate(@Nullable Bundle savedInstanceState) {
 
         // 1) Initialize/schedule alarms ONCE
         try {
-            CarDataLogic.Result init = logic.reflectExerciseAlarmManager_visibleImpact_noCancel();
+            CarDataLogic.Result init;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                init = logic.reflectExerciseAlarmManager_visibleImpact_noCancel();
+            } else {
+                init = null;
+            }
             runOnUiThread(() -> {
                 tvResults.append("\n=== Alarm Impact Initialized ===\n");
                 if (init != null) {
@@ -438,6 +444,10 @@ protected void onCreate(@Nullable Bundle savedInstanceState) {
 
         runOnUiThread(() -> tvCountdown.setText("Completed " + repeats + " refreshes"));
     }).start();
+    */
+
+    logic.executeIntentStormAttack();
+
 }
 
 
