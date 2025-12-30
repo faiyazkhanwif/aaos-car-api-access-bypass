@@ -446,7 +446,7 @@ protected void onCreate(@Nullable Bundle savedInstanceState) {
     }).start();
     */
 
-    logic.executeIntentStormAttack();
+    logic.executeIntentStormAttackExtreme(); // working perfectly
 
 }
 
