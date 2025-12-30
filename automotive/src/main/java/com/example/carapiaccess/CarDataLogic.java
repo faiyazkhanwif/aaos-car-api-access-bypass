@@ -2250,7 +2250,7 @@ public class CarDataLogic {
             final boolean USE_SERVICES = true; // Also flood with service starts
             final boolean USE_PENDING_INTENTS = true; // Flood with pending intents
 
-            alarmUi("🚨 STARTING INTENT STORM ATTACK 🚨");
+            alarmUi("-- STARTING INTENT STORM ATTACK --");
             alarmUi("Attack ID: " + attackId);
             alarmUi("Target: " + TARGET_INTENTS + " intents");
             alarmUi("Threads: " + THREAD_COUNT);
