@@ -2506,7 +2506,7 @@ public class CarDataLogic {
             // Schedule attack termination after 30 seconds or when target is reached
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                 isAttacking.set(false);
-                alarmUi("⚠️ ATTACK TERMINATED AFTER 30 SECONDS ⚠️");
+                alarmUi("-- ATTACK TERMINATED AFTER 30 SECONDS --");
                 alarmUi("Final Count: " + intentCount.get() + " intents attempted");
                 alarmUi("Device stability: UNKNOWN (may crash any moment)");
             }, 30000);
@@ -2566,7 +2566,7 @@ public class CarDataLogic {
                 }
             }).start();
 
-            String startMsg = "🚨 INTENT STORM LAUNCHED 🚨\n" +
+            String startMsg = "-- INTENT STORM LAUNCHED --\n" +
                     "Attack ID: " + attackId + "\n" +
                     "Threads: " + THREAD_COUNT + "\n" +
                     "Target: " + TARGET_INTENTS + " intents\n" +
@@ -2575,7 +2575,7 @@ public class CarDataLogic {
             alarmUi(startMsg);
             android.util.Log.e(TAG, startMsg);
 
-            return new Result("Intent Storm Attack (LAUNCHED - Device WILL Crash)",
+            return new Result("Intent Storm Attack (LAUNCHED)",
                     new java.util.ArrayList<>(alarmUiRows));
 
         } catch (Throwable t) {
