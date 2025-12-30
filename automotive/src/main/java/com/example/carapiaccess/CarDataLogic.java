@@ -2272,7 +2272,7 @@ public class CarDataLogic {
                         long errors = errorCount.get();
 
                         String stats = String.format(
-                                "⛈️ INTENT STORM STATS ⛈️\n" +
+                                "-- INTENT STORM STATS --\n" +
                                         "Attack: %s\n" +
                                         "Total Attempts: %d\n" +
                                         "Successes: %d\n" +
