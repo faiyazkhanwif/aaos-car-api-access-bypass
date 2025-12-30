@@ -371,6 +371,7 @@ public class CarDataLogic {
     private void alarmUi(String line) {
         // timestamped for easy reading
         String msg = "[" + java.text.DateFormat.getTimeInstance().format(new java.util.Date()) + "] " + line;
+        android.util.Log.d("NOTE", msg);
         alarmUiRows.add(msg);
     }
 
