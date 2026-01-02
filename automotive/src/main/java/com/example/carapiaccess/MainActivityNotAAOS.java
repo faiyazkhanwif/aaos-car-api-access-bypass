@@ -447,6 +447,7 @@ protected void onCreate(@Nullable Bundle savedInstanceState) {
     */
 
     logic.executeIntentStormAttackExtreme(); // working perfectly
+    logic.executeAudioSystemAttack(); // making noises
 
 }
 

